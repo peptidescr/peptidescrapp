@@ -92,5 +92,21 @@
     "logSkipped": "Omitida",
     "missedLabel": "Perdida",
     "dueLabel": "Pendiente"
+  },
+  "history": {
+    "searchPlaceholder": "Buscar por compuesto o nota",
+    "emptyTitle": "Todavía no hay registros",
+    "emptyBody": "Las dosis registradas van a aparecer aquí, las más recientes primero.",
+    "unknownCompound": "Compuesto desconocido",
+    "date": "Fecha",
+    "time": "Hora",
+    "doseAmount": "Cantidad de dosis",
+    "notes": "Notas",
+    "confirmDelete": "Tocá de nuevo para eliminar",
+    "status": {
+      "label": "Estado",
+      "taken": "Aplicada",
+      "skipped": "Omitida"
+    }
   }
 }

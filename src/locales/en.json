@@ -92,5 +92,21 @@
     "logSkipped": "Skipped",
     "missedLabel": "Missed",
     "dueLabel": "Due"
+  },
+  "history": {
+    "searchPlaceholder": "Search by compound or note",
+    "emptyTitle": "No entries yet",
+    "emptyBody": "Logged doses will show up here, newest first.",
+    "unknownCompound": "Unknown compound",
+    "date": "Date",
+    "time": "Time",
+    "doseAmount": "Dose amount",
+    "notes": "Notes",
+    "confirmDelete": "Tap again to delete",
+    "status": {
+      "label": "Status",
+      "taken": "Taken",
+      "skipped": "Skipped"
+    }
   }
 }
