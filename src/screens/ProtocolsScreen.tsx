@@ -96,7 +96,8 @@ interface ProtocolFormProps {
   onDone: () => void
 }
 
-function ProtocolForm({ protocolId, onDone }: ProtocolFormProps) {
+/** Exported so Onboarding's "create your first protocol" step can reuse this exact form. */
+export function ProtocolForm({ protocolId, onDone }: ProtocolFormProps) {
   const { t } = useTranslation()
   const existing = useLiveQuery(
     () => (protocolId ? db.protocols.get(protocolId) : undefined),

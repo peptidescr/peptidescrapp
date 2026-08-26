@@ -161,5 +161,28 @@
       "title": "Contacto",
       "whatsapp": "Escribinos por WhatsApp"
     }
+  },
+  "onboarding": {
+    "continue": "Continuar",
+    "language": {
+      "title": "Elegí tu idioma"
+    },
+    "disclaimer": {
+      "mustAccept": "Necesitás aceptar esto para usar peptidescr."
+    },
+    "install": {
+      "title": "Instalá peptidescr",
+      "body": "Instalarla protege tus datos y es necesario para que las notificaciones funcionen en iPhone/iPad."
+    },
+    "notifications": {
+      "title": "Notificaciones",
+      "body": "Los recordatorios pueden notificarte directamente donde tu dispositivo lo permita. De cualquier forma, todo lo pendiente aparece apenas abrís la aplicación."
+    },
+    "firstProtocol": {
+      "title": "Configurá tu primer protocolo",
+      "body": "Un protocolo es un compuesto, una dosis y un horario. Podés agregar más o editarlo cuando quieras.",
+      "cta": "Crear un protocolo",
+      "skip": "Omitir por ahora"
+    }
   }
 }

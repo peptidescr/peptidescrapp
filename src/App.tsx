@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { TabBar, type Tab } from './components/TabBar'
+import { LEGAL_VERSION } from './content/legal'
 import { maybeCreateDailySnapshot } from './lib/backup'
 import { db, ensureCompoundsSeeded, ensureSettingsRow } from './lib/db'
 import { DEFAULT_LOCALE } from './i18n'
@@ -8,6 +9,7 @@ import { scheduleUpcomingReminders } from './lib/notifications'
 import { useSettings } from './lib/useSettings'
 import { HomeScreen } from './screens/HomeScreen'
 import { CalculatorScreen } from './screens/CalculatorScreen'
+import { OnboardingScreen } from './screens/OnboardingScreen'
 import { ProtocolsScreen } from './screens/ProtocolsScreen'
 import { HistoryScreen } from './screens/HistoryScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
@@ -16,6 +18,21 @@ function App() {
   const { t, i18n } = useTranslation()
   const [tab, setTab] = useState<Tab>('home')
   const settings = useSettings()
+
+  // Whether onboarding still needs to run. Deliberately NOT recomputed from
+  // `settings` on every render: legalAcceptedVersion gets set partway through
+  // the wizard (the disclaimer step), and if this were derived live it would
+  // flip to "done" and unmount the wizard before the remaining steps
+  // (install/notifications/first protocol) ran. Set once from the first
+  // settings load, then only ever changed by the wizard's own onComplete. A
+  // user who closes the app mid-wizard returns straight to the main app next
+  // time (legal is already accepted) rather than mid-flow — the remaining
+  // steps are also all reachable from Settings/Protocols directly, so
+  // nothing is lost, just not re-prompted.
+  const [needsOnboarding, setNeedsOnboarding] = useState<boolean | null>(null)
+  if (settings && needsOnboarding === null) {
+    setNeedsOnboarding(settings.legalAcceptedVersion !== LEGAL_VERSION)
+  }
 
   // Runs once per app open: seed/sync the read-only compound catalogue,
   // create the singleton settings row on first run, ask the platform to
@@ -46,6 +63,14 @@ function App() {
     protocols: t('nav.protocols'),
     history: t('nav.history'),
     settings: t('nav.settings'),
+  }
+
+  if (needsOnboarding === null) {
+    return <div className="min-h-dvh bg-brand-surface-2" />
+  }
+
+  if (needsOnboarding) {
+    return <OnboardingScreen onComplete={() => setNeedsOnboarding(false)} />
   }
 
   return (

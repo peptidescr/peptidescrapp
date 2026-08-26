@@ -2,6 +2,28 @@
 
 Running log of decisions and things the client needs to weigh in on. Newest at top.
 
+## 2026-08-25 — Step 12: Onboarding
+
+- The wizard's own step (1–5) is tracked purely as local component state, but *whether to
+  show the wizard at all* is gated only by `Settings.legalAcceptedVersion` — no new
+  persisted field for "onboarding progress." Consequence: if someone closes the app
+  mid-wizard (say, right after accepting the disclaimer but before the install step), the
+  next open goes straight to the main app, not back into the wizard. I judged this the
+  right tradeoff over adding state to track resumability, since every remaining onboarding
+  step (install, notifications, first protocol) is also reachable from Settings/Protocols
+  directly, and Home's empty states point there. Nothing is lost, just not re-prompted.
+- No "decline" path on the disclaimer step — a single accept-and-continue button, no exit.
+  The brief doesn't specify what should happen on refusal, and the app has no functioning
+  mode without acceptance, so there's nowhere a decline would actually go.
+- First-protocol step has a "Skip for now" — treated as optional rather than a hard gate,
+  since forcing protocol creation before someone's looked at anything else (e.g. the
+  Calculator) seemed more likely to frustrate than help. Flagging this as a judgment call:
+  the brief lists "first protocol" as the last onboarding step but doesn't say explicitly
+  whether it should be skippable.
+- Reused `ProtocolForm` from `ProtocolsScreen.tsx` verbatim for this step (exported it)
+  rather than building a second, trimmed-down creation form — one implementation, one set
+  of validation rules.
+
 ## 2026-08-25 — Step 10: Settings — language, notifications, install, storage, backup, legal, contact
 
 - **Nightly snapshot, honestly implemented**: there's no backend and no cross-platform

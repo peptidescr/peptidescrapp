@@ -161,5 +161,28 @@
       "title": "Contact",
       "whatsapp": "Message us on WhatsApp"
     }
+  },
+  "onboarding": {
+    "continue": "Continue",
+    "language": {
+      "title": "Choose your language"
+    },
+    "disclaimer": {
+      "mustAccept": "You need to accept this to use peptidescr."
+    },
+    "install": {
+      "title": "Install peptidescr",
+      "body": "Installing keeps your data safe and is required for notifications to work on iPhone/iPad."
+    },
+    "notifications": {
+      "title": "Notifications",
+      "body": "Reminders can notify you directly, where your device supports it. Either way, anything due shows up the moment you open the app."
+    },
+    "firstProtocol": {
+      "title": "Set up your first protocol",
+      "body": "A protocol is a compound, a dose, and a schedule. You can add more or edit this one anytime.",
+      "cta": "Create a protocol",
+      "skip": "Skip for now"
+    }
   }
 }
