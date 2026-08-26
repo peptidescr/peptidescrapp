@@ -44,6 +44,25 @@ be real scope creep (a "visual syringe graphic"-tier addition, not in the brief)
 problem that mostly doesn't occur on the client's customers' actual phones. Flagging for
 sign-off rather than silently deciding it doesn't matter.
 
+**Export → wipe → import round-trip: verified for real, not just by reading the code.**
+Drove the actual `backup.ts` functions against a live IndexedDB in the browser (via CDP,
+importing the real ES modules): created a protocol + dose log, exported, wiped both
+tables (confirmed empty), imported the export back, and did a deep-equality check against
+the originals — exact match on both records, and the CSV export line came out correctly
+formatted too. This is genuinely working, not assumed.
+
+## Done-checklist status
+
+- [x] `npm run dev` serves an installable, offline-capable PWA
+- [x] Tests green with real coverage of units.ts (39), reconstitution.ts (15), schedule.ts (23)
+- [x] Both locales complete (138/138 keys, scripted diff), no hardcoded strings
+- [x] Export → wipe → import round-trip verified live
+- [x] Works one-handed at 375px (and 320px) — verified with real screenshots
+- [ ] **Deployed to a live URL — not done.** I don't have Cloudflare Pages / Netlify
+  account access from this environment. The app builds clean and is deploy-ready; see
+  HANDOVER.md for what I need from you to finish this step.
+- [x] NOTES.md (this file) and HANDOVER.md (client-facing summary)
+
 ## 2026-08-25 — Step 12: Onboarding
 
 - The wizard's own step (1–5) is tracked purely as local component state, but *whether to
