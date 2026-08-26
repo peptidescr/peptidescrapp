@@ -8,7 +8,7 @@ A branded installable web app (PWA) for tracking peptide reconstitution math and
 schedules. No accounts, no cloud — all data lives on the customer's own device. Installs
 from a link on peptidescostarica.net, works offline once installed.
 
-## Status: Phase 1 complete, not yet deployed
+## Status: Phase 1 complete + UI refresh, not yet deployed
 
 All 14 Phase-1 items are built and verified:
 
@@ -29,10 +29,17 @@ All 14 Phase-1 items are built and verified:
 - Disclaimer/terms acceptance mechanism (placeholder legal text — see below)
 - Full seeded compound catalogue from the brief
 
-Verified, not just written: 77 automated tests all green; typecheck and lint clean;
+Since then, added at your request: your actual brand colors and logo (pulled from
+peptidescostarica.net directly, not guessed), 9 starter protocol templates alongside
+custom protocol creation, and a full modern UI pass (real brand colors/logo, icons,
+animated transitions, toast feedback, a proper calendar/time picker, dark mode) — see
+below and `NOTES.md` for what that added and what it cost.
+
+Verified, not just written: 81 automated tests all green; typecheck and lint clean;
 production build succeeds; export→wipe→import round-trip tested live against a real
 browser IndexedDB; UI walked end-to-end (onboarding through all 5 tabs) at both 320px and
-375px via a scripted headless-browser pass, in Spanish.
+375px, light and dark mode, via a scripted headless-browser pass with zero console
+errors, in Spanish.
 
 ## What I need from you to finish
 
@@ -45,9 +52,11 @@ browser IndexedDB; UI walked end-to-end (onboarding through all 5 tabs) at both 
      minute once you're logged in.
    - **You add me to your account** and I'll run the deploy and hand you the URL, and can
      keep redeploying as we iterate.
-2. **Logo files** — final red atom mark as a square SVG (and ideally 512×512 PNG) to
-   replace the placeholder in `public/brand/` (`icon.svg`, `icon-192.png`, `icon-512.png`,
-   `apple-touch-icon.png` — same filenames, same square aspect ratio, and it'll just work).
+2. **Logo/icon sign-off** — now using your real logo (pulled from your site) and a
+   redrawn version of your actual favicon mark, not a placeholder anymore. The redraw is
+   my recreation of your icon's proportions/colors, not your original vector file — worth
+   a quick look before launch. If you have the actual source file (AI/SVG/EPS), send it
+   over and I'll swap it in directly (same filenames in `public/brand/`, drops right in).
 3. **Legal wording** from your lawyer — see `src/content/legal.ts` for the placeholder and
    the specific contradiction that needs resolving: your site says "research use only, not
    for human or veterinary use" while this app logs personal injections.
@@ -62,14 +71,24 @@ browser IndexedDB; UI walked end-to-end (onboarding through all 5 tabs) at both 
 4. **Confirm the four blend/HGH/HCG categories** I had to guess at (not given in your
    compound table) — flagged with the specific guesses in `NOTES.md` and inline in
    `src/content/compounds.ts`. One-line changes once you confirm.
-5. **A device check on your end**: native date/time pickers (used when editing a protocol
-   or a history entry) follow the phone's own system language/region setting, not just the
-   app's language — worth a quick look on an actual Costa Rican phone to confirm it shows
-   24h time and dd/mm/yyyy as expected (it should, by default). Details in `NOTES.md`.
+
+## Two things worth your deliberate sign-off, not just a rubber stamp
+
+- **Protocol template doses**: 9 starter templates (Wolverine, Weight Loss Beginner, GH
+  Blast, etc.) pre-fill a compound/dose/schedule that's still fully editable before
+  saving. The dose numbers in `src/content/protocolTemplates.ts` are my own best-effort
+  starting examples — not vetted by you, not clinical guidance. This is also a deliberate
+  deviation from the original brief's "never suggest a dose" rule, done at your explicit
+  request. Worth being intentional about before launch, given your business is selling
+  these compounds.
+- **Bundle size**: the UI refresh added a real, sizeable dependency footprint (Radix UI,
+  Motion, a calendar library, icons) — the app's JS roughly doubled in size to get the
+  more polished/animated feel. Still loads fine, but if your customers are often on slow
+  connections this is worth knowing about.
 
 ## What's intentionally not in this build
 
 Accounts/login, cloud sync, inventory tracking, calendar grid, visual syringe graphics,
-injection site rotation, protocol templates, custom compounds, titration, progress
-photos, weight/side-effect tracking, cost tracking, PDF export, and anything AI. If any
-of these turn out to matter, they're Phase 2 conversations, not omissions.
+injection site rotation, custom compounds, titration, progress photos, weight/side-effect
+tracking, cost tracking, PDF export, and anything AI. If any of these turn out to matter,
+they're Phase 2 conversations, not omissions.
