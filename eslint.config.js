@@ -21,4 +21,13 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // shadcn-style primitives: re-exporting a Radix sub-part (Dialog.Root,
+    // Select.Trigger, ...) under a plain name is the standard pattern here,
+    // not a fast-refresh hazard — these aren't stateful page components.
+    files: ['src/components/ui/**/*.tsx'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])

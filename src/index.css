@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import 'tw-animate-css';
 @import './styles/tokens.css';
 
 @theme {
@@ -13,6 +14,39 @@
   --color-brand-warn: var(--brand-warn);
   --color-brand-warn-lt: var(--brand-warn-lt);
   --font-sans: var(--font-sans);
+
+  /*
+   * shadcn/ui's standard semantic token vocabulary, bridged onto our brand
+   * palette above rather than given independent values — this is the only
+   * place that mapping lives, so tokens.css stays the one file to edit for a
+   * palette swap. Every ui/*.tsx component below reads only these names,
+   * never a --brand-* variable directly, matching shadcn's own components as
+   * published (easiest to diff against their docs later).
+   */
+  --color-background: var(--brand-surface-2);
+  --color-foreground: var(--brand-ink);
+  --color-card: var(--brand-surface);
+  --color-card-foreground: var(--brand-ink);
+  --color-popover: var(--brand-surface);
+  --color-popover-foreground: var(--brand-ink);
+  --color-primary: var(--brand-primary);
+  --color-primary-foreground: #ffffff;
+  --color-secondary: var(--brand-surface-2);
+  --color-secondary-foreground: var(--brand-ink);
+  --color-muted: var(--brand-surface-2);
+  --color-muted-foreground: var(--brand-muted);
+  --color-accent: var(--brand-primary-lt);
+  --color-accent-foreground: var(--brand-primary);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--brand-border);
+  --color-input: var(--brand-border);
+  --color-ring: var(--brand-primary);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
 html {

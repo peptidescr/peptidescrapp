@@ -25,6 +25,14 @@
   --brand-border: #d1d5db;
   --brand-warn: #b0672a;
   --brand-warn-lt: #fbf1e7;
+  /* Standard destructive-action red (delete, wipe+import) — a UI safety
+     convention, not a brand colour, and deliberately distinct from
+     --brand-warn's non-alarming amber (which is about measurement accuracy,
+     never framed as danger — see units.ts). */
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+
+  --radius: 0.75rem;
 
   --font-sans:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif,
@@ -49,5 +57,7 @@
     --brand-border: #334155;
     --brand-warn: #e0954b;
     --brand-warn-lt: #3a2a1a;
+    --destructive: #f87171;
+    --destructive-foreground: #1a2332;
   }
 }
