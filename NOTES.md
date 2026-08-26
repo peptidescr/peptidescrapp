@@ -2,6 +2,27 @@
 
 Running log of decisions and things the client needs to weigh in on. Newest at top.
 
+## 2026-08-25 — Step 3: Dexie schema + seed compounds
+
+- `Protocol.schedule` needs the `Schedule` type, which the brief's build order puts at
+  step 5 (`src/lib/schedule.ts`). Rather than reorder the schema around it, I added just
+  the `Schedule` type shape (a discriminated union: daily / everyNDays / weekdays / cycle)
+  to `schedule.ts` now; the actual occurrence-generation logic and its tests still land as
+  their own step, unchanged.
+- `Compound.vialSizes` is a single number array whose *unit* depends on the compound (IU
+  count, mL of ready liquid, or mass in `defaultUnit`) rather than a uniform mass — the
+  brief's table lists "10ml" for solution-form blends alongside "10mg" for powders in the
+  same column. Documented via a `vialSizeUnit()` helper in `compounds.ts` rather than
+  adding a new field, so the Compound shape still matches the brief's 5 fields exactly.
+- **Client: please confirm categories** for HGH, HCG, and the four named blends (Wolverine
+  Stack, CJC-1295 no DAC + IPA, KLOW, GLOW, Fat Blaster, SUPER Human Blend) — the brief's
+  table didn't give categories for these, so I assigned best-guess ones matching their
+  components (e.g. HCG → Fertility, GLOW → Skin). Easy one-line changes in
+  `src/content/compounds.ts` once you confirm.
+- Compounds are seeded into Dexie (not just imported as static data) so the catalogue can
+  be re-synced on every app open (`ensureCompoundsSeeded`, an idempotent `bulkPut`) without
+  a migration step if the catalogue changes between releases — never touches user data.
+
 ## 2026-08-25 — Step 1: scaffold, tokens, i18n, PWA shell
 
 - Scaffolded with `create-vite react-ts`, then pinned `react`/`react-dom` to ^18 (the
