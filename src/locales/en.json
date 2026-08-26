@@ -14,7 +14,8 @@
     "calculator": "Calculator",
     "protocols": "Protocols",
     "history": "History",
-    "settings": "Settings"
+    "settings": "Settings",
+    "ariaLabel": "Main navigation"
   },
   "calculator": {
     "title": "Mixing calculator",

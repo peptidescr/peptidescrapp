@@ -14,7 +14,8 @@
     "calculator": "Calculadora",
     "protocols": "Protocolos",
     "history": "Historial",
-    "settings": "Ajustes"
+    "settings": "Ajustes",
+    "ariaLabel": "Navegación principal"
   },
   "calculator": {
     "title": "Calculadora de mezcla",

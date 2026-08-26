@@ -2,6 +2,48 @@
 
 Running log of decisions and things the client needs to weigh in on. Newest at top.
 
+## 2026-08-25 — Step 13: Spanish pass, empty states, 320px check
+
+Verified rather than assumed, using a real headless Chromium driven over CDP (no
+Playwright/Puppeteer added — just the system `chromium` binary + the DevTools Protocol
+over its own WebSocket, driven from a throwaway Node script, so nothing new landed in
+`package.json`) clicking through the full onboarding → Home → Calculator → Protocols →
+History → Settings flow at both 320px and 375px, plus a locale-key parity check and a grep
+for stray hardcoded strings. Found and fixed three real bugs this way:
+
+1. **Tab bar labels visually touching at 320px** (`Calculadora`/`Protocolos` had ~0px
+   gap). The five Spanish labels at their original size summed to ~317px against a 320px
+   viewport — technically fit, but left no room for even a 4px gap to read visually.
+   Fixed by shrinking the tab label to 11px with tight tracking and a `break-words`
+   safety net, plus an explicit `gap-1` between tabs. Re-verified clean at 320px.
+2. **Backup nudge showed on a completely empty fresh install.** Nothing to lose yet, so
+   nudging about a backup was premature. Now gated on having at least one protocol or
+   dose log in addition to the existing lastBackupAt/14-day check.
+3. **`TabBar`'s `aria-label` was hardcoded Spanish** regardless of the active locale — an
+   English-locale screen reader user would still hear "Navegación principal." Moved to
+   `nav.ariaLabel` in both locale files.
+
+Also confirmed clean: both locale JSON files have exactly the same 138 flattened keys
+(scripted diff, zero mismatches); no stray hardcoded UI strings outside the client's own
+brand name in the Settings contact footer (correctly left untranslated, like compound/
+category names).
+
+**Known limitation, not fixed — flagging instead of quietly living with it:** native
+`<input type="date">` / `<input type="time">` (used in Protocol and History edit forms)
+display in whatever format the *browser/OS* locale uses, not the app's `lang` attribute —
+this is a long-standing cross-browser inconsistency (Chromium in particular does not
+reliably follow the page's `lang`). In my test environment (en-US system locale) they
+rendered as `08:00 AM` / `08/25/2026` instead of 24h/dd-MM-yyyy. On an actual Costa Rican
+device (es-CR or similar OS locale, which defaults to 24h + dd/mm/yyyy) these will render
+correctly with zero extra code, which is the overwhelming real-world case here. The
+underlying stored value is unaffected either way — `input[type=date].value` is always
+`yyyy-MM-dd` and `input[type=time].value` is always 24h `HH:mm` per spec, regardless of
+display chrome, so no data-correctness issue, only a cosmetic one on a misconfigured
+device. Building custom date/time picker components to force the format everywhere would
+be real scope creep (a "visual syringe graphic"-tier addition, not in the brief) for a
+problem that mostly doesn't occur on the client's customers' actual phones. Flagging for
+sign-off rather than silently deciding it doesn't matter.
+
 ## 2026-08-25 — Step 12: Onboarding
 
 - The wizard's own step (1–5) is tracked purely as local component state, but *whether to

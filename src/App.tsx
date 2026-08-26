@@ -80,7 +80,7 @@ function App() {
       {tab === 'protocols' && <ProtocolsScreen />}
       {tab === 'history' && <HistoryScreen />}
       {tab === 'settings' && <SettingsScreen />}
-      <TabBar active={tab} onChange={setTab} labels={labels} />
+      <TabBar active={tab} onChange={setTab} labels={labels} navLabel={t('nav.ariaLabel')} />
     </div>
   )
 }

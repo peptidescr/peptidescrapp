@@ -83,9 +83,13 @@ export function HomeScreen({ onNavigateToSettings }: { onNavigateToSettings: () 
     return soonest
   }, [activeProtocols, now])
 
+  // Only nudge once there's actually something worth losing — a brand-new
+  // install with zero protocols/logs doesn't need a backup yet.
+  const hasData = (protocols?.length ?? 0) > 0 || (doseLogs?.length ?? 0) > 0
   const showBackupNudge =
-    !settings?.lastBackupAt ||
-    (now.getTime() - new Date(settings.lastBackupAt).getTime()) / (24 * 3_600_000) > BACKUP_NUDGE_DAYS
+    hasData &&
+    (!settings?.lastBackupAt ||
+      (now.getTime() - new Date(settings.lastBackupAt).getTime()) / (24 * 3_600_000) > BACKUP_NUDGE_DAYS)
 
   return (
     <div className="flex flex-col gap-6 px-4 pb-6 pt-4">
