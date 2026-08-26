@@ -108,5 +108,58 @@
       "taken": "Taken",
       "skipped": "Skipped"
     }
+  },
+  "settings": {
+    "language": "Language",
+    "spanish": "Español (CR)",
+    "english": "English",
+    "notifications": "Notifications",
+    "notif": {
+      "notSupported": "This browser doesn't support notifications.",
+      "needsInstallIOS": "On iPhone/iPad, notifications only work after adding peptidescr to your Home Screen (iOS 16.4+). See Install below.",
+      "granted": "Notifications are enabled.",
+      "denied": "Notifications are blocked. Enable them for peptidescr in your device settings to turn them back on.",
+      "notAsked": "Notifications aren't enabled yet.",
+      "reliabilityNote": "Whenever you open the app, anything that came due while it was closed shows up on Home with one tap to log it — that's the part that always works, with or without notifications.",
+      "enable": "Enable notifications"
+    },
+    "install": {
+      "title": "Install",
+      "installed": "peptidescr is installed on this device.",
+      "available": "Install peptidescr for offline use and reliable notifications.",
+      "cta": "Install",
+      "iosInstructions": "In Safari, tap the Share icon, then \"Add to Home Screen.\" This protects your data and is required for notifications on iPhone/iPad.",
+      "genericInstructions": "Open your browser's menu and look for \"Install app\" or \"Add to Home Screen.\""
+    },
+    "storage": {
+      "title": "Storage",
+      "persisted": "Your data is protected from automatic cleanup.",
+      "notPersisted": "Your data isn't protected from automatic cleanup yet — installing the app (see above) helps with this.",
+      "usage": "Using about {{mb}} MB"
+    },
+    "backup": {
+      "title": "Backup & export",
+      "never": "No backup yet.",
+      "lastBackup": "Last backup: {{date}}",
+      "shareJson": "Share backup (JSON)",
+      "exportCsv": "Export history (CSV)",
+      "import": "Import backup",
+      "done": "Backup ready.",
+      "importInvalid": "That file doesn't look like a valid peptidescr backup.",
+      "importConfirm": "This will replace all data currently on this device with the contents of this backup. This can't be undone.",
+      "importConfirmCta": "Replace my data",
+      "importDone": "Import complete."
+    },
+    "legal": {
+      "title": "Legal",
+      "accepted": "Accepted version {{version}} on {{date}}.",
+      "notYetAccepted": "Not yet accepted.",
+      "view": "View disclaimer & terms",
+      "hide": "Hide"
+    },
+    "contact": {
+      "title": "Contact",
+      "whatsapp": "Message us on WhatsApp"
+    }
   }
 }

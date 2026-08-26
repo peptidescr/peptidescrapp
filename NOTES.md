@@ -2,6 +2,33 @@
 
 Running log of decisions and things the client needs to weigh in on. Newest at top.
 
+## 2026-08-25 — Step 10: Settings — language, notifications, install, storage, backup, legal, contact
+
+- **Nightly snapshot, honestly implemented**: there's no backend and no cross-platform
+  background job a PWA can rely on, so "nightly" is implemented as "at most one snapshot
+  per calendar day, taken on whichever app open happens first that day" — the closest
+  honest equivalent given the constraints. Documented in `backup.ts`'s doc comment so this
+  doesn't read as a shortcut later.
+- **Notification Triggers are genuinely best-effort**: this Chromium proposal
+  (`TimestampTrigger`) has shipped only behind flags/origin trials historically and isn't
+  in TypeScript's DOM types — feature-detected and silently no-op elsewhere. The brief is
+  right that on-open catch-up (Home, step 8) is the mechanism to actually rely on; that one
+  already works everywhere. Settings tells the user this plainly rather than promising a
+  "reminder set" the platform can't honour.
+- Share-out backup uses `navigator.share({ files })` with a plain download fallback,
+  exactly as specified — WhatsApp is one tap away from the OS share sheet once shared.
+- Import is destructive (wipes and replaces protocols/doseLogs/settings) and requires an
+  explicit second-tap confirmation, styled as a warning, before it runs.
+- Caught and fixed a real i18n bug while writing this: the initial locale JSON had a flat
+  key like `"install": "Install"` sitting alongside `"install.installed": "..."` in the same
+  object. i18next's dot-path lookup for `settings.install.installed` would traverse into
+  `install` (a string) and fail silently, always falling back to the missing-key placeholder.
+  Fixed by properly nesting `install`/`storage`/`backup`/`legal`/`contact` as objects with a
+  `.title` key for the section heading — verified with `JSON.parse` clean and a full
+  `tsc`/`eslint`/`vitest`/`build` pass afterward. Worth remembering as a pattern to watch for
+  in every locale file edit going forward (a section title and its children living under the
+  same key name is the trap).
+
 ## 2026-08-25 — Step 8: Home screen
 
 - Bug caught before it shipped: the Dexie schema originally indexed `Protocol.isActive`

@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { TabBar, type Tab } from './components/TabBar'
-import { ensureCompoundsSeeded, ensureSettingsRow } from './lib/db'
+import { maybeCreateDailySnapshot } from './lib/backup'
+import { db, ensureCompoundsSeeded, ensureSettingsRow } from './lib/db'
 import { DEFAULT_LOCALE } from './i18n'
+import { scheduleUpcomingReminders } from './lib/notifications'
 import { useSettings } from './lib/useSettings'
 import { HomeScreen } from './screens/HomeScreen'
 import { CalculatorScreen } from './screens/CalculatorScreen'
@@ -16,16 +18,20 @@ function App() {
   const settings = useSettings()
 
   // Runs once per app open: seed/sync the read-only compound catalogue,
-  // create the singleton settings row on first run, and ask the platform to
-  // persist storage so an install survives iOS Safari's 7-day IndexedDB
-  // eviction (exempt once installed, but the call is harmless and cheap
-  // either way — see NOTES.md).
+  // create the singleton settings row on first run, ask the platform to
+  // persist storage (protects against iOS Safari's 7-day IndexedDB eviction;
+  // harmless no-op once installed), take today's snapshot if one hasn't run
+  // yet, and best-effort schedule any Chromium Notification Triggers for the
+  // next couple of days (silently does nothing where unsupported — see
+  // notifications.ts).
   useEffect(() => {
     void ensureCompoundsSeeded()
     void ensureSettingsRow({ locale: DEFAULT_LOCALE, syringeType: 'U-100' })
     if (navigator.storage?.persist) {
       void navigator.storage.persist()
     }
+    void maybeCreateDailySnapshot()
+    void db.protocols.toArray().then((protocols) => scheduleUpcomingReminders(protocols))
   }, [])
 
   useEffect(() => {

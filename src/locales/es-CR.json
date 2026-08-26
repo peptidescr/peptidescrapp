@@ -108,5 +108,58 @@
       "taken": "Aplicada",
       "skipped": "Omitida"
     }
+  },
+  "settings": {
+    "language": "Idioma",
+    "spanish": "Español (CR)",
+    "english": "English",
+    "notifications": "Notificaciones",
+    "notif": {
+      "notSupported": "Este navegador no admite notificaciones.",
+      "needsInstallIOS": "En iPhone/iPad, las notificaciones solo funcionan después de agregar peptidescr a tu pantalla de inicio (iOS 16.4+). Mirá la sección Instalación abajo.",
+      "granted": "Las notificaciones están activadas.",
+      "denied": "Las notificaciones están bloqueadas. Activalas para peptidescr en los ajustes de tu dispositivo.",
+      "notAsked": "Las notificaciones todavía no están activadas.",
+      "reliabilityNote": "Cada vez que abrís la aplicación, todo lo que venció mientras estaba cerrada aparece en Inicio con un toque para registrarlo — esa parte siempre funciona, con o sin notificaciones.",
+      "enable": "Activar notificaciones"
+    },
+    "install": {
+      "title": "Instalación",
+      "installed": "peptidescr está instalada en este dispositivo.",
+      "available": "Instalá peptidescr para usarla sin conexión y recibir notificaciones de forma confiable.",
+      "cta": "Instalar",
+      "iosInstructions": "En Safari, tocá el ícono de Compartir y luego \"Agregar a pantalla de inicio\". Esto protege tus datos y es necesario para las notificaciones en iPhone/iPad.",
+      "genericInstructions": "Abrí el menú de tu navegador y buscá \"Instalar aplicación\" o \"Agregar a pantalla de inicio\"."
+    },
+    "storage": {
+      "title": "Almacenamiento",
+      "persisted": "Tus datos están protegidos contra la limpieza automática.",
+      "notPersisted": "Tus datos todavía no están protegidos contra la limpieza automática — instalar la aplicación (arriba) ayuda con esto.",
+      "usage": "Usando aproximadamente {{mb}} MB"
+    },
+    "backup": {
+      "title": "Respaldo y exportación",
+      "never": "Todavía no hay respaldo.",
+      "lastBackup": "Último respaldo: {{date}}",
+      "shareJson": "Compartir respaldo (JSON)",
+      "exportCsv": "Exportar historial (CSV)",
+      "import": "Importar respaldo",
+      "done": "Respaldo listo.",
+      "importInvalid": "Ese archivo no parece ser un respaldo válido de peptidescr.",
+      "importConfirm": "Esto va a reemplazar todos los datos actuales de este dispositivo con el contenido de este respaldo. No se puede deshacer.",
+      "importConfirmCta": "Reemplazar mis datos",
+      "importDone": "Importación completa."
+    },
+    "legal": {
+      "title": "Legal",
+      "accepted": "Versión {{version}} aceptada el {{date}}.",
+      "notYetAccepted": "Todavía no aceptado.",
+      "view": "Ver aviso legal y términos",
+      "hide": "Ocultar"
+    },
+    "contact": {
+      "title": "Contacto",
+      "whatsapp": "Escribinos por WhatsApp"
+    }
   }
 }
