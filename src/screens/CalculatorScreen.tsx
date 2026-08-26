@@ -1,6 +1,17 @@
+import { AlertTriangle, FlaskConical } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Card } from '../components/Card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   listDiluents,
   listSelectableCompounds,
@@ -131,21 +142,23 @@ export function CalculatorScreen() {
       <h1 className="text-xl font-semibold">{t('calculator.title')}</h1>
 
       <Field label={t('calculator.compound')}>
-        <select
-          className="min-h-11 w-full rounded-xl border border-brand-border bg-brand-surface px-3 text-base"
-          value={compoundId}
-          onChange={(e) => handleSelectCompound(e.target.value)}
-        >
-          {[...grouped.entries()].map(([category, compounds]) => (
-            <optgroup key={category} label={category}>
-              {compounds.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
+        <Select value={compoundId} onValueChange={handleSelectCompound}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {[...grouped.entries()].map(([category, compounds]) => (
+              <SelectGroup key={category}>
+                <SelectLabel>{category}</SelectLabel>
+                {compounds.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            ))}
+          </SelectContent>
+        </Select>
       </Field>
 
       {isSolution ? (
@@ -179,7 +192,7 @@ export function CalculatorScreen() {
                     key={`${d.id}-${size}`}
                     type="button"
                     onClick={() => setDiluentMl(String(size).replace('.', ','))}
-                    className="min-h-11 rounded-full border border-brand-border px-3 text-sm text-brand-muted active:bg-brand-surface-2"
+                    className="min-h-11 rounded-full border border-border px-3 text-sm text-muted-foreground active:bg-accent"
                   >
                     {d.name} {size}mL
                   </button>
@@ -204,10 +217,10 @@ export function CalculatorScreen() {
               key={type}
               type="button"
               onClick={() => handleSyringeChange(type)}
-              className={`min-h-11 flex-1 rounded-xl border text-sm font-medium ${
+              className={`min-h-11 flex-1 rounded-xl border text-sm font-medium transition-colors ${
                 syringeType === type
-                  ? 'border-brand-primary bg-brand-primary-lt text-brand-primary'
-                  : 'border-brand-border text-brand-muted'
+                  ? 'border-primary bg-accent text-primary'
+                  : 'border-border text-muted-foreground'
               }`}
             >
               {type}
@@ -217,43 +230,57 @@ export function CalculatorScreen() {
       </Field>
 
       <Card>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-brand-muted">
-          {t('calculator.resultTitle')}
-        </h2>
-        {error && <p className="text-sm text-brand-warn">{error}</p>}
-        {!error && !result && <p className="text-sm text-brand-muted">{t('calculator.awaitingInput')}</p>}
-        {result && (
-          <div className="flex flex-col gap-3">
-            <ResultRow
-              label={t('calculator.concentrationResult')}
-              value={
-                isIU
-                  ? `${formatDecimal(result.concentrationPerMl / 1000, locale, 2)} IU/mL`
-                  : `${formatDecimal(
-                      doseUnit === 'mcg' ? result.concentrationPerMl : result.concentrationPerMl / 1000,
-                      locale,
-                      doseUnit === 'mcg' ? 0 : 3,
-                    )} ${doseUnit}/mL`
-              }
-            />
-            <ResultRow
-              label={t('calculator.drawVolume')}
-              value={`${formatVolumeMl(result.drawVolumeUl, locale)} mL`}
-              emphasis
-            />
-            <ResultRow
-              label={t('calculator.drawSyringeUnits', { syringeType })}
-              value={formatSyringeUnits(result.drawSyringeUnits, locale)}
-              emphasis
-            />
-            <ResultRow label={t('calculator.dosesRemaining')} value={String(result.dosesRemaining)} />
-            {result.lowVolumeWarning && (
-              <p className="rounded-xl bg-brand-warn-lt px-3 py-2 text-sm text-brand-warn">
-                {t('calculator.lowVolumeWarning')}
-              </p>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FlaskConical className="size-4" />
+            {t('calculator.resultTitle')}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          {!error && !result && <p className="text-sm text-muted-foreground">{t('calculator.awaitingInput')}</p>}
+          <AnimatePresence mode="wait">
+            {result && (
+              <motion.div
+                key={`${result.drawVolumeUl}-${result.concentrationPerMl}`}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.15 }}
+                className="flex flex-col gap-3"
+              >
+                <ResultRow
+                  label={t('calculator.concentrationResult')}
+                  value={
+                    isIU
+                      ? `${formatDecimal(result.concentrationPerMl / 1000, locale, 2)} IU/mL`
+                      : `${formatDecimal(
+                          doseUnit === 'mcg' ? result.concentrationPerMl : result.concentrationPerMl / 1000,
+                          locale,
+                          doseUnit === 'mcg' ? 0 : 3,
+                        )} ${doseUnit}/mL`
+                  }
+                />
+                <ResultRow
+                  label={t('calculator.drawVolume')}
+                  value={`${formatVolumeMl(result.drawVolumeUl, locale)} mL`}
+                  emphasis
+                />
+                <ResultRow
+                  label={t('calculator.drawSyringeUnits', { syringeType })}
+                  value={formatSyringeUnits(result.drawSyringeUnits, locale)}
+                  emphasis
+                />
+                <ResultRow label={t('calculator.dosesRemaining')} value={String(result.dosesRemaining)} />
+                {result.lowVolumeWarning && (
+                  <p className="flex items-start gap-2 rounded-xl bg-brand-warn-lt px-3 py-2 text-sm text-brand-warn">
+                    <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                    {t('calculator.lowVolumeWarning')}
+                  </p>
+                )}
+              </motion.div>
             )}
-          </div>
-        )}
+          </AnimatePresence>
+        </CardContent>
       </Card>
     </div>
   )
@@ -262,7 +289,7 @@ export function CalculatorScreen() {
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-sm font-medium text-brand-ink">{label}</span>
+      <span className="text-sm font-medium text-foreground">{label}</span>
       {children}
     </label>
   )
@@ -284,11 +311,11 @@ function NumberInput({
         inputMode="decimal"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="min-h-11 w-full rounded-xl border border-brand-border bg-brand-surface px-3 text-base"
+        className="min-h-11 w-full rounded-xl border border-input bg-card px-3 text-base text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
         placeholder="0"
       />
       {suffix && (
-        <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-brand-muted">
+        <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">
           {suffix}
         </span>
       )}
@@ -298,14 +325,14 @@ function NumberInput({
 
 function UnitToggle({ unit, onChange }: { unit: MassUnit; onChange: (u: MassUnit) => void }) {
   return (
-    <div className="flex overflow-hidden rounded-xl border border-brand-border">
+    <div className="flex overflow-hidden rounded-xl border border-border">
       {(['mg', 'mcg'] as const).map((u) => (
         <button
           key={u}
           type="button"
           onClick={() => onChange(u)}
-          className={`min-h-11 px-3 text-sm font-medium ${
-            unit === u ? 'bg-brand-primary text-white' : 'bg-brand-surface text-brand-muted'
+          className={`min-h-11 px-3 text-sm font-medium transition-colors ${
+            unit === u ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground'
           }`}
         >
           {u}
@@ -333,10 +360,8 @@ function ChipSelect({
           key={opt}
           type="button"
           onClick={() => onChange(opt)}
-          className={`min-h-11 rounded-xl border px-3 text-sm font-medium ${
-            value === opt
-              ? 'border-brand-primary bg-brand-primary-lt text-brand-primary'
-              : 'border-brand-border text-brand-muted'
+          className={`min-h-11 rounded-xl border px-3 text-sm font-medium transition-colors ${
+            value === opt ? 'border-primary bg-accent text-primary' : 'border-border text-muted-foreground'
           }`}
         >
           {opt} {suffix}
@@ -349,8 +374,8 @@ function ChipSelect({
 function ResultRow({ label, value, emphasis }: { label: string; value: string; emphasis?: boolean }) {
   return (
     <div className="flex items-baseline justify-between">
-      <span className="text-sm text-brand-muted">{label}</span>
-      <span className={emphasis ? 'text-lg font-semibold text-brand-primary' : 'text-base text-brand-ink'}>
+      <span className="text-sm text-muted-foreground">{label}</span>
+      <span className={emphasis ? 'text-lg font-semibold text-primary' : 'text-base text-foreground'}>
         {value}
       </span>
     </div>

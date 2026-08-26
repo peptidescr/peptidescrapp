@@ -91,6 +91,8 @@
     "inHoursMinutes": "En {{hours}}h {{minutes}}m",
     "logTaken": "Aplicada",
     "logSkipped": "Omitida",
+    "toastTaken": "Dosis registrada como aplicada.",
+    "toastSkipped": "Dosis registrada como omitida.",
     "missedLabel": "Perdida",
     "dueLabel": "Pendiente"
   },
@@ -103,7 +105,10 @@
     "time": "Hora",
     "doseAmount": "Cantidad de dosis",
     "notes": "Notas",
-    "confirmDelete": "Tocá de nuevo para eliminar",
+    "saved": "Guardado.",
+    "deleted": "Registro eliminado.",
+    "deleteDialogTitle": "¿Eliminar este registro?",
+    "deleteDialogDescription": "Esto no se puede deshacer.",
     "status": {
       "label": "Estado",
       "taken": "Aplicada",

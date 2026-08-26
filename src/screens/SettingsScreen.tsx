@@ -1,6 +1,30 @@
+import {
+  Bell,
+  Database,
+  Globe,
+  type LucideIcon,
+  Mail,
+  MessageCircle,
+  Phone,
+  Save,
+  Scale,
+  Smartphone,
+} from 'lucide-react'
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button } from '../components/Button'
+import { toast } from 'sonner'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { LEGAL_PLACEHOLDER, LEGAL_VERSION } from '../content/legal'
 import {
   backupToJson,
@@ -35,12 +59,25 @@ export function SettingsScreen() {
   )
 }
 
-function SectionCard({ title, children }: { title: string; children: ReactNode }) {
+function SectionCard({
+  title,
+  icon: Icon,
+  children,
+}: {
+  title: string
+  icon: LucideIcon
+  children: ReactNode
+}) {
   return (
-    <section className="flex flex-col gap-3 rounded-2xl border border-brand-border bg-brand-surface p-4 shadow-sm">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-brand-muted">{title}</h2>
-      {children}
-    </section>
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Icon className="size-4" />
+          {title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
   )
 }
 
@@ -55,17 +92,15 @@ function LanguageSection() {
   }
 
   return (
-    <SectionCard title={t('settings.language')}>
+    <SectionCard title={t('settings.language')} icon={Globe}>
       <div className="flex gap-2">
         {(['es-CR', 'en'] as const).map((l) => (
           <button
             key={l}
             type="button"
             onClick={() => setLocale(l)}
-            className={`min-h-11 flex-1 rounded-xl border text-sm font-medium ${
-              locale === l
-                ? 'border-brand-primary bg-brand-primary-lt text-brand-primary'
-                : 'border-brand-border text-brand-muted'
+            className={`min-h-11 flex-1 rounded-xl border text-sm font-medium transition-colors ${
+              locale === l ? 'border-primary bg-accent text-primary' : 'border-border text-muted-foreground'
             }`}
           >
             {l === 'es-CR' ? t('settings.spanish') : t('settings.english')}
@@ -94,9 +129,9 @@ function NotificationsSection() {
   }
 
   return (
-    <SectionCard title={t('settings.notifications')}>
-      <p className="text-sm text-brand-muted">{t(statusKey)}</p>
-      <p className="text-sm text-brand-muted">{t('settings.notif.reliabilityNote')}</p>
+    <SectionCard title={t('settings.notifications')} icon={Bell}>
+      <p className="text-sm text-muted-foreground">{t(statusKey)}</p>
+      <p className="text-sm text-muted-foreground">{t('settings.notif.reliabilityNote')}</p>
       {capability.supported && !capability.requiresInstallOnIOS && capability.permission === 'default' && (
         <Button onClick={handleRequest}>{t('settings.notif.enable')}</Button>
       )}
@@ -109,18 +144,18 @@ function InstallSection() {
   const install = useInstallState()
 
   return (
-    <SectionCard title={t('settings.install.title')}>
+    <SectionCard title={t('settings.install.title')} icon={Smartphone}>
       {install.isStandalone ? (
-        <p className="text-sm text-brand-muted">{t('settings.install.installed')}</p>
+        <p className="text-sm text-muted-foreground">{t('settings.install.installed')}</p>
       ) : install.canPromptInstall ? (
         <>
-          <p className="text-sm text-brand-muted">{t('settings.install.available')}</p>
+          <p className="text-sm text-muted-foreground">{t('settings.install.available')}</p>
           <Button onClick={() => void install.promptInstall()}>{t('settings.install.cta')}</Button>
         </>
       ) : install.isIOS ? (
-        <p className="text-sm text-brand-muted">{t('settings.install.iosInstructions')}</p>
+        <p className="text-sm text-muted-foreground">{t('settings.install.iosInstructions')}</p>
       ) : (
-        <p className="text-sm text-brand-muted">{t('settings.install.genericInstructions')}</p>
+        <p className="text-sm text-muted-foreground">{t('settings.install.genericInstructions')}</p>
       )}
     </SectionCard>
   )
@@ -139,12 +174,12 @@ function StorageSection() {
   }, [])
 
   return (
-    <SectionCard title={t('settings.storage.title')}>
-      <p className="text-sm text-brand-muted">
+    <SectionCard title={t('settings.storage.title')} icon={Database}>
+      <p className="text-sm text-muted-foreground">
         {persisted === true ? t('settings.storage.persisted') : t('settings.storage.notPersisted')}
       </p>
       {usageMb !== null && (
-        <p className="text-sm text-brand-muted">{t('settings.storage.usage', { mb: usageMb.toFixed(1) })}</p>
+        <p className="text-sm text-muted-foreground">{t('settings.storage.usage', { mb: usageMb.toFixed(1) })}</p>
       )}
     </SectionCard>
   )
@@ -155,7 +190,6 @@ function BackupSection() {
   const settings = useSettings()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [pendingImport, setPendingImport] = useState<BackupPayload | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
 
   async function handleExportJson() {
     const payload = await buildBackupPayload()
@@ -166,7 +200,7 @@ function BackupSection() {
     )
     if (result !== 'cancelled') {
       await markBackedUp()
-      setMessage(t('settings.backup.done'))
+      toast.success(t('settings.backup.done'))
     }
   }
 
@@ -183,7 +217,7 @@ function BackupSection() {
       const payload = JSON.parse(text) as BackupPayload
       setPendingImport(payload)
     } catch {
-      setMessage(t('settings.backup.importInvalid'))
+      toast.error(t('settings.backup.importInvalid'))
     } finally {
       e.target.value = ''
     }
@@ -193,17 +227,17 @@ function BackupSection() {
     if (!pendingImport) return
     try {
       await importBackupPayload(pendingImport)
-      setMessage(t('settings.backup.importDone'))
+      toast.success(t('settings.backup.importDone'))
     } catch {
-      setMessage(t('settings.backup.importInvalid'))
+      toast.error(t('settings.backup.importInvalid'))
     } finally {
       setPendingImport(null)
     }
   }
 
   return (
-    <SectionCard title={t('settings.backup.title')}>
-      <p className="text-sm text-brand-muted">
+    <SectionCard title={t('settings.backup.title')} icon={Save}>
+      <p className="text-sm text-muted-foreground">
         {settings?.lastBackupAt
           ? t('settings.backup.lastBackup', { date: formatDateTime(new Date(settings.lastBackupAt)) })
           : t('settings.backup.never')}
@@ -222,20 +256,19 @@ function BackupSection() {
       <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
         {t('settings.backup.import')}
       </Button>
-      {message && <p className="text-sm text-brand-muted">{message}</p>}
-      {pendingImport && (
-        <div className="flex flex-col gap-2 rounded-xl bg-brand-warn-lt p-3">
-          <p className="text-sm text-brand-warn">{t('settings.backup.importConfirm')}</p>
-          <div className="flex gap-2">
-            <Button variant="danger" onClick={confirmImport}>
-              {t('settings.backup.importConfirmCta')}
-            </Button>
-            <Button variant="secondary" onClick={() => setPendingImport(null)}>
-              {t('common.cancel')}
-            </Button>
-          </div>
-        </div>
-      )}
+
+      <AlertDialog open={pendingImport !== null} onOpenChange={(open) => !open && setPendingImport(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('settings.backup.importConfirmCta')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('settings.backup.importConfirm')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={confirmImport}>{t('settings.backup.importConfirmCta')}</AlertDialogAction>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SectionCard>
   )
 }
@@ -248,8 +281,8 @@ function LegalSection() {
   const [expanded, setExpanded] = useState(false)
 
   return (
-    <SectionCard title={t('settings.legal.title')}>
-      <p className="text-sm text-brand-muted">
+    <SectionCard title={t('settings.legal.title')} icon={Scale}>
+      <p className="text-sm text-muted-foreground">
         {settings?.legalAcceptedAt
           ? t('settings.legal.accepted', {
               version: settings.legalAcceptedVersion ?? LEGAL_VERSION,
@@ -257,14 +290,18 @@ function LegalSection() {
             })
           : t('settings.legal.notYetAccepted')}
       </p>
-      <button type="button" onClick={() => setExpanded((v) => !v)} className="min-h-11 self-start text-sm text-brand-primary">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="min-h-11 self-start text-sm text-primary"
+      >
         {expanded ? t('settings.legal.hide') : t('settings.legal.view')}
       </button>
       {expanded && (
-        <div className="flex flex-col gap-2 text-sm text-brand-muted">
-          <p className="font-medium text-brand-ink">{legal.disclaimerTitle}</p>
+        <div className="flex flex-col gap-2 text-sm text-muted-foreground">
+          <p className="font-medium text-foreground">{legal.disclaimerTitle}</p>
           <p>{legal.disclaimerBody}</p>
-          <p className="font-medium text-brand-ink">{legal.termsTitle}</p>
+          <p className="font-medium text-foreground">{legal.termsTitle}</p>
           <p>{legal.termsBody}</p>
         </div>
       )}
@@ -275,27 +312,28 @@ function LegalSection() {
 function ContactSection() {
   const { t } = useTranslation()
   return (
-    <SectionCard title={t('settings.contact.title')}>
+    <SectionCard title={t('settings.contact.title')} icon={Phone}>
       <img src="/brand/logo-full.png" alt="Peptides Costa Rica" className="h-12 w-auto self-start" />
-      <p className="text-sm text-brand-muted">Jacó · San José, Costa Rica</p>
-      <a href="https://peptidescostarica.net" className="text-sm text-brand-primary" target="_blank" rel="noreferrer">
+      <p className="text-sm text-muted-foreground">Jacó · San José, Costa Rica</p>
+      <a href="https://peptidescostarica.net" className="text-sm text-primary" target="_blank" rel="noreferrer">
         peptidescostarica.net
       </a>
-      <a
-        href="https://wa.me/50684046973"
-        target="_blank"
-        rel="noreferrer"
-        className="min-h-11 rounded-xl bg-[#25D366] px-4 py-2 text-center text-sm font-semibold text-white"
-      >
-        {t('settings.contact.whatsapp')}
-      </a>
-      <a href="tel:+50684046973" className="text-sm text-brand-primary">
+      <Button asChild className="justify-start bg-[#25D366] text-white active:bg-[#1da851]">
+        <a href="https://wa.me/50684046973" target="_blank" rel="noreferrer">
+          <MessageCircle className="size-4" />
+          {t('settings.contact.whatsapp')}
+        </a>
+      </Button>
+      <a href="tel:+50684046973" className="flex items-center gap-2 text-sm text-primary">
+        <Phone className="size-4" />
         CR +506 8404-6973
       </a>
-      <a href="tel:+18314715559" className="text-sm text-brand-primary">
+      <a href="tel:+18314715559" className="flex items-center gap-2 text-sm text-primary">
+        <Phone className="size-4" />
         US +1 (831) 471-5559
       </a>
-      <a href="mailto:info@peptidescostarica.net" className="text-sm text-brand-primary">
+      <a href="mailto:info@peptidescostarica.net" className="flex items-center gap-2 text-sm text-primary">
+        <Mail className="size-4" />
         info@peptidescostarica.net
       </a>
     </SectionCard>

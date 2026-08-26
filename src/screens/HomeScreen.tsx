@@ -1,6 +1,10 @@
+import { AlertTriangle, Check, ClipboardList, Clock3, X } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Card } from '../components/Card'
+import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { EmptyState } from '../components/EmptyState'
 import { getCompoundById } from '../content/compounds'
 import { formatTime } from '../lib/dates'
@@ -100,40 +104,56 @@ export function HomeScreen({ onNavigateToSettings }: { onNavigateToSettings: () 
         <button
           type="button"
           onClick={onNavigateToSettings}
-          className="min-h-11 rounded-2xl border border-brand-warn bg-brand-warn-lt px-4 py-3 text-left text-sm text-brand-warn"
+          className="flex min-h-11 items-start gap-2 rounded-2xl border border-brand-warn bg-brand-warn-lt px-4 py-3 text-left text-sm text-brand-warn"
         >
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
           {t('home.backupNudge')}
         </button>
       )}
 
       {dueItems.length > 0 && (
         <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-brand-muted">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             {t('home.catchUpTitle')}
           </h2>
-          {dueItems.map((item) => (
-            <DueCard key={`${item.protocol.id}-${item.occurrence.scheduledAt.toISOString()}`} item={item} />
-          ))}
+          <AnimatePresence initial={false}>
+            {dueItems.map((item) => (
+              <motion.div
+                key={`${item.protocol.id}-${item.occurrence.scheduledAt.toISOString()}`}
+                layout
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.18 }}
+              >
+                <DueCard item={item} />
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </section>
       )}
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-brand-muted">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
           {t('home.nextUpTitle')}
         </h2>
         {nextUp ? (
           <NextUpCard protocol={nextUp.protocol} occurrence={nextUp.occurrence} now={now} />
         ) : (
-          <EmptyState title={t('home.noUpcomingTitle')} body={t('home.noUpcomingBody')} />
+          <EmptyState icon={Clock3} title={t('home.noUpcomingTitle')} body={t('home.noUpcomingBody')} />
         )}
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-brand-muted">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
           {t('home.activeProtocolsTitle')}
         </h2>
         {activeProtocols.length === 0 ? (
-          <EmptyState title={t('home.noProtocolsTitle')} body={t('home.noProtocolsBody')} />
+          <EmptyState
+            icon={ClipboardList}
+            title={t('home.noProtocolsTitle')}
+            body={t('home.noProtocolsBody')}
+          />
         ) : (
           activeProtocols.map((protocol) => <ActiveProtocolRow key={protocol.id} protocol={protocol} />)
         )}
@@ -150,6 +170,7 @@ function LogButtons({ protocol, occurrence }: { protocol: Protocol; occurrence: 
     setBusy(true)
     try {
       await logProtocolDose(protocol, status, occurrence.scheduledAt)
+      toast.success(status === 'taken' ? t('home.toastTaken') : t('home.toastSkipped'))
     } finally {
       setBusy(false)
     }
@@ -157,22 +178,14 @@ function LogButtons({ protocol, occurrence }: { protocol: Protocol; occurrence: 
 
   return (
     <div className="flex gap-2">
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => handle('taken')}
-        className="min-h-11 flex-1 rounded-xl bg-brand-primary text-sm font-semibold text-white disabled:opacity-40"
-      >
+      <Button size="sm" disabled={busy} onClick={() => handle('taken')} className="flex-1">
+        <Check className="size-4" />
         {t('home.logTaken')}
-      </button>
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => handle('skipped')}
-        className="min-h-11 flex-1 rounded-xl border border-brand-border text-sm font-medium text-brand-muted disabled:opacity-40"
-      >
+      </Button>
+      <Button size="sm" variant="secondary" disabled={busy} onClick={() => handle('skipped')} className="flex-1">
+        <X className="size-4" />
         {t('home.logSkipped')}
-      </button>
+      </Button>
     </div>
   )
 }
@@ -181,10 +194,10 @@ function DueCard({ item }: { item: DueItem }) {
   const { t } = useTranslation()
   const compound = getCompoundById(item.protocol.compoundId)
   return (
-    <Card className="flex flex-col gap-3">
+    <Card className="flex flex-col gap-3 p-4">
       <div>
-        <p className="font-medium text-brand-ink">{item.protocol.name || compound?.name}</p>
-        <p className="text-sm text-brand-muted">
+        <p className="font-medium text-foreground">{item.protocol.name || compound?.name}</p>
+        <p className="text-sm text-muted-foreground">
           {formatTime(item.occurrence.scheduledAt)}
           {item.isMissed ? ` · ${t('home.missedLabel')}` : ` · ${t('home.dueLabel')}`}
         </p>
@@ -200,11 +213,11 @@ function NextUpCard({ protocol, occurrence, now }: { protocol: Protocol; occurre
   const { t } = useTranslation()
   const compound = getCompoundById(protocol.compoundId)
   return (
-    <Card className="flex flex-col gap-3 border-brand-primary bg-brand-primary-lt">
+    <Card className="flex flex-col gap-3 border-primary bg-accent p-4">
       <div>
-        <p className="font-medium text-brand-ink">{protocol.name || compound?.name}</p>
-        <p className="text-3xl font-semibold text-brand-primary">{formatCountdown(now, occurrence.scheduledAt, t)}</p>
-        <p className="text-sm text-brand-muted">{formatTime(occurrence.scheduledAt)}</p>
+        <p className="font-medium text-foreground">{protocol.name || compound?.name}</p>
+        <p className="text-3xl font-semibold text-primary">{formatCountdown(now, occurrence.scheduledAt, t)}</p>
+        <p className="text-sm text-muted-foreground">{formatTime(occurrence.scheduledAt)}</p>
       </div>
       <LogButtons protocol={protocol} occurrence={occurrence} />
     </Card>
@@ -215,9 +228,9 @@ function ActiveProtocolRow({ protocol }: { protocol: Protocol }) {
   const { t } = useTranslation()
   const compound = getCompoundById(protocol.compoundId)
   return (
-    <Card>
-      <p className="font-medium text-brand-ink">{protocol.name || compound?.name}</p>
-      <p className="text-sm text-brand-muted">
+    <Card className="p-4">
+      <p className="font-medium text-foreground">{protocol.name || compound?.name}</p>
+      <p className="text-sm text-muted-foreground">
         {compound?.name} · {protocol.doseAmount} {protocol.doseUnit} · {t(`schedule.${protocol.schedule.kind}`)}
       </p>
     </Card>

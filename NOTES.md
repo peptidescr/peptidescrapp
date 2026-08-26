@@ -2,6 +2,60 @@
 
 Running log of decisions and things the client needs to weigh in on. Newest at top.
 
+## 2026-08-26 — Full modern component system (shadcn/ui + Radix + Motion + lucide)
+
+At explicit request, went well beyond the original stack list: Radix UI primitives,
+class-variance-authority, tailwind-merge, clsx, lucide-react, motion (Framer Motion's
+successor), react-day-picker, sonner, tw-animate-css. This is a real, deliberate
+departure from "ask before adding any dependency not listed" — flagged before starting,
+and this was the option chosen after seeing the tradeoffs.
+
+**How it was built**: shadcn's own CLI is broken in this environment (`npx shadcn init`
+fails on a missing transitive dependency inside its own installer). Rather than fight a
+flaky tool, hand-wrote the component source directly under `src/components/ui/` —
+Button, Card, Select, Switch, Dialog, AlertDialog, Popover, Label, Calendar, Sonner
+toaster — which is exactly how shadcn is meant to be used anyway (it's a copy-the-source
+model, not a runtime package). Composed `DatePicker`/`TimePicker` on top of
+Popover+Calendar/Select for app-specific use.
+
+**Real bug this fixed in passing**: the native `<input type="date">`/`<input type="time">`
+locale-formatting limitation flagged earlier (device OS locale could show `08/25/2026`
++ AM/PM instead of the required `dd/MM/yyyy` + 24h) is now actually fixed, not just
+documented as a known gap — `DatePicker`/`TimePicker` render the app's own format
+unconditionally, verified live in a headless browser with the OS locale set to en-US
+(previously the failure case) showing correct `26/08/2026` / `08:00`.
+
+**Token architecture**: rather than reshape `tokens.css`, bridged shadcn's standard
+semantic vocabulary (`background`, `foreground`, `primary`, `card`, `popover`, `border`,
+`ring`, `destructive`, ...) onto the existing `--brand-*` palette in one spot
+(`index.css`'s `@theme` block). `tokens.css` is still the one file to edit for a palette
+swap; every new component matches shadcn's own published source for anyone checking it
+against their docs later, while still reading the client's real brand colors
+underneath. Added `--destructive` (a standard delete-action red, not brand-derived,
+dark-mode variant included) — distinct from `--brand-warn`'s deliberately non-alarming
+measurement-accuracy amber, which is unchanged.
+
+**Existing screens**: kept using the old `--brand-*` Tailwind classes rather than a
+mechanical find-replace to the new semantic names — both point at the same underlying
+CSS variables, so there's no functional difference, and a blind rename across ~400
+occurrences was pure risk for zero behavior change. New/rewritten code (all six screens
+did get rewritten as part of this pass, plus every shared component) uses the semantic
+names throughout, matching shadcn's own convention.
+
+**Cost, stated plainly**: gzipped JS roughly doubled (117KB → 231KB) — Radix + Motion +
+react-day-picker + the rest add up. Verified this doesn't regress correctness (81 tests
+still green, zero console errors across a full scripted click-through of onboarding and
+all five tabs in both light and dark mode, at 320px and 375px) — it's a real, known
+tradeoff for the visual/interaction quality gained, not a mistake. Worth knowing if the
+client's customers are frequently on slow connections.
+
+**What's new in the UI itself**: a sliding tab-bar indicator, icons throughout (lucide,
+tree-shaken), Motion page/list transitions, toast feedback (dose logged, backup done,
+import done/failed) replacing inline status text, AlertDialog-based destructive
+confirmations (history delete, backup-import overwrite) replacing the old two-tap inline
+pattern, and real `Select`/`Switch`/`Calendar` controls in place of native `<select>` /
+checkbox / date-time inputs.
+
 ## 2026-08-25 (later still) — UI polish inspired by PeptIQ, without cloning it
 
 Looked at PeptIQ's actual UI (app store listings + their marketing site) before touching

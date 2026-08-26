@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { AnimatePresence, motion } from 'motion/react'
 import { TabBar, type Tab } from './components/TabBar'
+import { Toaster } from './components/ui/sonner'
 import { LEGAL_VERSION } from './content/legal'
 import { maybeCreateDailySnapshot } from './lib/backup'
 import { db, ensureCompoundsSeeded, ensureSettingsRow } from './lib/db'
@@ -66,7 +68,7 @@ function App() {
   }
 
   if (needsOnboarding === null) {
-    return <div className="min-h-dvh bg-brand-surface-2" />
+    return <div className="min-h-dvh bg-background" />
   }
 
   if (needsOnboarding) {
@@ -74,12 +76,22 @@ function App() {
   }
 
   return (
-    <div className="min-h-dvh bg-brand-surface-2 pb-20 pt-[env(safe-area-inset-top)]">
-      {tab === 'home' && <HomeScreen onNavigateToSettings={() => setTab('settings')} />}
-      {tab === 'calculator' && <CalculatorScreen />}
-      {tab === 'protocols' && <ProtocolsScreen />}
-      {tab === 'history' && <HistoryScreen />}
-      {tab === 'settings' && <SettingsScreen />}
+    <div className="min-h-dvh bg-background pb-20 pt-[env(safe-area-inset-top)]">
+      <Toaster />
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={tab}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.15 }}
+        >
+          {tab === 'home' && <HomeScreen onNavigateToSettings={() => setTab('settings')} />}
+          {tab === 'calculator' && <CalculatorScreen />}
+          {tab === 'protocols' && <ProtocolsScreen />}
+          {tab === 'history' && <HistoryScreen />}
+          {tab === 'settings' && <SettingsScreen />}
+        </motion.div>
+      </AnimatePresence>
       <TabBar active={tab} onChange={setTab} labels={labels} navLabel={t('nav.ariaLabel')} />
     </div>
   )

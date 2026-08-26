@@ -1,3 +1,5 @@
+import { PenLine, Sparkles } from 'lucide-react'
+import { motion } from 'motion/react'
 import { useTranslation } from 'react-i18next'
 import { getCompoundById } from '../content/compounds'
 import { PROTOCOL_TEMPLATES, type ProtocolTemplate } from '../content/protocolTemplates'
@@ -20,28 +22,37 @@ export function TemplatePicker({ onSelectTemplate, onSelectCustom }: TemplatePic
       <button
         type="button"
         onClick={onSelectCustom}
-        className="min-h-11 rounded-2xl border-2 border-dashed border-brand-primary px-4 py-4 text-left"
+        className="flex min-h-11 items-start gap-3 rounded-2xl border-2 border-dashed border-primary px-4 py-4 text-left"
       >
-        <p className="font-medium text-brand-primary">{t('templates.custom')}</p>
-        <p className="text-sm text-brand-muted">{t('templates.customDescription')}</p>
+        <PenLine className="mt-0.5 size-5 shrink-0 text-primary" />
+        <div>
+          <p className="font-medium text-primary">{t('templates.custom')}</p>
+          <p className="text-sm text-muted-foreground">{t('templates.customDescription')}</p>
+        </div>
       </button>
 
       <div className="flex flex-col gap-3">
-        {PROTOCOL_TEMPLATES.map((template) => {
+        {PROTOCOL_TEMPLATES.map((template, index) => {
           const compound = getCompoundById(template.compoundId)
           return (
-            <button
+            <motion.button
               key={template.id}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.15, delay: index * 0.03 }}
               type="button"
               onClick={() => onSelectTemplate(template)}
-              className="min-h-11 rounded-2xl border border-brand-border bg-brand-surface px-4 py-3 text-left shadow-sm"
+              className="flex min-h-11 items-start gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-left shadow-sm"
             >
-              <p className="font-medium text-brand-ink">{t(template.nameKey)}</p>
-              <p className="text-sm text-brand-muted">
-                {compound?.name} · {formatDecimal(template.doseAmount, locale, 2)} {template.doseUnit} ·{' '}
-                {t(`schedule.${template.schedule.kind}`)}
-              </p>
-            </button>
+              <Sparkles className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
+              <div>
+                <p className="font-medium text-foreground">{t(template.nameKey)}</p>
+                <p className="text-sm text-muted-foreground">
+                  {compound?.name} · {formatDecimal(template.doseAmount, locale, 2)} {template.doseUnit} ·{' '}
+                  {t(`schedule.${template.schedule.kind}`)}
+                </p>
+              </div>
+            </motion.button>
           )
         })}
       </div>

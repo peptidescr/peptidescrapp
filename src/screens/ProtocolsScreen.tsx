@@ -1,6 +1,13 @@
+import { ChevronLeft, ClipboardList, Plus, Trash2 } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button } from '../components/Button'
+import { DatePicker } from '@/components/DatePicker'
+import { TimePicker } from '@/components/TimePicker'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { EmptyState } from '../components/EmptyState'
 import { TemplatePicker } from '../components/TemplatePicker'
 import { getCompoundById, listSelectableCompounds } from '../content/compounds'
@@ -58,21 +65,31 @@ export function ProtocolsScreen() {
     <div className="flex flex-col gap-4 px-4 pb-6 pt-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">{t('nav.protocols')}</h1>
-        <Button onClick={() => setMode({ kind: 'picker' })}>{t('protocols.new')}</Button>
+        <Button onClick={() => setMode({ kind: 'picker' })}>
+          <Plus className="size-4" />
+          {t('protocols.new')}
+        </Button>
       </div>
 
       {protocols !== undefined && sorted.length === 0 && (
-        <EmptyState title={t('protocols.emptyTitle')} body={t('protocols.emptyBody')} />
+        <EmptyState icon={ClipboardList} title={t('protocols.emptyTitle')} body={t('protocols.emptyBody')} />
       )}
 
       <div className="flex flex-col gap-3">
-        {sorted.map((protocol) => (
-          <ProtocolRow
-            key={protocol.id}
-            protocol={protocol}
-            onEdit={() => setMode({ kind: 'form', protocolId: protocol.id })}
-          />
-        ))}
+        <AnimatePresence initial={false}>
+          {sorted.map((protocol) => (
+            <motion.div
+              key={protocol.id}
+              layout
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.18 }}
+            >
+              <ProtocolRow protocol={protocol} onEdit={() => setMode({ kind: 'form', protocolId: protocol.id })} />
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
     </div>
   )
@@ -88,29 +105,19 @@ function ProtocolRow({ protocol, onEdit }: { protocol: Protocol; onEdit: () => v
   }
 
   return (
-    <div
-      className={`rounded-2xl border p-4 ${
-        protocol.isActive
-          ? 'border-brand-border bg-brand-surface shadow-sm'
-          : 'border-brand-border bg-brand-surface-2 opacity-60'
-      }`}
-    >
-      <div className="flex items-start justify-between gap-2">
+    <Card className={protocol.isActive ? undefined : 'bg-muted opacity-60 shadow-none'}>
+      <div className="flex items-center justify-between gap-2 p-4">
         <button type="button" onClick={onEdit} className="min-h-11 flex-1 text-left">
-          <p className="font-medium text-brand-ink">{protocol.name || compound?.name}</p>
-          <p className="text-sm text-brand-muted">
+          <p className="font-medium text-foreground">{protocol.name || compound?.name}</p>
+          <p className="text-sm text-muted-foreground">
             {compound?.name} · {protocol.doseAmount} {protocol.doseUnit} · {t(`schedule.${protocol.schedule.kind}`)}
           </p>
         </button>
-        <button
-          type="button"
-          onClick={toggleActive}
-          className="min-h-11 shrink-0 rounded-full border border-brand-border px-3 text-xs font-medium text-brand-muted"
-        >
-          {protocol.isActive ? t('protocols.deactivate') : t('protocols.activate')}
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <Switch checked={protocol.isActive} onCheckedChange={toggleActive} aria-label={t('protocols.activate')} />
+        </div>
       </div>
-    </div>
+    </Card>
   )
 }
 
@@ -236,7 +243,8 @@ export function ProtocolForm({ protocolId, template, onDone }: ProtocolFormProps
   return (
     <div className="flex flex-col gap-5 px-4 pb-6 pt-4">
       <div className="flex items-center justify-between">
-        <button type="button" onClick={onDone} className="min-h-11 text-brand-primary">
+        <button type="button" onClick={onDone} className="flex min-h-11 items-center gap-1 text-primary">
+          <ChevronLeft className="size-5" />
           {t('common.cancel')}
         </button>
         <h1 className="text-lg font-semibold">
@@ -246,21 +254,25 @@ export function ProtocolForm({ protocolId, template, onDone }: ProtocolFormProps
       </div>
 
       <FormField label={t('protocols.compound')}>
-        <select
-          className="min-h-11 w-full rounded-xl border border-brand-border bg-brand-surface px-3"
+        <Select
           value={compoundId}
-          onChange={(e) => {
-            setCompoundId(e.target.value)
-            const c = compounds.find((x) => x.id === e.target.value)
+          onValueChange={(value) => {
+            setCompoundId(value)
+            const c = compounds.find((x) => x.id === value)
             if (c) setDoseUnit(c.defaultUnit)
           }}
         >
-          {compounds.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {compounds.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </FormField>
 
       <FormField label={t('protocols.name')}>
@@ -269,7 +281,7 @@ export function ProtocolForm({ protocolId, template, onDone }: ProtocolFormProps
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder={compound?.name}
-          className="min-h-11 w-full rounded-xl border border-brand-border bg-brand-surface px-3"
+          className="min-h-11 w-full rounded-xl border border-input bg-card px-3 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
       </FormField>
 
@@ -280,19 +292,19 @@ export function ProtocolForm({ protocolId, template, onDone }: ProtocolFormProps
             inputMode="decimal"
             value={doseAmount}
             onChange={(e) => setDoseAmount(e.target.value)}
-            className="min-h-11 flex-1 rounded-xl border border-brand-border bg-brand-surface px-3"
+            className="min-h-11 flex-1 rounded-xl border border-input bg-card px-3 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           {compound?.defaultUnit === 'IU' ? (
-            <span className="flex min-h-11 items-center px-3 text-brand-muted">IU</span>
+            <span className="flex min-h-11 items-center px-3 text-muted-foreground">IU</span>
           ) : (
-            <div className="flex overflow-hidden rounded-xl border border-brand-border">
+            <div className="flex overflow-hidden rounded-xl border border-border">
               {(['mg', 'mcg'] as const).map((u) => (
                 <button
                   key={u}
                   type="button"
                   onClick={() => setDoseUnit(u)}
-                  className={`min-h-11 px-3 text-sm font-medium ${
-                    doseUnit === u ? 'bg-brand-primary text-white' : 'bg-brand-surface text-brand-muted'
+                  className={`min-h-11 px-3 text-sm font-medium transition-colors ${
+                    doseUnit === u ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground'
                   }`}
                 >
                   {u}
@@ -304,17 +316,18 @@ export function ProtocolForm({ protocolId, template, onDone }: ProtocolFormProps
       </FormField>
 
       <FormField label={t('protocols.schedule')}>
-        <select
-          className="min-h-11 w-full rounded-xl border border-brand-border bg-brand-surface px-3"
-          value={scheduleKind}
-          onChange={(e) => setScheduleKind(e.target.value as Schedule['kind'])}
-        >
-          {SCHEDULE_KINDS.map((kind) => (
-            <option key={kind} value={kind}>
-              {t(`schedule.${kind}`)}
-            </option>
-          ))}
-        </select>
+        <Select value={scheduleKind} onValueChange={(v) => setScheduleKind(v as Schedule['kind'])}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SCHEDULE_KINDS.map((kind) => (
+              <SelectItem key={kind} value={kind}>
+                {t(`schedule.${kind}`)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </FormField>
 
       {scheduleKind === 'everyNDays' && (
@@ -324,7 +337,7 @@ export function ProtocolForm({ protocolId, template, onDone }: ProtocolFormProps
             min={1}
             value={everyN}
             onChange={(e) => setEveryN(e.target.value)}
-            className="min-h-11 w-full rounded-xl border border-brand-border bg-brand-surface px-3"
+            className="min-h-11 w-full rounded-xl border border-input bg-card px-3 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </FormField>
       )}
@@ -337,10 +350,10 @@ export function ProtocolForm({ protocolId, template, onDone }: ProtocolFormProps
                 key={key}
                 type="button"
                 onClick={() => toggleWeekday(index as Weekday)}
-                className={`min-h-11 min-w-11 rounded-xl border text-sm font-medium ${
+                className={`min-h-11 min-w-11 rounded-xl border text-sm font-medium transition-colors ${
                   weekdays.includes(index as Weekday)
-                    ? 'border-brand-primary bg-brand-primary-lt text-brand-primary'
-                    : 'border-brand-border text-brand-muted'
+                    ? 'border-primary bg-accent text-primary'
+                    : 'border-border text-muted-foreground'
                 }`}
               >
                 {t(`weekday.${key}`)}
@@ -358,7 +371,7 @@ export function ProtocolForm({ protocolId, template, onDone }: ProtocolFormProps
               min={1}
               value={daysOn}
               onChange={(e) => setDaysOn(e.target.value)}
-              className="min-h-11 w-full rounded-xl border border-brand-border bg-brand-surface px-3"
+              className="min-h-11 w-full rounded-xl border border-input bg-card px-3 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </FormField>
           <FormField label={t('protocols.daysOff')}>
@@ -367,7 +380,7 @@ export function ProtocolForm({ protocolId, template, onDone }: ProtocolFormProps
               min={0}
               value={daysOff}
               onChange={(e) => setDaysOff(e.target.value)}
-              className="min-h-11 w-full rounded-xl border border-brand-border bg-brand-surface px-3"
+              className="min-h-11 w-full rounded-xl border border-input bg-card px-3 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </FormField>
         </div>
@@ -377,69 +390,56 @@ export function ProtocolForm({ protocolId, template, onDone }: ProtocolFormProps
         <div className="flex flex-col gap-2">
           {reminderTimes.map((time, index) => (
             <div key={index} className="flex items-center gap-2">
-              <input
-                type="time"
-                value={time}
-                onChange={(e) => updateReminderTime(index, e.target.value)}
-                className="min-h-11 flex-1 rounded-xl border border-brand-border bg-brand-surface px-3"
-              />
+              <TimePicker value={time} onChange={(value) => updateReminderTime(index, value)} />
               {reminderTimes.length > 1 && (
                 <button
                   type="button"
                   onClick={() => removeReminderTime(index)}
-                  className="min-h-11 px-2 text-brand-muted"
+                  className="flex min-h-11 min-w-11 items-center justify-center text-muted-foreground"
                   aria-label={t('common.delete')}
                 >
-                  ✕
+                  <Trash2 className="size-4" />
                 </button>
               )}
             </div>
           ))}
-          <button type="button" onClick={addReminderTime} className="min-h-11 self-start text-sm text-brand-primary">
+          <button
+            type="button"
+            onClick={addReminderTime}
+            className="flex min-h-11 items-center gap-1 self-start text-sm text-primary"
+          >
+            <Plus className="size-4" />
             {t('protocols.addReminderTime')}
           </button>
         </div>
       </FormField>
 
       <FormField label={t('protocols.startDate')}>
-        <input
-          type="date"
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-          className="min-h-11 w-full rounded-xl border border-brand-border bg-brand-surface px-3"
-        />
+        <DatePicker value={startDate} onChange={setStartDate} />
       </FormField>
 
       <FormField label={t('protocols.endDate')}>
         <div className="flex items-center gap-3">
-          <input
-            type="checkbox"
-            checked={hasEndDate}
-            onChange={(e) => setHasEndDate(e.target.checked)}
-            className="h-5 w-5"
-          />
-          <input
-            type="date"
-            disabled={!hasEndDate}
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="min-h-11 flex-1 rounded-xl border border-brand-border bg-brand-surface px-3 disabled:opacity-40"
-          />
+          <Switch checked={hasEndDate} onCheckedChange={setHasEndDate} />
+          <div className="flex-1">
+            <DatePicker value={endDate} onChange={setEndDate} disabled={!hasEndDate} />
+          </div>
         </div>
       </FormField>
 
       <FormField label={t('protocols.route')}>
-        <select
-          className="min-h-11 w-full rounded-xl border border-brand-border bg-brand-surface px-3"
-          value={route}
-          onChange={(e) => setRoute(e.target.value as Route)}
-        >
-          {ROUTES.map((r) => (
-            <option key={r} value={r}>
-              {t(`route.${r}`)}
-            </option>
-          ))}
-        </select>
+        <Select value={route} onValueChange={(v) => setRoute(v as Route)}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {ROUTES.map((r) => (
+              <SelectItem key={r} value={r}>
+                {t(`route.${r}`)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </FormField>
 
       <Button onClick={handleSave} disabled={!canSave} className="mt-2">
@@ -452,7 +452,7 @@ export function ProtocolForm({ protocolId, template, onDone }: ProtocolFormProps
 function FormField({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-sm font-medium text-brand-ink">{label}</span>
+      <span className="text-sm font-medium text-foreground">{label}</span>
       {children}
     </label>
   )

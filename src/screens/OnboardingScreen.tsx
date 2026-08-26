@@ -1,7 +1,9 @@
+import { Bell, ShieldCheck, Smartphone, Sparkles } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button } from '../components/Button'
 import { TemplatePicker } from '../components/TemplatePicker'
+import { Button } from '@/components/ui/button'
 import { LEGAL_PLACEHOLDER, LEGAL_VERSION } from '../content/legal'
 import type { ProtocolTemplate } from '../content/protocolTemplates'
 import { useInstallState } from '../lib/install'
@@ -18,14 +20,24 @@ export function OnboardingScreen({ onComplete }: { onComplete: () => void }) {
   const locale = (i18n.language === 'en' ? 'en' : 'es-CR') as Locale
 
   return (
-    <div className="flex min-h-dvh flex-col bg-brand-surface-2 px-4 pb-8 pt-[calc(env(safe-area-inset-top)+1.5rem)]">
+    <div className="flex min-h-dvh flex-col bg-background px-4 pb-8 pt-[calc(env(safe-area-inset-top)+1.5rem)]">
       <StepDots step={step} />
-      <div className="flex-1">
-        {step === 1 && <LanguageStep onNext={() => setStep(2)} />}
-        {step === 2 && <DisclaimerStep locale={locale} onAccept={() => setStep(3)} />}
-        {step === 3 && <InstallStep onNext={() => setStep(4)} />}
-        {step === 4 && <NotificationStep onNext={() => setStep(5)} />}
-        {step === 5 && <FirstProtocolStep onDone={onComplete} onSkip={onComplete} />}
+      <div className="relative flex-1 overflow-hidden">
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={step}
+            initial={{ opacity: 0, x: 24 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -24 }}
+            transition={{ duration: 0.2 }}
+          >
+            {step === 1 && <LanguageStep onNext={() => setStep(2)} />}
+            {step === 2 && <DisclaimerStep locale={locale} onAccept={() => setStep(3)} />}
+            {step === 3 && <InstallStep onNext={() => setStep(4)} />}
+            {step === 4 && <NotificationStep onNext={() => setStep(5)} />}
+            {step === 5 && <FirstProtocolStep onDone={onComplete} onSkip={onComplete} />}
+          </motion.div>
+        </AnimatePresence>
       </div>
     </div>
   )
@@ -37,7 +49,7 @@ function StepDots({ step }: { step: Step }) {
       {([1, 2, 3, 4, 5] as Step[]).map((s) => (
         <span
           key={s}
-          className={`h-1.5 w-6 rounded-full ${s <= step ? 'bg-brand-primary' : 'bg-brand-border'}`}
+          className={`h-1.5 w-6 rounded-full transition-colors duration-200 ${s <= step ? 'bg-primary' : 'bg-border'}`}
         />
       ))}
     </div>
@@ -47,8 +59,8 @@ function StepDots({ step }: { step: Step }) {
 function StepShell({ title, body, children }: { title: string; body?: string; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold text-brand-ink">{title}</h1>
-      {body && <p className="text-sm text-brand-muted">{body}</p>}
+      <h1 className="text-xl font-semibold text-foreground">{title}</h1>
+      {body && <p className="text-sm text-muted-foreground">{body}</p>}
       {children}
     </div>
   )
@@ -73,17 +85,15 @@ function LanguageStep({ onNext }: { onNext: () => void }) {
             key={l}
             type="button"
             onClick={() => setSelected(l)}
-            className={`min-h-11 rounded-xl border px-4 text-left text-base font-medium ${
-              selected === l
-                ? 'border-brand-primary bg-brand-primary-lt text-brand-primary'
-                : 'border-brand-border text-brand-ink'
+            className={`min-h-11 rounded-xl border px-4 text-left text-base font-medium transition-colors ${
+              selected === l ? 'border-primary bg-accent text-primary' : 'border-border text-foreground'
             }`}
           >
             {l === 'es-CR' ? 'Español (Costa Rica)' : 'English'}
           </button>
         ))}
       </div>
-      <Button onClick={handleNext} className="mt-4">
+      <Button onClick={handleNext} className="mt-4 w-full">
         {t('onboarding.continue')}
       </Button>
     </StepShell>
@@ -101,13 +111,14 @@ function DisclaimerStep({ locale, onAccept }: { locale: Locale; onAccept: () => 
 
   return (
     <StepShell title={legal.disclaimerTitle}>
-      <div className="flex max-h-[50vh] flex-col gap-3 overflow-y-auto rounded-xl border border-brand-border bg-brand-surface p-4 text-sm text-brand-muted">
+      <div className="flex max-h-[50vh] flex-col gap-3 overflow-y-auto rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
         <p>{legal.disclaimerBody}</p>
-        <p className="font-medium text-brand-ink">{legal.termsTitle}</p>
+        <p className="font-medium text-foreground">{legal.termsTitle}</p>
         <p>{legal.termsBody}</p>
       </div>
-      <p className="text-xs text-brand-muted">{t('onboarding.disclaimer.mustAccept')}</p>
-      <Button onClick={handleAccept} className="mt-2">
+      <p className="text-xs text-muted-foreground">{t('onboarding.disclaimer.mustAccept')}</p>
+      <Button onClick={handleAccept} className="mt-2 w-full">
+        <ShieldCheck className="size-4" />
         {legal.acceptCta}
       </Button>
     </StepShell>
@@ -120,7 +131,8 @@ function InstallStep({ onNext }: { onNext: () => void }) {
 
   return (
     <StepShell title={t('onboarding.install.title')} body={t('onboarding.install.body')}>
-      <div className="rounded-xl border border-brand-border bg-brand-surface p-4 text-sm text-brand-muted">
+      <div className="flex items-start gap-3 rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
+        <Smartphone className="mt-0.5 size-5 shrink-0 text-primary" />
         {install.isStandalone ? (
           <p>{t('settings.install.installed')}</p>
         ) : install.canPromptInstall ? (
@@ -136,7 +148,7 @@ function InstallStep({ onNext }: { onNext: () => void }) {
           {t('settings.install.cta')}
         </Button>
       )}
-      <Button onClick={onNext} className="mt-2">
+      <Button onClick={onNext} className="mt-2 w-full">
         {t('onboarding.continue')}
       </Button>
     </StepShell>
@@ -162,7 +174,8 @@ function NotificationStep({ onNext }: { onNext: () => void }) {
 
   return (
     <StepShell title={t('onboarding.notifications.title')} body={t('onboarding.notifications.body')}>
-      <p className="rounded-xl border border-brand-border bg-brand-surface p-4 text-sm text-brand-muted">
+      <p className="flex items-start gap-3 rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
+        <Bell className="mt-0.5 size-5 shrink-0 text-primary" />
         {t(statusKey)}
       </p>
       {capability.supported && !capability.requiresInstallOnIOS && capability.permission === 'default' && (
@@ -170,7 +183,7 @@ function NotificationStep({ onNext }: { onNext: () => void }) {
           {t('settings.notif.enable')}
         </Button>
       )}
-      <Button onClick={onNext} className="mt-2">
+      <Button onClick={onNext} className="mt-2 w-full">
         {t('onboarding.continue')}
       </Button>
     </StepShell>
@@ -198,8 +211,13 @@ function FirstProtocolStep({ onDone, onSkip }: { onDone: () => void; onSkip: () 
 
   return (
     <StepShell title={t('onboarding.firstProtocol.title')} body={t('onboarding.firstProtocol.body')}>
-      <Button onClick={() => setMode('picker')}>{t('onboarding.firstProtocol.cta')}</Button>
-      <button type="button" onClick={onSkip} className="min-h-11 self-center text-sm text-brand-muted">
+      <div className="flex justify-center py-2">
+        <Sparkles className="size-10 text-primary" />
+      </div>
+      <Button onClick={() => setMode('picker')} className="w-full">
+        {t('onboarding.firstProtocol.cta')}
+      </Button>
+      <button type="button" onClick={onSkip} className="min-h-11 self-center text-sm text-muted-foreground">
         {t('onboarding.firstProtocol.skip')}
       </button>
     </StepShell>

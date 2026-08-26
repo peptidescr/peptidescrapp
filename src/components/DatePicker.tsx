@@ -1,6 +1,8 @@
 import { CalendarIcon } from 'lucide-react'
 import { useState } from 'react'
 import { parseISO } from 'date-fns'
+import { useTranslation } from 'react-i18next'
+import { es, enUS } from 'react-day-picker/locale'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { formatDate, toIsoDate } from '@/lib/dates'
@@ -21,6 +23,7 @@ interface DatePickerProps {
  * yyyy-MM-dd string, same as before.
  */
 export function DatePicker({ value, onChange, disabled, placeholder }: DatePickerProps) {
+  const { i18n } = useTranslation()
   const [open, setOpen] = useState(false)
   const selected = value ? parseISO(value) : undefined
 
@@ -43,6 +46,7 @@ export function DatePicker({ value, onChange, disabled, placeholder }: DatePicke
         <Calendar
           mode="single"
           selected={selected}
+          locale={i18n.language === 'en' ? enUS : es}
           onSelect={(date) => {
             if (date) {
               onChange(toIsoDate(date))

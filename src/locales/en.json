@@ -91,6 +91,8 @@
     "inHoursMinutes": "In {{hours}}h {{minutes}}m",
     "logTaken": "Taken",
     "logSkipped": "Skipped",
+    "toastTaken": "Dose logged as taken.",
+    "toastSkipped": "Dose logged as skipped.",
     "missedLabel": "Missed",
     "dueLabel": "Due"
   },
@@ -103,7 +105,10 @@
     "time": "Time",
     "doseAmount": "Dose amount",
     "notes": "Notes",
-    "confirmDelete": "Tap again to delete",
+    "saved": "Saved.",
+    "deleted": "Entry deleted.",
+    "deleteDialogTitle": "Delete this entry?",
+    "deleteDialogDescription": "This can't be undone.",
     "status": {
       "label": "Status",
       "taken": "Taken",
