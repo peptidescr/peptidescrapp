@@ -3,6 +3,77 @@
     "name": "peptidescr"
   },
   "common": {
-    "loading": "Cargando…"
+    "loading": "Cargando…",
+    "cancel": "Cancelar",
+    "save": "Guardar",
+    "delete": "Eliminar",
+    "edit": "Editar"
+  },
+  "nav": {
+    "home": "Inicio",
+    "calculator": "Calculadora",
+    "protocols": "Protocolos",
+    "history": "Historial",
+    "settings": "Ajustes"
+  },
+  "calculator": {
+    "title": "Calculadora de mezcla",
+    "compound": "Compuesto",
+    "vialSize": "Tamaño del vial ({{unit}})",
+    "bottleVolume": "Volumen del frasco ({{unit}})",
+    "diluentVolume": "Volumen de diluyente",
+    "concentration": "Concentración ({{unit}})",
+    "desiredDose": "Dosis a registrar ({{unit}})",
+    "syringeType": "Tipo de jeringa",
+    "resultTitle": "Resultado",
+    "awaitingInput": "Ingresa los valores de arriba para ver el volumen a extraer.",
+    "invalidInput": "Revisa los valores de arriba — algo todavía no es un número válido.",
+    "concentrationResult": "Concentración",
+    "drawVolume": "Extraer (mL)",
+    "drawSyringeUnits": "Extraer (unidades {{syringeType}})",
+    "dosesRemaining": "Dosis restantes en el vial",
+    "lowVolumeWarning": "Este volumen es tan pequeño que puede ser difícil medirlo con precisión en esta jeringa."
+  },
+  "protocols": {
+    "new": "Nuevo",
+    "emptyTitle": "Todavía no hay protocolos",
+    "emptyBody": "Creá un protocolo para empezar a registrar dosis según un horario.",
+    "deactivate": "Desactivar",
+    "activate": "Activar",
+    "newTitle": "Nuevo protocolo",
+    "editTitle": "Editar protocolo",
+    "compound": "Compuesto",
+    "name": "Nombre (opcional)",
+    "doseAmount": "Cantidad de dosis",
+    "schedule": "Horario",
+    "everyNDays": "Cada cuántos días",
+    "weekdays": "Qué días",
+    "daysOn": "Días activos",
+    "daysOff": "Días de descanso",
+    "reminderTimes": "Horas de recordatorio",
+    "addReminderTime": "+ Agregar otra hora",
+    "startDate": "Fecha de inicio",
+    "endDate": "Fecha de fin (opcional)",
+    "route": "Vía"
+  },
+  "schedule": {
+    "daily": "Diario",
+    "everyNDays": "Cada N días",
+    "weekdays": "Días específicos",
+    "cycle": "Ciclo (activo/descanso)"
+  },
+  "weekday": {
+    "sun": "Do",
+    "mon": "Lu",
+    "tue": "Ma",
+    "wed": "Mi",
+    "thu": "Ju",
+    "fri": "Vi",
+    "sat": "Sa"
+  },
+  "route": {
+    "subcutaneous": "Subcutánea",
+    "intramuscular": "Intramuscular",
+    "other": "Otra"
   }
 }

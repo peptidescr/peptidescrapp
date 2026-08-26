@@ -1,14 +1,55 @@
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { TabBar, type Tab } from './components/TabBar'
+import { ensureCompoundsSeeded, ensureSettingsRow } from './lib/db'
+import { DEFAULT_LOCALE } from './i18n'
+import { useSettings } from './lib/useSettings'
+import { HomeScreen } from './screens/HomeScreen'
+import { CalculatorScreen } from './screens/CalculatorScreen'
+import { ProtocolsScreen } from './screens/ProtocolsScreen'
+import { HistoryScreen } from './screens/HistoryScreen'
+import { SettingsScreen } from './screens/SettingsScreen'
 
-// Screens, navigation, and PWA install/update wiring land in later build steps.
-// This is the step-1 shell: confirms Tailwind, tokens, and i18n are wired end to end.
 function App() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const [tab, setTab] = useState<Tab>('home')
+  const settings = useSettings()
+
+  // Runs once per app open: seed/sync the read-only compound catalogue,
+  // create the singleton settings row on first run, and ask the platform to
+  // persist storage so an install survives iOS Safari's 7-day IndexedDB
+  // eviction (exempt once installed, but the call is harmless and cheap
+  // either way — see NOTES.md).
+  useEffect(() => {
+    void ensureCompoundsSeeded()
+    void ensureSettingsRow({ locale: DEFAULT_LOCALE, syringeType: 'U-100' })
+    if (navigator.storage?.persist) {
+      void navigator.storage.persist()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (settings && settings.locale !== i18n.language) {
+      void i18n.changeLanguage(settings.locale)
+    }
+  }, [settings, i18n])
+
+  const labels = {
+    home: t('nav.home'),
+    calculator: t('nav.calculator'),
+    protocols: t('nav.protocols'),
+    history: t('nav.history'),
+    settings: t('nav.settings'),
+  }
 
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center gap-2 bg-brand-surface-2 px-4 text-center">
-      <h1 className="text-2xl font-semibold text-brand-primary">{t('app.name')}</h1>
-      <p className="text-brand-muted">{t('common.loading')}</p>
+    <div className="min-h-dvh bg-brand-surface-2 pb-20 pt-[env(safe-area-inset-top)]">
+      {tab === 'home' && <HomeScreen />}
+      {tab === 'calculator' && <CalculatorScreen />}
+      {tab === 'protocols' && <ProtocolsScreen />}
+      {tab === 'history' && <HistoryScreen />}
+      {tab === 'settings' && <SettingsScreen />}
+      <TabBar active={tab} onChange={setTab} labels={labels} />
     </div>
   )
 }

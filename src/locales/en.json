@@ -3,6 +3,77 @@
     "name": "peptidescr"
   },
   "common": {
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit"
+  },
+  "nav": {
+    "home": "Home",
+    "calculator": "Calculator",
+    "protocols": "Protocols",
+    "history": "History",
+    "settings": "Settings"
+  },
+  "calculator": {
+    "title": "Mixing calculator",
+    "compound": "Compound",
+    "vialSize": "Vial size ({{unit}})",
+    "bottleVolume": "Bottle volume ({{unit}})",
+    "diluentVolume": "Diluent volume",
+    "concentration": "Concentration ({{unit}})",
+    "desiredDose": "Dose to log ({{unit}})",
+    "syringeType": "Syringe type",
+    "resultTitle": "Result",
+    "awaitingInput": "Enter the values above to see the draw volume.",
+    "invalidInput": "Check the values above — something isn't a valid number yet.",
+    "concentrationResult": "Concentration",
+    "drawVolume": "Draw (mL)",
+    "drawSyringeUnits": "Draw ({{syringeType}} units)",
+    "dosesRemaining": "Doses left in vial",
+    "lowVolumeWarning": "This draw is small enough that it may be hard to measure precisely on this syringe."
+  },
+  "protocols": {
+    "new": "New",
+    "emptyTitle": "No protocols yet",
+    "emptyBody": "Create a protocol to start logging doses on a schedule.",
+    "deactivate": "Deactivate",
+    "activate": "Activate",
+    "newTitle": "New protocol",
+    "editTitle": "Edit protocol",
+    "compound": "Compound",
+    "name": "Name (optional)",
+    "doseAmount": "Dose amount",
+    "schedule": "Schedule",
+    "everyNDays": "Every how many days",
+    "weekdays": "Which days",
+    "daysOn": "Days on",
+    "daysOff": "Days off",
+    "reminderTimes": "Reminder times",
+    "addReminderTime": "+ Add another time",
+    "startDate": "Start date",
+    "endDate": "End date (optional)",
+    "route": "Route"
+  },
+  "schedule": {
+    "daily": "Daily",
+    "everyNDays": "Every N days",
+    "weekdays": "Specific weekdays",
+    "cycle": "Cycle (on/off)"
+  },
+  "weekday": {
+    "sun": "Su",
+    "mon": "Mo",
+    "tue": "Tu",
+    "wed": "We",
+    "thu": "Th",
+    "fri": "Fr",
+    "sat": "Sa"
+  },
+  "route": {
+    "subcutaneous": "Subcutaneous",
+    "intramuscular": "Intramuscular",
+    "other": "Other"
   }
 }
