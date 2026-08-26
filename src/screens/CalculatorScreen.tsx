@@ -247,7 +247,7 @@ export function CalculatorScreen() {
             />
             <ResultRow label={t('calculator.dosesRemaining')} value={String(result.dosesRemaining)} />
             {result.lowVolumeWarning && (
-              <p className="rounded-xl bg-brand-primary-lt px-3 py-2 text-sm text-brand-warn">
+              <p className="rounded-xl bg-brand-warn-lt px-3 py-2 text-sm text-brand-warn">
                 {t('calculator.lowVolumeWarning')}
               </p>
             )}

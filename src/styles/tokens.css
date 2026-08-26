@@ -1,17 +1,30 @@
 /*
  * Brand tokens — the single file to edit when swapping the palette.
- * Placeholder values from the brief; client will supply exact brand colours later.
+ *
+ * Sourced from the client's actual site and brand assets (peptidescostarica.net),
+ * not guessed: --brand-primary/-dk are the site's own two blues (Astra theme
+ * globals --ast-global-color-0/-1: #046bd2 / #045cb4); --brand-primary-dk is
+ * additionally the exact navy sampled from the client's own favicon/app-icon
+ * mark (a 3-circle molecular-chain glyph, #092771) — reused here as the darker
+ * shade so the app's "pressed" blue is literally their icon's colour, not an
+ * approximation. --brand-ink/-surface-2/-border are the site's own
+ * --ast-global-color-2/-5/-7. --brand-muted is a harmonious slate extrapolation
+ * (not directly sampled) chosen to sit between --brand-ink and --brand-border
+ * in the same neutral family. --brand-warn is intentionally NOT sourced from
+ * the brand — it's a deliberately non-alarming amber for measurement-accuracy
+ * notices (see units.ts), unrelated to brand identity. See NOTES.md.
  */
 :root {
-  --brand-primary: #c8102e;
-  --brand-primary-dk: #9b0c23;
-  --brand-primary-lt: #fdecef;
-  --brand-ink: #14171a;
-  --brand-muted: #6e7681;
+  --brand-primary: #046bd2;
+  --brand-primary-dk: #092771;
+  --brand-primary-lt: #e6f0fb;
+  --brand-ink: #1e293b;
+  --brand-muted: #64748b;
   --brand-surface: #ffffff;
-  --brand-surface-2: #f7f7f8;
-  --brand-border: #e4e4e7;
+  --brand-surface-2: #f0f5fa;
+  --brand-border: #d1d5db;
   --brand-warn: #b0672a;
+  --brand-warn-lt: #fbf1e7;
 
   --font-sans:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif,

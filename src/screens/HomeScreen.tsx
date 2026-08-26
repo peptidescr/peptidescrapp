@@ -99,7 +99,7 @@ export function HomeScreen({ onNavigateToSettings }: { onNavigateToSettings: () 
         <button
           type="button"
           onClick={onNavigateToSettings}
-          className="min-h-11 rounded-2xl border border-brand-warn bg-brand-primary-lt px-4 py-3 text-left text-sm text-brand-warn"
+          className="min-h-11 rounded-2xl border border-brand-warn bg-brand-warn-lt px-4 py-3 text-left text-sm text-brand-warn"
         >
           {t('home.backupNudge')}
         </button>

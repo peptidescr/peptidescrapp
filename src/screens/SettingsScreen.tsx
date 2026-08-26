@@ -224,7 +224,7 @@ function BackupSection() {
       </Button>
       {message && <p className="text-sm text-brand-muted">{message}</p>}
       {pendingImport && (
-        <div className="flex flex-col gap-2 rounded-xl bg-brand-primary-lt p-3">
+        <div className="flex flex-col gap-2 rounded-xl bg-brand-warn-lt p-3">
           <p className="text-sm text-brand-warn">{t('settings.backup.importConfirm')}</p>
           <div className="flex gap-2">
             <Button variant="danger" onClick={confirmImport}>
@@ -276,7 +276,7 @@ function ContactSection() {
   const { t } = useTranslation()
   return (
     <SectionCard title={t('settings.contact.title')}>
-      <p className="text-sm text-brand-ink">Peptides Costa Rica</p>
+      <img src="/brand/logo-full.png" alt="Peptides Costa Rica" className="h-12 w-auto self-start" />
       <p className="text-sm text-brand-muted">Jacó · San José, Costa Rica</p>
       <a href="https://peptidescostarica.net" className="text-sm text-brand-primary" target="_blank" rel="noreferrer">
         peptidescostarica.net

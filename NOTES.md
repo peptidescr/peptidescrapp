@@ -2,6 +2,37 @@
 
 Running log of decisions and things the client needs to weigh in on. Newest at top.
 
+## 2026-08-25 (later) — Real brand colors + real logo, from the client's actual site
+
+Pulled real values instead of guessing further:
+
+- **Colors** sourced from peptidescostarica.net's own HTML/CSS (Astra theme globals) and
+  from the client's own favicon/app-icon PNG (sampled exact pixel colors via ImageMagick):
+  primary blue `#046bd2` and its darker pressed-state `#092771` are the site's/icon's own
+  colors, not approximations. `--brand-ink` (`#1e293b`), `--brand-surface-2` (`#f0f5fa`),
+  and `--brand-border` (`#d1d5db`) are also the site's own exact values. `--brand-muted`
+  (`#64748b`) is the one extrapolated value — no muted/secondary text color was easy to
+  isolate from the site's CSS, so I picked a harmonious slate that sits between ink and
+  border in the same family. Full reasoning is in `tokens.css`'s header comment.
+- Added `--brand-warn-lt`, a light amber tint decoupled from `--brand-primary-lt` — with
+  primary now blue, the old pattern of pairing the warning banners' background with
+  `--brand-primary-lt` would have put brown/amber warning text on a blue background.
+  Measurement-accuracy warnings (low-draw-volume, destructive-import confirm, backup
+  nudge) now use `--brand-warn-lt` instead.
+- **Logo**: the client's site header logo is a wordmark ("PEPTIDES / COSTA RICA" in navy
+  and red, with a small light-blue molecular-chain accent) — downloaded and placed at
+  `public/brand/logo-full.png`, now shown in the Onboarding welcome step and Settings'
+  Contact section. The client's actual *icon* mark (their real favicon/app-icon, not the
+  header wordmark) is a plain navy 3-circle molecular-chain glyph on transparent — I
+  redrew this as a clean SVG (`public/brand/icon.svg`, matched proportions by eye against
+  their real favicon) on a solid brand-blue square background, replacing the earlier
+  invented "atom orbit" placeholder, and regenerated all the PWA/apple-touch-icon PNGs
+  from it. This is a redrawn vector recreation of their real mark's proportions and exact
+  sampled navy, not a placeholder guess anymore — but it's still worth the client's own
+  design sign-off before this ships, since I don't have their original vector source file.
+- PWA manifest `theme_color`/`background_color` and `index.html`'s `theme-color` meta
+  updated to the new blue to match (affects the OS status bar / task switcher chrome).
+
 ## 2026-08-25 — Step 13: Spanish pass, empty states, 320px check
 
 Verified rather than assumed, using a real headless Chromium driven over CDP (no

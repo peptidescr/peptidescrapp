@@ -64,6 +64,7 @@ function LanguageStep({ onNext }: { onNext: () => void }) {
 
   return (
     <StepShell title={t('onboarding.language.title')}>
+      <img src="/brand/logo-full.png" alt="Peptides Costa Rica" className="mx-auto h-16 w-auto" />
       <div className="flex flex-col gap-2">
         {(['es-CR', 'en'] as const).map((l) => (
           <button

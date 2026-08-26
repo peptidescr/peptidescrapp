@@ -11,6 +11,7 @@
   --color-brand-surface-2: var(--brand-surface-2);
   --color-brand-border: var(--brand-border);
   --color-brand-warn: var(--brand-warn);
+  --color-brand-warn-lt: var(--brand-warn-lt);
   --font-sans: var(--font-sans);
 }
 
