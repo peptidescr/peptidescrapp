@@ -5,9 +5,17 @@ import { EmptyState } from '../components/EmptyState'
 import { getCompoundById, listSelectableCompounds } from '../content/compounds'
 import { toIsoDate } from '../lib/dates'
 import { db, type Protocol, type Route } from '../lib/db'
+import { scheduleUpcomingReminders } from '../lib/notifications'
 import type { Schedule, Weekday } from '../lib/schedule'
 import { useLiveQuery } from '../lib/useLiveQuery'
 import type { MassUnit } from '../lib/units'
+
+/** Reminder scheduling (best-effort, Chromium-only — see notifications.ts) needs to pick
+ * up new/changed/deactivated protocols right away, not just on the next app open. */
+async function rescheduleReminders(): Promise<void> {
+  const protocols = await db.protocols.toArray()
+  await scheduleUpcomingReminders(protocols)
+}
 
 const WEEKDAY_LABELS_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const
 const SCHEDULE_KINDS: Schedule['kind'][] = ['daily', 'everyNDays', 'weekdays', 'cycle']
@@ -55,6 +63,7 @@ function ProtocolRow({ protocol, onEdit }: { protocol: Protocol; onEdit: () => v
 
   async function toggleActive() {
     await db.protocols.update(protocol.id, { isActive: !protocol.isActive })
+    void rescheduleReminders()
   }
 
   return (
@@ -168,6 +177,7 @@ function ProtocolForm({ protocolId, onDone }: ProtocolFormProps) {
       isActive: existing?.isActive ?? true,
     }
     await db.protocols.put(protocol)
+    void rescheduleReminders()
     onDone()
   }
 
