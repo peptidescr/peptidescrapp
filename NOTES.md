@@ -2,6 +2,25 @@
 
 Running log of decisions and things the client needs to weigh in on. Newest at top.
 
+## 2026-08-25 — Step 5: schedule.ts — derived occurrences, no ScheduledDose table
+
+- `date-fns-tz` is in the approved stack but schedule.ts doesn't use it: everything runs
+  on plain `Date` in the device's own local time. There's no server and no data that
+  crosses time zones — a dosing schedule is about the user's own day/night cycle wherever
+  their phone physically is, so device-local time is the *correct* behaviour here, not a
+  gap. I'll reach for date-fns-tz only if a genuine fixed-zone display need shows up later
+  (I don't expect one in Phase 1 screens).
+- Matching a logged dose to a schedule occurrence (needed for both "missed" and "already
+  logged, don't ask again"): the brief doesn't specify how to pair a DoseLog's timestamp
+  back to a specific scheduled slot. Implemented as same-calendar-day + nearest-in-time
+  greedy matching (see `findUnloggedOccurrences` doc comment) — exact for once- or
+  twice-daily schedules, which is effectively all real protocols here. Flagging the
+  heuristic, not asking to block on it: getting this perfectly optimal for someone running
+  3+ same-day reminder times with irregular logging times isn't worth the complexity for
+  this brief.
+- Missed-dose scan is capped to a 30-day lookback so an old/abandoned protocol can't
+  produce an unbounded backlog on the catch-up screen.
+
 ## 2026-08-25 — Step 3: Dexie schema + seed compounds
 
 - `Protocol.schedule` needs the `Schedule` type, which the brief's build order puts at
