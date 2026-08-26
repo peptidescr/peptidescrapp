@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Card } from '../components/Card'
 import { EmptyState } from '../components/EmptyState'
 import { getCompoundById } from '../content/compounds'
 import { formatTime } from '../lib/dates'
@@ -180,7 +181,7 @@ function DueCard({ item }: { item: DueItem }) {
   const { t } = useTranslation()
   const compound = getCompoundById(item.protocol.compoundId)
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-brand-border bg-brand-surface p-4">
+    <Card className="flex flex-col gap-3">
       <div>
         <p className="font-medium text-brand-ink">{item.protocol.name || compound?.name}</p>
         <p className="text-sm text-brand-muted">
@@ -189,22 +190,24 @@ function DueCard({ item }: { item: DueItem }) {
         </p>
       </div>
       <LogButtons protocol={item.protocol} occurrence={item.occurrence} />
-    </div>
+    </Card>
   )
 }
 
+/** The screen's hero card — given more visual weight (tinted background, larger
+ * countdown) since it's the single most important thing on Home. */
 function NextUpCard({ protocol, occurrence, now }: { protocol: Protocol; occurrence: Occurrence; now: Date }) {
   const { t } = useTranslation()
   const compound = getCompoundById(protocol.compoundId)
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-brand-border bg-brand-surface p-4">
+    <Card className="flex flex-col gap-3 border-brand-primary bg-brand-primary-lt">
       <div>
         <p className="font-medium text-brand-ink">{protocol.name || compound?.name}</p>
-        <p className="text-2xl font-semibold text-brand-primary">{formatCountdown(now, occurrence.scheduledAt, t)}</p>
+        <p className="text-3xl font-semibold text-brand-primary">{formatCountdown(now, occurrence.scheduledAt, t)}</p>
         <p className="text-sm text-brand-muted">{formatTime(occurrence.scheduledAt)}</p>
       </div>
       <LogButtons protocol={protocol} occurrence={occurrence} />
-    </div>
+    </Card>
   )
 }
 
@@ -212,11 +215,11 @@ function ActiveProtocolRow({ protocol }: { protocol: Protocol }) {
   const { t } = useTranslation()
   const compound = getCompoundById(protocol.compoundId)
   return (
-    <div className="rounded-2xl border border-brand-border bg-brand-surface p-4">
+    <Card>
       <p className="font-medium text-brand-ink">{protocol.name || compound?.name}</p>
       <p className="text-sm text-brand-muted">
         {compound?.name} · {protocol.doseAmount} {protocol.doseUnit} · {t(`schedule.${protocol.schedule.kind}`)}
       </p>
-    </div>
+    </Card>
   )
 }

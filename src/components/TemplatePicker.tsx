@@ -34,7 +34,7 @@ export function TemplatePicker({ onSelectTemplate, onSelectCustom }: TemplatePic
               key={template.id}
               type="button"
               onClick={() => onSelectTemplate(template)}
-              className="min-h-11 rounded-2xl border border-brand-border bg-brand-surface px-4 py-3 text-left"
+              className="min-h-11 rounded-2xl border border-brand-border bg-brand-surface px-4 py-3 text-left shadow-sm"
             >
               <p className="font-medium text-brand-ink">{t(template.nameKey)}</p>
               <p className="text-sm text-brand-muted">

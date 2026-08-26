@@ -30,3 +30,24 @@
     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif,
     'Apple Color Emoji', 'Segoe UI Emoji';
 }
+
+/*
+ * Dark mode — follows the OS/browser preference automatically (no in-app
+ * toggle; one less setting to build and maintain). Every component reads
+ * colour only through these custom properties already, so this block is the
+ * entire dark-mode implementation — no component changed to support it.
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --brand-primary: #4d9bf0;
+    --brand-primary-dk: #2f6fc4;
+    --brand-primary-lt: #15294a;
+    --brand-ink: #e2e8f0;
+    --brand-muted: #94a3b8;
+    --brand-surface: #1a2332;
+    --brand-surface-2: #0f172a;
+    --brand-border: #334155;
+    --brand-warn: #e0954b;
+    --brand-warn-lt: #3a2a1a;
+  }
+}

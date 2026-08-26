@@ -87,7 +87,7 @@ export function HistoryScreen() {
               key={log.id}
               type="button"
               onClick={() => setEditingId(log.id)}
-              className="min-h-11 rounded-2xl border border-brand-border bg-brand-surface p-4 text-left"
+              className="min-h-11 rounded-2xl border border-brand-border bg-brand-surface p-4 text-left shadow-sm"
             >
               <div className="flex items-center justify-between">
                 <p className="font-medium text-brand-ink">{compound?.name ?? t('history.unknownCompound')}</p>

@@ -37,7 +37,7 @@ export function SettingsScreen() {
 
 function SectionCard({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="flex flex-col gap-3 rounded-2xl border border-brand-border bg-brand-surface p-4">
+    <section className="flex flex-col gap-3 rounded-2xl border border-brand-border bg-brand-surface p-4 shadow-sm">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-brand-muted">{title}</h2>
       {children}
     </section>

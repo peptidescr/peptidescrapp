@@ -90,7 +90,9 @@ function ProtocolRow({ protocol, onEdit }: { protocol: Protocol; onEdit: () => v
   return (
     <div
       className={`rounded-2xl border p-4 ${
-        protocol.isActive ? 'border-brand-border bg-brand-surface' : 'border-brand-border bg-brand-surface-2 opacity-60'
+        protocol.isActive
+          ? 'border-brand-border bg-brand-surface shadow-sm'
+          : 'border-brand-border bg-brand-surface-2 opacity-60'
       }`}
     >
       <div className="flex items-start justify-between gap-2">

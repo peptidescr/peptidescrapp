@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Card } from '../components/Card'
 import {
   listDiluents,
   listSelectableCompounds,
@@ -215,7 +216,7 @@ export function CalculatorScreen() {
         </div>
       </Field>
 
-      <div className="rounded-2xl border border-brand-border bg-brand-surface p-4">
+      <Card>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-brand-muted">
           {t('calculator.resultTitle')}
         </h2>
@@ -253,7 +254,7 @@ export function CalculatorScreen() {
             )}
           </div>
         )}
-      </div>
+      </Card>
     </div>
   )
 }

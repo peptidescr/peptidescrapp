@@ -2,6 +2,31 @@
 
 Running log of decisions and things the client needs to weigh in on. Newest at top.
 
+## 2026-08-25 (later still) — UI polish inspired by PeptIQ, without cloning it
+
+Looked at PeptIQ's actual UI (app store listings + their marketing site) before touching
+anything. Most of what makes it distinctive is either tied to features this app
+deliberately doesn't have (wearable integration badges, dose/outcome trend charts, an
+AI coach) or is their own specific brand identity (their colors, their logo, their exact
+layout) — copying a competitor's specific look-and-feel isn't something I'll do regardless
+of how closely asked, the same way I wouldn't reuse their name. What I *did* pull from it,
+because it's a generic, feature-independent pattern rather than their brand:
+
+- **A shared `Card` component** (`src/components/Card.tsx`) with a subtle shadow, applied
+  everywhere content was already grouped into a bordered block (Home, Calculator,
+  Protocols, History, the template picker) — reads more like the "card-based dashboard"
+  convention PeptIQ (and most modern health apps) use. Inactive protocols deliberately
+  keep no shadow, so elevation itself doubles as an "active" cue.
+- **Home's next-dose card given more visual weight** — tinted background, larger
+  countdown text — since it's the single most important thing on the screen, matching the
+  "hero metric card" treatment common to that dashboard style.
+- **Automatic dark mode**, following `prefers-color-scheme` with no in-app toggle to build
+  or maintain (PeptIQ's site specifically calls out dark/light theme options as a
+  distinctive feature). Every component already reads color only through the CSS custom
+  properties in `tokens.css`, so the entire implementation is one `@media` block there —
+  no component changed. Verified visually at 375px in dark mode across Home, Calculator,
+  Settings, and the template picker.
+
 ## 2026-08-25 (later still) — Protocol templates (deviation from the original brief)
 
 Added at explicit developer direction, after I flagged the conflict and the developer
