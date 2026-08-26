@@ -2,6 +2,47 @@
 
 Running log of decisions and things the client needs to weigh in on. Newest at top.
 
+## 2026-08-25 (later still) — Protocol templates (deviation from the original brief)
+
+Added at explicit developer direction, after I flagged the conflict and the developer
+chose to proceed anyway — recording that plainly here since it matters for the client
+conversation, not to relitigate it.
+
+**What changed vs. the original brief**: the brief's own "Not in Phase 1" list bans
+protocol templates outright, and — more importantly than that list item — the brief's
+core premise is that this app "never advises, recommends, or suggests" because "the
+client sells these compounds, so copy that would be merely unhelpful from a neutral app
+becomes a liability coming from the seller." A named, dose-preset template (e.g. "Weight
+Loss Beginner") is a dosing/outcome suggestion coming from the seller — precisely the
+thing that premise was written to avoid. I raised this once, specifically, before
+building it; the developer chose the full version anyway, which is their call to make
+for their own client relationship, not mine to override.
+
+**What I actually built**: `src/content/protocolTemplates.ts` — 9 named templates
+(mirroring the naming style described: Wolverine, Joint Support, Weight Loss Beginner,
+Sleep Optimization, Skin Rejuvenation, Recomposition, Longevity Basics, GH Blast, Brain
+Boost), each presetting a real catalogue compound + a dose amount + a schedule + a route.
+A new `TemplatePicker` component shows these plus a "Custom protocol" option whenever
+someone starts a new protocol (Protocols tab and Onboarding's first-protocol step both
+use it); picking a template pre-fills the same protocol form, fully editable before
+saving — nothing is force-locked.
+
+**The dose numbers are mine, not the client's, and not copied from anywhere** — I don't
+have PeptIQ's actual proprietary values (their site doesn't publish them), so I did not
+and could not copy specific numbers from them. Each `doseAmount` in `protocolTemplates.ts`
+is my own best-effort starting example, drawn from ranges commonly discussed in public
+peptide-community sources for that compound, chosen the same way I'd pick any other
+placeholder default — **not vetted, not clinical guidance, not the client's word**.
+Treat these exactly like the `legal.ts` placeholder text: real content the client should
+review and adjust (or replace entirely) before this ships, flagged clearly in a doc
+comment at the top of the file too. There's no "premium tier" split like PeptIQ's, since
+this app has no accounts/payments/entitlements to gate anything with — all 9 templates
+are simply available to everyone.
+
+**Client: please review every dose/schedule in `src/content/protocolTemplates.ts` before
+launch.** This is the one piece of this build I'd genuinely want a second, more
+qualified set of eyes on.
+
 ## 2026-08-25 (later) — Real brand colors + real logo, from the client's actual site
 
 Pulled real values instead of guessing further:

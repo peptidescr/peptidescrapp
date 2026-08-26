@@ -51,6 +51,14 @@ browser IndexedDB; UI walked end-to-end (onboarding through all 5 tabs) at both 
 3. **Legal wording** from your lawyer — see `src/content/legal.ts` for the placeholder and
    the specific contradiction that needs resolving: your site says "research use only, not
    for human or veterinary use" while this app logs personal injections.
+3b. **Protocol template doses** — Protocols now offers 9 starter templates (Wolverine,
+   Weight Loss Beginner, GH Blast, etc.) that pre-fill a compound/dose/schedule, editable
+   before saving. The specific dose numbers in `src/content/protocolTemplates.ts` are my
+   own best-effort starting examples, not vetted by you — please review and adjust them
+   (same treatment as the legal placeholder text). Flagging clearly: adding named,
+   dose-preset templates is a deviation from the original build brief's "never suggest a
+   dose" rule, done at explicit request — worth being deliberate about before launch given
+   your business is selling these compounds.
 4. **Confirm the four blend/HGH/HCG categories** I had to guess at (not given in your
    compound table) — flagged with the specific guesses in `NOTES.md` and inline in
    `src/content/compounds.ts`. One-line changes once you confirm.

@@ -185,5 +185,21 @@
       "cta": "Create a protocol",
       "skip": "Skip for now"
     }
+  },
+  "templates": {
+    "pickerTitle": "Start from a template or go custom",
+    "custom": "Custom protocol",
+    "customDescription": "Pick your own compound, dose, and schedule from scratch.",
+    "items": {
+      "wolverine": { "name": "Wolverine" },
+      "jointSupport": { "name": "Joint Support" },
+      "weightLossBeginner": { "name": "Weight Loss Beginner" },
+      "sleepOptimization": { "name": "Sleep Optimization" },
+      "skinRejuvenation": { "name": "Skin Rejuvenation" },
+      "recomposition": { "name": "Recomposition" },
+      "longevityBasics": { "name": "Longevity Basics" },
+      "ghBlast": { "name": "GH Blast" },
+      "brainBoost": { "name": "Brain Boost" }
+    }
   }
 }

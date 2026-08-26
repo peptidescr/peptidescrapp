@@ -2,7 +2,9 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '../components/Button'
 import { EmptyState } from '../components/EmptyState'
+import { TemplatePicker } from '../components/TemplatePicker'
 import { getCompoundById, listSelectableCompounds } from '../content/compounds'
+import type { ProtocolTemplate } from '../content/protocolTemplates'
 import { toIsoDate } from '../lib/dates'
 import { db, type Protocol, type Route } from '../lib/db'
 import { scheduleUpcomingReminders } from '../lib/notifications'
@@ -21,16 +23,31 @@ const WEEKDAY_LABELS_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as
 const SCHEDULE_KINDS: Schedule['kind'][] = ['daily', 'everyNDays', 'weekdays', 'cycle']
 const ROUTES: Route[] = ['subcutaneous', 'intramuscular', 'other']
 
+type Mode =
+  | { kind: 'list' }
+  | { kind: 'picker' }
+  | { kind: 'form'; protocolId?: string; template?: ProtocolTemplate }
+
 export function ProtocolsScreen() {
   const { t } = useTranslation()
   const protocols = useLiveQuery(() => db.protocols.toArray(), [])
-  const [editingId, setEditingId] = useState<string | 'new' | null>(null)
+  const [mode, setMode] = useState<Mode>({ kind: 'list' })
 
-  if (editingId !== null) {
+  if (mode.kind === 'picker') {
+    return (
+      <TemplatePicker
+        onSelectTemplate={(template) => setMode({ kind: 'form', template })}
+        onSelectCustom={() => setMode({ kind: 'form' })}
+      />
+    )
+  }
+
+  if (mode.kind === 'form') {
     return (
       <ProtocolForm
-        protocolId={editingId === 'new' ? undefined : editingId}
-        onDone={() => setEditingId(null)}
+        protocolId={mode.protocolId}
+        template={mode.template}
+        onDone={() => setMode({ kind: 'list' })}
       />
     )
   }
@@ -41,7 +58,7 @@ export function ProtocolsScreen() {
     <div className="flex flex-col gap-4 px-4 pb-6 pt-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">{t('nav.protocols')}</h1>
-        <Button onClick={() => setEditingId('new')}>{t('protocols.new')}</Button>
+        <Button onClick={() => setMode({ kind: 'picker' })}>{t('protocols.new')}</Button>
       </div>
 
       {protocols !== undefined && sorted.length === 0 && (
@@ -50,7 +67,11 @@ export function ProtocolsScreen() {
 
       <div className="flex flex-col gap-3">
         {sorted.map((protocol) => (
-          <ProtocolRow key={protocol.id} protocol={protocol} onEdit={() => setEditingId(protocol.id)} />
+          <ProtocolRow
+            key={protocol.id}
+            protocol={protocol}
+            onEdit={() => setMode({ kind: 'form', protocolId: protocol.id })}
+          />
         ))}
       </div>
     </div>
@@ -93,11 +114,13 @@ function ProtocolRow({ protocol, onEdit }: { protocol: Protocol; onEdit: () => v
 
 interface ProtocolFormProps {
   protocolId?: string
+  /** Prefills a new protocol's fields from a starter template — still fully editable before saving. */
+  template?: ProtocolTemplate
   onDone: () => void
 }
 
 /** Exported so Onboarding's "create your first protocol" step can reuse this exact form. */
-export function ProtocolForm({ protocolId, onDone }: ProtocolFormProps) {
+export function ProtocolForm({ protocolId, template, onDone }: ProtocolFormProps) {
   const { t } = useTranslation()
   const existing = useLiveQuery(
     () => (protocolId ? db.protocols.get(protocolId) : undefined),
@@ -106,20 +129,30 @@ export function ProtocolForm({ protocolId, onDone }: ProtocolFormProps) {
   const compounds = useMemo(() => listSelectableCompounds(), [])
 
   const [loaded, setLoaded] = useState(!protocolId)
-  const [name, setName] = useState('')
-  const [compoundId, setCompoundId] = useState(compounds[0]?.id ?? '')
-  const [doseAmount, setDoseAmount] = useState('')
-  const [doseUnit, setDoseUnit] = useState<MassUnit | 'IU'>('mg')
-  const [scheduleKind, setScheduleKind] = useState<Schedule['kind']>('daily')
-  const [everyN, setEveryN] = useState('2')
-  const [weekdays, setWeekdays] = useState<Weekday[]>([1, 3, 5])
-  const [daysOn, setDaysOn] = useState('5')
-  const [daysOff, setDaysOff] = useState('2')
-  const [reminderTimes, setReminderTimes] = useState<string[]>(['08:00'])
+  const [name, setName] = useState(template ? t(template.nameKey) : '')
+  const [compoundId, setCompoundId] = useState(template?.compoundId ?? compounds[0]?.id ?? '')
+  const [doseAmount, setDoseAmount] = useState(
+    template ? String(template.doseAmount).replace('.', ',') : '',
+  )
+  const [doseUnit, setDoseUnit] = useState<MassUnit | 'IU'>(template?.doseUnit ?? 'mg')
+  const [scheduleKind, setScheduleKind] = useState<Schedule['kind']>(template?.schedule.kind ?? 'daily')
+  const [everyN, setEveryN] = useState(
+    template?.schedule.kind === 'everyNDays' ? String(template.schedule.n) : '2',
+  )
+  const [weekdays, setWeekdays] = useState<Weekday[]>(
+    template?.schedule.kind === 'weekdays' ? template.schedule.days : [1, 3, 5],
+  )
+  const [daysOn, setDaysOn] = useState(
+    template?.schedule.kind === 'cycle' ? String(template.schedule.daysOn) : '5',
+  )
+  const [daysOff, setDaysOff] = useState(
+    template?.schedule.kind === 'cycle' ? String(template.schedule.daysOff) : '2',
+  )
+  const [reminderTimes, setReminderTimes] = useState<string[]>(template?.reminderTimes ?? ['08:00'])
   const [startDate, setStartDate] = useState(toIsoDate(new Date()))
   const [hasEndDate, setHasEndDate] = useState(false)
   const [endDate, setEndDate] = useState('')
-  const [route, setRoute] = useState<Route>('subcutaneous')
+  const [route, setRoute] = useState<Route>(template?.route ?? 'subcutaneous')
 
   if (existing && !loaded) {
     setName(existing.name)

@@ -1,7 +1,9 @@
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '../components/Button'
+import { TemplatePicker } from '../components/TemplatePicker'
 import { LEGAL_PLACEHOLDER, LEGAL_VERSION } from '../content/legal'
+import type { ProtocolTemplate } from '../content/protocolTemplates'
 import { useInstallState } from '../lib/install'
 import { getNotificationCapability, requestNotificationPermission } from '../lib/notifications'
 import type { Locale } from '../lib/units'
@@ -175,17 +177,28 @@ function NotificationStep({ onNext }: { onNext: () => void }) {
   )
 }
 
+type FirstProtocolMode = 'intro' | 'picker' | { template?: ProtocolTemplate }
+
 function FirstProtocolStep({ onDone, onSkip }: { onDone: () => void; onSkip: () => void }) {
   const { t } = useTranslation()
-  const [starting, setStarting] = useState(false)
+  const [mode, setMode] = useState<FirstProtocolMode>('intro')
 
-  if (starting) {
-    return <ProtocolForm onDone={onDone} />
+  if (mode === 'picker') {
+    return (
+      <TemplatePicker
+        onSelectTemplate={(template) => setMode({ template })}
+        onSelectCustom={() => setMode({ template: undefined })}
+      />
+    )
+  }
+
+  if (mode !== 'intro') {
+    return <ProtocolForm template={mode.template} onDone={onDone} />
   }
 
   return (
     <StepShell title={t('onboarding.firstProtocol.title')} body={t('onboarding.firstProtocol.body')}>
-      <Button onClick={() => setStarting(true)}>{t('onboarding.firstProtocol.cta')}</Button>
+      <Button onClick={() => setMode('picker')}>{t('onboarding.firstProtocol.cta')}</Button>
       <button type="button" onClick={onSkip} className="min-h-11 self-center text-sm text-brand-muted">
         {t('onboarding.firstProtocol.skip')}
       </button>
