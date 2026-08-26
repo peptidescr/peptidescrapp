@@ -75,5 +75,22 @@
     "subcutaneous": "Subcutánea",
     "intramuscular": "Intramuscular",
     "other": "Otra"
+  },
+  "home": {
+    "backupNudge": "Ya pasó tiempo desde tu último respaldo. Tocá para respaldar tus datos.",
+    "catchUpTitle": "Ponerse al día",
+    "nextUpTitle": "Próxima dosis",
+    "noUpcomingTitle": "Nada programado",
+    "noUpcomingBody": "Los protocolos activos con una dosis próxima van a aparecer aquí.",
+    "activeProtocolsTitle": "Protocolos activos",
+    "noProtocolsTitle": "No hay protocolos activos",
+    "noProtocolsBody": "Creá un protocolo en la pestaña de Protocolos para empezar a registrar dosis.",
+    "dueNow": "Ahora",
+    "inMinutes": "En {{minutes}}m",
+    "inHoursMinutes": "En {{hours}}h {{minutes}}m",
+    "logTaken": "Aplicada",
+    "logSkipped": "Omitida",
+    "missedLabel": "Perdida",
+    "dueLabel": "Pendiente"
   }
 }

@@ -2,6 +2,20 @@
 
 Running log of decisions and things the client needs to weigh in on. Newest at top.
 
+## 2026-08-25 — Step 8: Home screen
+
+- Bug caught before it shipped: the Dexie schema originally indexed `Protocol.isActive`
+  and `Compound.isDiluent` (both booleans). IndexedDB doesn't accept booleans as index key
+  values at all — that index would have silently misbehaved. Removed both from the index
+  lists in `db.ts`; both tables are always small (a handful of rows per user), so filtering
+  in JS instead costs nothing.
+- Added `getDueOccurrences` to `schedule.ts` (alongside the existing `getMissedOccurrences`)
+  for Home's catch-up list — it surfaces anything due at or before now, not just what's
+  crossed the 12h "missed" mark, per "surface every dose that came due while it was
+  closed." Each row still shows a Missed vs Due label using the 12h line from the brief.
+- Backup nudge only *links* to Settings (no export logic on Home itself) — Settings owns
+  export/share/lastBackupAt, landing in its own step.
+
 ## 2026-08-25 — Step 5: schedule.ts — derived occurrences, no ScheduledDose table
 
 - `date-fns-tz` is in the approved stack but schedule.ts doesn't use it: everything runs

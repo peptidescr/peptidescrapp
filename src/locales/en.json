@@ -75,5 +75,22 @@
     "subcutaneous": "Subcutaneous",
     "intramuscular": "Intramuscular",
     "other": "Other"
+  },
+  "home": {
+    "backupNudge": "It's been a while since your last backup. Tap to back up your data.",
+    "catchUpTitle": "Catch up",
+    "nextUpTitle": "Next up",
+    "noUpcomingTitle": "Nothing scheduled",
+    "noUpcomingBody": "Active protocols with an upcoming dose will show up here.",
+    "activeProtocolsTitle": "Active protocols",
+    "noProtocolsTitle": "No active protocols",
+    "noProtocolsBody": "Create a protocol in the Protocols tab to start tracking doses.",
+    "dueNow": "Due now",
+    "inMinutes": "In {{minutes}}m",
+    "inHoursMinutes": "In {{hours}}h {{minutes}}m",
+    "logTaken": "Taken",
+    "logSkipped": "Skipped",
+    "missedLabel": "Missed",
+    "dueLabel": "Due"
   }
 }

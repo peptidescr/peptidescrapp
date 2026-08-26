@@ -176,6 +176,35 @@ export function findUnloggedOccurrences(occurrences: Occurrence[], loggedAdminis
   return unlogged
 }
 
+function getUnloggedOccurrencesUpTo(
+  ctx: ScheduleContext,
+  upTo: Date,
+  now: Date,
+  loggedAdministeredAt: Date[],
+): Occurrence[] {
+  const start = parseISO(ctx.startDate)
+  const lookback = new Date(now.getTime() - MISSED_LOOKBACK_DAYS * 24 * 60 * 60 * 1000)
+  const from = start > lookback ? start : lookback
+  if (from > upTo) return []
+  const occurrences = getOccurrencesInRange(ctx, from, upTo)
+  return findUnloggedOccurrences(occurrences, loggedAdministeredAt)
+}
+
+/**
+ * Occurrences due at or before now with no matching DoseLog yet — this is the
+ * Home catch-up list. Broader than "missed" (below): a dose due 20 minutes
+ * ago belongs here even though it isn't "missed" yet, because the brief
+ * wants every dose that came due while the app was closed surfaced with
+ * one-tap log-or-skip, not just the ones that crossed the 12h mark.
+ */
+export function getDueOccurrences(
+  ctx: ScheduleContext,
+  now: Date,
+  loggedAdministeredAt: Date[],
+): Occurrence[] {
+  return getUnloggedOccurrencesUpTo(ctx, now, now, loggedAdministeredAt)
+}
+
 /** Occurrences that were due more than 12 hours ago and have no matching DoseLog. */
 export function getMissedOccurrences(
   ctx: ScheduleContext,
@@ -183,12 +212,7 @@ export function getMissedOccurrences(
   loggedAdministeredAt: Date[],
 ): Occurrence[] {
   const cutoff = new Date(now.getTime() - HOURS_CONSIDERED_MISSED * 60 * 60 * 1000)
-  const start = parseISO(ctx.startDate)
-  const lookback = new Date(now.getTime() - MISSED_LOOKBACK_DAYS * 24 * 60 * 60 * 1000)
-  const from = start > lookback ? start : lookback
-  if (from > cutoff) return []
-  const occurrences = getOccurrencesInRange(ctx, from, cutoff)
-  return findUnloggedOccurrences(occurrences, loggedAdministeredAt)
+  return getUnloggedOccurrencesUpTo(ctx, cutoff, now, loggedAdministeredAt)
 }
 
 /** The next occurrence at or after `now`, or null if the schedule has ended / produces nothing further. */

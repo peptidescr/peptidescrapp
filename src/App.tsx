@@ -44,7 +44,7 @@ function App() {
 
   return (
     <div className="min-h-dvh bg-brand-surface-2 pb-20 pt-[env(safe-area-inset-top)]">
-      {tab === 'home' && <HomeScreen />}
+      {tab === 'home' && <HomeScreen onNavigateToSettings={() => setTab('settings')} />}
       {tab === 'calculator' && <CalculatorScreen />}
       {tab === 'protocols' && <ProtocolsScreen />}
       {tab === 'history' && <HistoryScreen />}

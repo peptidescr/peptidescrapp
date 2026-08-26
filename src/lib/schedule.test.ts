@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   findUnloggedOccurrences,
+  getDueOccurrences,
   getMissedOccurrences,
   getNextOccurrence,
   getOccurrencesInRange,
@@ -174,6 +175,25 @@ describe('getMissedOccurrences', () => {
     const now = day(2026, 1, 3, 21, 0)
     const missed = getMissedOccurrences(ctx, now, [day(2026, 1, 3, 8, 2)])
     expect(missed.some((o) => o.date === '2026-01-03')).toBe(false)
+  })
+})
+
+describe('getDueOccurrences', () => {
+  const ctx: ScheduleContext = {
+    schedule: { kind: 'daily' },
+    startDate: '2026-01-01',
+    reminderTimes: ['08:00'],
+  }
+
+  it('includes a dose due within the last 12 hours, unlike getMissedOccurrences', () => {
+    const now = day(2026, 1, 3, 9, 0) // 1h after today's 08:00
+    expect(getDueOccurrences(ctx, now, []).some((o) => o.date === '2026-01-03')).toBe(true)
+    expect(getMissedOccurrences(ctx, now, []).some((o) => o.date === '2026-01-03')).toBe(false)
+  })
+
+  it('excludes a dose that has not come due yet', () => {
+    const now = day(2026, 1, 3, 7, 0) // before today's 08:00
+    expect(getDueOccurrences(ctx, now, []).some((o) => o.date === '2026-01-03')).toBe(false)
   })
 })
 

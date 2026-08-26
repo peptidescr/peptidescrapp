@@ -66,9 +66,12 @@ class PeptidesDB extends Dexie {
 
   constructor() {
     super('peptidescr')
+    // Booleans aren't a valid IndexedDB key type, so isDiluent/isActive are
+    // deliberately left out of these index lists (filtered in JS instead —
+    // these tables are always small, so there's no performance cost).
     this.version(1).stores({
-      compounds: 'id, category, isDiluent',
-      protocols: 'id, compoundId, isActive',
+      compounds: 'id, category',
+      protocols: 'id, compoundId',
       doseLogs: 'id, protocolId, compoundId, administeredAt, status',
       settings: 'id',
       snapshots: '++id, createdAt',
