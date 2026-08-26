@@ -1,0 +1,19 @@
+/*
+ * Brand tokens — the single file to edit when swapping the palette.
+ * Placeholder values from the brief; client will supply exact brand colours later.
+ */
+:root {
+  --brand-primary: #c8102e;
+  --brand-primary-dk: #9b0c23;
+  --brand-primary-lt: #fdecef;
+  --brand-ink: #14171a;
+  --brand-muted: #6e7681;
+  --brand-surface: #ffffff;
+  --brand-surface-2: #f7f7f8;
+  --brand-border: #e4e4e7;
+  --brand-warn: #b0672a;
+
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif,
+    'Apple Color Emoji', 'Segoe UI Emoji';
+}

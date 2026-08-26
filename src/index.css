@@ -1,0 +1,32 @@
+@import 'tailwindcss';
+@import './styles/tokens.css';
+
+@theme {
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-primary-dk: var(--brand-primary-dk);
+  --color-brand-primary-lt: var(--brand-primary-lt);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-muted: var(--brand-muted);
+  --color-brand-surface: var(--brand-surface);
+  --color-brand-surface-2: var(--brand-surface-2);
+  --color-brand-border: var(--brand-border);
+  --color-brand-warn: var(--brand-warn);
+  --font-sans: var(--font-sans);
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background-color: var(--brand-surface-2);
+  color: var(--brand-ink);
+  font-family: var(--font-sans);
+  overscroll-behavior-y: none;
+}
+
+/* Minimum touch target baseline for one-handed phone use */
+button,
+a[role='button'] {
+  touch-action: manipulation;
+}
