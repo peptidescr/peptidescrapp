@@ -99,7 +99,7 @@ function LanguageSection() {
             key={l}
             type="button"
             onClick={() => setLocale(l)}
-            className={`min-h-11 flex-1 rounded-xl border text-sm font-medium transition-colors ${
+            className={`min-h-11 flex-1 rounded-full border text-sm font-medium transition-colors ${
               locale === l ? 'border-primary bg-accent text-primary' : 'border-border text-muted-foreground'
             }`}
           >

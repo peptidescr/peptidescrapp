@@ -87,7 +87,7 @@ export function ProtocolsScreen() {
         </Button>
       </div>
 
-      <div className="flex overflow-hidden rounded-xl border border-border">
+      <div className="flex overflow-hidden rounded-full border border-border">
         {(['mine', 'templates'] as const).map((tab) => (
           <button
             key={tab}
@@ -186,7 +186,7 @@ function ProtocolRow({
         <button
           type="button"
           onClick={onEdit}
-          className="mx-4 mt-3 flex min-h-11 items-center justify-between gap-2 rounded-xl bg-accent px-3 py-2 text-left"
+          className="mx-4 mt-3 flex min-h-11 items-center justify-between gap-2 rounded-2xl bg-accent px-3 py-2 text-left"
         >
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -365,7 +365,7 @@ export function ProtocolForm({ protocolId, template, onDone }: ProtocolFormProps
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder={compound?.name}
-          className="min-h-11 w-full rounded-xl border border-input bg-card px-3 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="min-h-11 w-full rounded-full border border-input bg-card px-4 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
       </FormField>
 
@@ -376,12 +376,12 @@ export function ProtocolForm({ protocolId, template, onDone }: ProtocolFormProps
             inputMode="decimal"
             value={doseAmount}
             onChange={(e) => setDoseAmount(e.target.value)}
-            className="min-h-11 flex-1 rounded-xl border border-input bg-card px-3 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="min-h-11 flex-1 rounded-full border border-input bg-card px-4 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           {compound?.defaultUnit === 'IU' ? (
             <span className="flex min-h-11 items-center px-3 text-muted-foreground">IU</span>
           ) : (
-            <div className="flex overflow-hidden rounded-xl border border-border">
+            <div className="flex overflow-hidden rounded-full border border-border">
               {(['mg', 'mcg'] as const).map((u) => (
                 <button
                   key={u}
@@ -421,7 +421,7 @@ export function ProtocolForm({ protocolId, template, onDone }: ProtocolFormProps
             min={1}
             value={everyN}
             onChange={(e) => setEveryN(e.target.value)}
-            className="min-h-11 w-full rounded-xl border border-input bg-card px-3 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="min-h-11 w-full rounded-full border border-input bg-card px-4 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </FormField>
       )}
@@ -434,7 +434,7 @@ export function ProtocolForm({ protocolId, template, onDone }: ProtocolFormProps
                 key={key}
                 type="button"
                 onClick={() => toggleWeekday(index as Weekday)}
-                className={`min-h-11 min-w-11 rounded-xl border text-sm font-medium transition-colors ${
+                className={`min-h-11 min-w-11 rounded-full border text-sm font-medium transition-colors ${
                   weekdays.includes(index as Weekday)
                     ? 'border-primary bg-accent text-primary'
                     : 'border-border text-muted-foreground'
@@ -455,7 +455,7 @@ export function ProtocolForm({ protocolId, template, onDone }: ProtocolFormProps
               min={1}
               value={daysOn}
               onChange={(e) => setDaysOn(e.target.value)}
-              className="min-h-11 w-full rounded-xl border border-input bg-card px-3 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="min-h-11 w-full rounded-full border border-input bg-card px-4 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </FormField>
           <FormField label={t('protocols.daysOff')}>
@@ -464,7 +464,7 @@ export function ProtocolForm({ protocolId, template, onDone }: ProtocolFormProps
               min={0}
               value={daysOff}
               onChange={(e) => setDaysOff(e.target.value)}
-              className="min-h-11 w-full rounded-xl border border-input bg-card px-3 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="min-h-11 w-full rounded-full border border-input bg-card px-4 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </FormField>
         </div>

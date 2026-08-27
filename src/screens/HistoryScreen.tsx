@@ -91,7 +91,7 @@ export function HistoryScreen() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t('history.searchPlaceholder')}
-          className="min-h-11 w-full rounded-xl border border-input bg-card pl-10 pr-3 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="min-h-11 w-full rounded-full border border-input bg-card pl-10 pr-4 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
       </div>
 
@@ -225,12 +225,12 @@ function HistoryEditForm({ log, onDone }: { log: DoseLog; onDone: () => void }) 
             inputMode="decimal"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            className="min-h-11 flex-1 rounded-xl border border-input bg-card px-3 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="min-h-11 flex-1 rounded-full border border-input bg-card px-4 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           {isIU ? (
             <span className="flex min-h-11 items-center px-3 text-muted-foreground">IU</span>
           ) : (
-            <div className="flex overflow-hidden rounded-xl border border-border">
+            <div className="flex overflow-hidden rounded-full border border-border">
               {(['mg', 'mcg'] as const).map((u) => (
                 <button
                   key={u}
@@ -255,7 +255,7 @@ function HistoryEditForm({ log, onDone }: { log: DoseLog; onDone: () => void }) 
               key={s}
               type="button"
               onClick={() => setStatus(s)}
-              className={`min-h-11 flex-1 rounded-xl border text-sm font-medium transition-colors ${
+              className={`min-h-11 flex-1 rounded-full border text-sm font-medium transition-colors ${
                 status === s ? 'border-primary bg-accent text-primary' : 'border-border text-muted-foreground'
               }`}
             >
@@ -270,7 +270,7 @@ function HistoryEditForm({ log, onDone }: { log: DoseLog; onDone: () => void }) 
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={3}
-          className="w-full rounded-xl border border-input bg-card px-3 py-2 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="w-full rounded-2xl border border-input bg-card px-4 py-2 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
       </FormField>
 

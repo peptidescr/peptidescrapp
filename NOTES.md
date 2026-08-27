@@ -2,6 +2,46 @@
 
 Running log of decisions and things the client needs to weigh in on. Newest at top.
 
+## 2026-08-26 (later still) — Dark theme made permanent, adapted from PeptIQ's colour *structure*
+
+At explicit request: "use their colour scheme but replace colors and logos with
+peptidescostarica design." Checked first whether that meant literally their gold, or the
+*way* they use colour — confirmed it's the latter (structure, not their literal hex
+values), then flagged a real consequence before touching anything: PeptIQ's whole
+identity in their actual screenshots is dark-only, but our automatic dark mode from the
+previous session only showed dark to users whose OS happens to be set to dark — most
+phones ship light by default, so most people (including you, opening this later) would
+never have seen the new look. Asked; confirmed: dark is now the app's one, permanent
+theme, not conditional on device settings. Light-theme values are kept as a comment in
+`tokens.css` in case a light mode is wanted later — nothing deleted, just not active.
+
+**What was adapted from PeptIQ, and how**: sampled actual pixel colors from their real
+screenshots (card surface ~#171717, page background nearly black, badges/pills fully
+rounded, a bright single accent used for every CTA/active-state/highlight, a soft glow on
+their most important card). Rebuilt that *structure* — near-black page, a distinctly
+lighter neutral-gray elevated card surface, fully pill-shaped buttons/inputs/badges, a
+soft glow on Home's hero "next dose" card and on missed-dose cards — using the client's
+own blue (still sourced from their real site/icon, unchanged) as the one accent color
+instead of PeptIQ's gold, and the client's own logo (already in place). Nothing in the
+new `tokens.css` is PeptIQ's actual color value; only the relationships between
+page/card/accent are adapted from what their app actually does.
+
+**Concrete changes**: `tokens.css` rewritten as a single permanent dark palette (no more
+`@media (prefers-color-scheme)` block). `theme-color` meta/manifest updated to match
+(status bar and OS chrome now dark too) and iOS status-bar style set to
+`black-translucent`. All buttons, text inputs, selects, date/time picker triggers, and
+segmented toggles across every screen changed from `rounded-xl` to `rounded-full`
+(pill-shaped) — bigger multi-line content blocks (cards, explainer callouts, the
+disclaimer scroll box) kept a moderate `rounded-2xl` rather than becoming pills, matching
+how PeptIQ itself only pills its buttons/badges, not its content cards. Home's hero card
+and missed-dose cards gained a colored glow (`shadow-[0_0_...px_var(--brand-primary)]` /
+`var(--destructive)`), and the countdown number and greeting got bolder/larger type for
+more visual weight.
+
+Verified live: forced the OS `prefers-color-scheme` to `light` in a real headless browser
+and confirmed the app still renders fully dark throughout onboarding and all five tabs —
+zero console errors, no layout overflow at 320px.
+
 ## 2026-08-26 (later) — Layout reference pass against PeptIQ's actual screens
 
 Downloaded PeptIQ's real App Store screenshots (11 images, direct from Apple's CDN — the

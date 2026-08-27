@@ -85,7 +85,7 @@ function LanguageStep({ onNext }: { onNext: () => void }) {
             key={l}
             type="button"
             onClick={() => setSelected(l)}
-            className={`min-h-11 rounded-xl border px-4 text-left text-base font-medium transition-colors ${
+            className={`min-h-11 rounded-2xl border px-4 text-left text-base font-medium transition-colors ${
               selected === l ? 'border-primary bg-accent text-primary' : 'border-border text-foreground'
             }`}
           >
@@ -111,7 +111,7 @@ function DisclaimerStep({ locale, onAccept }: { locale: Locale; onAccept: () => 
 
   return (
     <StepShell title={legal.disclaimerTitle}>
-      <div className="flex max-h-[50vh] flex-col gap-3 overflow-y-auto rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
+      <div className="flex max-h-[50vh] flex-col gap-3 overflow-y-auto rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">
         <p>{legal.disclaimerBody}</p>
         <p className="font-medium text-foreground">{legal.termsTitle}</p>
         <p>{legal.termsBody}</p>
@@ -131,7 +131,7 @@ function InstallStep({ onNext }: { onNext: () => void }) {
 
   return (
     <StepShell title={t('onboarding.install.title')} body={t('onboarding.install.body')}>
-      <div className="flex items-start gap-3 rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
+      <div className="flex items-start gap-3 rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">
         <Smartphone className="mt-0.5 size-5 shrink-0 text-primary" />
         {install.isStandalone ? (
           <p>{t('settings.install.installed')}</p>
@@ -174,7 +174,7 @@ function NotificationStep({ onNext }: { onNext: () => void }) {
 
   return (
     <StepShell title={t('onboarding.notifications.title')} body={t('onboarding.notifications.body')}>
-      <p className="flex items-start gap-3 rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
+      <p className="flex items-start gap-3 rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">
         <Bell className="mt-0.5 size-5 shrink-0 text-primary" />
         {t(statusKey)}
       </p>

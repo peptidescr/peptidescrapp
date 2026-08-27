@@ -36,7 +36,7 @@ export function TimePicker({ value, onChange }: TimePickerProps) {
         <button
           type="button"
           className={cn(
-            'flex min-h-11 w-full items-center gap-2 rounded-xl border border-input bg-card px-3 text-left text-base text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            'flex min-h-11 w-full items-center gap-2 rounded-full border border-input bg-card px-4 text-left text-base text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring',
           )}
         >
           <ClockIcon className="size-4 shrink-0 text-muted-foreground" />

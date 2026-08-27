@@ -109,7 +109,7 @@ export function HomeScreen({ onNavigateToSettings }: { onNavigateToSettings: () 
     <div className="flex flex-col gap-6 px-4 pb-6 pt-4">
       <div>
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{formatDate(now)}</p>
-        <h1 className="text-xl font-semibold text-foreground">{t(greetingKey(now))}</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">{t(greetingKey(now))}</h1>
       </div>
 
       {showBackupNudge && (
@@ -207,7 +207,11 @@ function DueCard({ item }: { item: DueItem }) {
   const compound = getCompoundById(item.protocol.compoundId)
   return (
     <Card
-      className={`flex flex-col gap-3 border-l-4 p-4 ${item.isMissed ? 'border-l-destructive' : 'border-l-primary'}`}
+      className={`flex flex-col gap-3 border-l-4 p-4 ${
+        item.isMissed
+          ? 'border-l-destructive shadow-[0_0_24px_-8px_var(--destructive)]'
+          : 'border-l-primary'
+      }`}
     >
       <div className="flex items-start justify-between gap-2">
         <div>
@@ -229,10 +233,12 @@ function NextUpCard({ protocol, occurrence, now }: { protocol: Protocol; occurre
   const { t } = useTranslation()
   const compound = getCompoundById(protocol.compoundId)
   return (
-    <Card className="flex flex-col gap-3 border-primary bg-accent p-4">
+    <Card className="flex flex-col gap-3 border-primary bg-accent p-4 shadow-[0_0_32px_-6px_var(--brand-primary)]">
       <div>
         <p className="font-medium text-foreground">{protocol.name || compound?.name}</p>
-        <p className="text-3xl font-semibold text-primary">{formatCountdown(now, occurrence.scheduledAt, t)}</p>
+        <p className="text-4xl font-bold tracking-tight text-primary">
+          {formatCountdown(now, occurrence.scheduledAt, t)}
+        </p>
         <p className="text-sm text-muted-foreground">{formatTime(occurrence.scheduledAt)}</p>
       </div>
       <LogButtons protocol={protocol} occurrence={occurrence} />

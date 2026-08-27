@@ -34,7 +34,7 @@ export function DatePicker({ value, onChange, disabled, placeholder }: DatePicke
           type="button"
           disabled={disabled}
           className={cn(
-            'flex min-h-11 w-full items-center gap-2 rounded-xl border border-input bg-card px-3 text-left text-base text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40',
+            'flex min-h-11 w-full items-center gap-2 rounded-full border border-input bg-card px-4 text-left text-base text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40',
             !value && 'text-muted-foreground',
           )}
         >

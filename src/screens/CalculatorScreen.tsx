@@ -253,7 +253,7 @@ export function CalculatorScreen() {
               key={type}
               type="button"
               onClick={() => handleSyringeChange(type)}
-              className={`min-h-11 flex-1 rounded-xl border text-sm font-medium transition-colors ${
+              className={`min-h-11 flex-1 rounded-full border text-sm font-medium transition-colors ${
                 syringeType === type
                   ? 'border-primary bg-accent text-primary'
                   : 'border-border text-muted-foreground'
@@ -308,7 +308,7 @@ export function CalculatorScreen() {
                 />
                 <ResultRow label={t('calculator.dosesRemaining')} value={String(result.dosesRemaining)} />
                 {result.lowVolumeWarning && (
-                  <p className="flex items-start gap-2 rounded-xl bg-brand-warn-lt px-3 py-2 text-sm text-brand-warn">
+                  <p className="flex items-start gap-2 rounded-2xl bg-brand-warn-lt px-3 py-2 text-sm text-brand-warn">
                     <AlertTriangle className="mt-0.5 size-4 shrink-0" />
                     {t('calculator.lowVolumeWarning')}
                   </p>
@@ -347,7 +347,7 @@ function NumberInput({
         inputMode="decimal"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="min-h-11 w-full rounded-xl border border-input bg-card px-3 text-base text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="min-h-11 w-full rounded-full border border-input bg-card px-4 text-base text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
         placeholder="0"
       />
       {suffix && (
@@ -361,7 +361,7 @@ function NumberInput({
 
 function UnitToggle({ unit, onChange }: { unit: MassUnit; onChange: (u: MassUnit) => void }) {
   return (
-    <div className="flex overflow-hidden rounded-xl border border-border">
+    <div className="flex overflow-hidden rounded-full border border-border">
       {(['mg', 'mcg'] as const).map((u) => (
         <button
           key={u}
@@ -396,7 +396,7 @@ function ChipSelect({
           key={opt}
           type="button"
           onClick={() => onChange(opt)}
-          className={`min-h-11 rounded-xl border px-3 text-sm font-medium transition-colors ${
+          className={`min-h-11 rounded-full border px-3 text-sm font-medium transition-colors ${
             value === opt ? 'border-primary bg-accent text-primary' : 'border-border text-muted-foreground'
           }`}
         >

@@ -1,63 +1,52 @@
 /*
  * Brand tokens — the single file to edit when swapping the palette.
  *
- * Sourced from the client's actual site and brand assets (peptidescostarica.net),
- * not guessed: --brand-primary/-dk are the site's own two blues (Astra theme
- * globals --ast-global-color-0/-1: #046bd2 / #045cb4); --brand-primary-dk is
- * additionally the exact navy sampled from the client's own favicon/app-icon
- * mark (a 3-circle molecular-chain glyph, #092771) — reused here as the darker
- * shade so the app's "pressed" blue is literally their icon's colour, not an
- * approximation. --brand-ink/-surface-2/-border are the site's own
- * --ast-global-color-2/-5/-7. --brand-muted is a harmonious slate extrapolation
- * (not directly sampled) chosen to sit between --brand-ink and --brand-border
- * in the same neutral family. --brand-warn is intentionally NOT sourced from
- * the brand — it's a deliberately non-alarming amber for measurement-accuracy
- * notices (see units.ts), unrelated to brand identity. See NOTES.md.
+ * This is now a permanently-dark theme, by explicit request: a premium dark
+ * UI, structured after PeptIQ's actual app (near-black page, a lighter
+ * neutral-gray elevated card surface, one bold accent colour used
+ * consistently for CTAs/active states/highlights) — but with THEIR gold
+ * swapped for the client's own blue, sourced from peptidescostarica.net,
+ * and their brand/logo swapped for the client's real ones. Nothing here is
+ * copied from PeptIQ's actual colour values; only the *structure* (how dark
+ * the page is vs. a card, one accent used everywhere) is adapted, mapped
+ * onto our own sourced brand colour. See NOTES.md.
+ *
+ * --brand-primary/-dk are the client's own two blues (their site's Astra
+ * theme globals --ast-global-color-0/-1: #046bd2 / #045cb4, lightened here
+ * for contrast against a near-black background) — -dk is additionally the
+ * exact navy sampled from the client's own favicon/app-icon mark (a 3-circle
+ * molecular-chain glyph), reused as the pressed-state shade. --brand-warn is
+ * intentionally NOT sourced from the brand — it's a deliberately
+ * non-alarming amber for measurement-accuracy notices (see units.ts).
+ *
+ * Previous light-theme values (kept here only for reference, not active —
+ * see NOTES.md if a light mode is wanted later):
+ *   primary #046bd2 / primary-dk #092771 / primary-lt #e6f0fb
+ *   ink #1e293b / muted #64748b / surface #ffffff / surface-2 #f0f5fa
+ *   border #d1d5db / warn #b0672a / warn-lt #fbf1e7
+ *   destructive #dc2626 / destructive-foreground #ffffff
  */
 :root {
-  --brand-primary: #046bd2;
-  --brand-primary-dk: #092771;
-  --brand-primary-lt: #e6f0fb;
-  --brand-ink: #1e293b;
-  --brand-muted: #64748b;
-  --brand-surface: #ffffff;
-  --brand-surface-2: #f0f5fa;
-  --brand-border: #d1d5db;
-  --brand-warn: #b0672a;
-  --brand-warn-lt: #fbf1e7;
+  --brand-primary: #4d9bf0;
+  --brand-primary-dk: #2f6fc4;
+  --brand-primary-lt: #15294a;
+  --brand-ink: #f2f4f7;
+  --brand-muted: #97a1af;
+  --brand-surface: #19191c;
+  --brand-surface-2: #0a0a0b;
+  --brand-border: #2a2a2e;
+  --brand-warn: #e0954b;
+  --brand-warn-lt: #3a2a1a;
   /* Standard destructive-action red (delete, wipe+import) — a UI safety
      convention, not a brand colour, and deliberately distinct from
      --brand-warn's non-alarming amber (which is about measurement accuracy,
      never framed as danger — see units.ts). */
-  --destructive: #dc2626;
-  --destructive-foreground: #ffffff;
+  --destructive: #f87171;
+  --destructive-foreground: #19191c;
 
   --radius: 0.75rem;
 
   --font-sans:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif,
     'Apple Color Emoji', 'Segoe UI Emoji';
-}
-
-/*
- * Dark mode — follows the OS/browser preference automatically (no in-app
- * toggle; one less setting to build and maintain). Every component reads
- * colour only through these custom properties already, so this block is the
- * entire dark-mode implementation — no component changed to support it.
- */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --brand-primary: #4d9bf0;
-    --brand-primary-dk: #2f6fc4;
-    --brand-primary-lt: #15294a;
-    --brand-ink: #e2e8f0;
-    --brand-muted: #94a3b8;
-    --brand-surface: #1a2332;
-    --brand-surface-2: #0f172a;
-    --brand-border: #334155;
-    --brand-warn: #e0954b;
-    --brand-warn-lt: #3a2a1a;
-    --destructive: #f87171;
-    --destructive-foreground: #1a2332;
-  }
 }
