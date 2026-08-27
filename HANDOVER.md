@@ -31,15 +31,17 @@ All 14 Phase-1 items are built and verified:
 
 Since then, added at your request: your actual brand colors and logo (pulled from
 peptidescostarica.net directly, not guessed), 9 starter protocol templates alongside
-custom protocol creation, and a full modern UI pass (real brand colors/logo, icons,
-animated transitions, toast feedback, a proper calendar/time picker, dark mode) — see
-below and `NOTES.md` for what that added and what it cost.
+custom protocol creation, a full modern UI pass (icons, animated transitions, toast
+feedback, a proper calendar/time picker), and — most recently — a permanent dark theme
+styled after PeptIQ (a competitor app), with your own blue and logo in place of their
+gold. **The app now always opens in dark mode** — that's a deliberate default, not a bug
+or a half-finished light mode; see the note below.
 
 Verified, not just written: 81 automated tests all green; typecheck and lint clean;
 production build succeeds; export→wipe→import round-trip tested live against a real
-browser IndexedDB; UI walked end-to-end (onboarding through all 5 tabs) at both 320px and
-375px, light and dark mode, via a scripted headless-browser pass with zero console
-errors, in Spanish.
+browser IndexedDB; UI walked end-to-end (onboarding through all 5 tabs) at 320px and
+375px via a scripted headless-browser pass with zero console errors, including a check
+that the dark theme holds even when the device's own setting is light, in Spanish.
 
 ## What I need from you to finish
 
@@ -72,7 +74,7 @@ errors, in Spanish.
    compound table) — flagged with the specific guesses in `NOTES.md` and inline in
    `src/content/compounds.ts`. One-line changes once you confirm.
 
-## Two things worth your deliberate sign-off, not just a rubber stamp
+## Three things worth your deliberate sign-off, not just a rubber stamp
 
 - **Protocol template doses**: 9 starter templates (Wolverine, Weight Loss Beginner, GH
   Blast, etc.) pre-fill a compound/dose/schedule that's still fully editable before
@@ -85,6 +87,14 @@ errors, in Spanish.
   Motion, a calendar library, icons) — the app's JS roughly doubled in size to get the
   more polished/animated feel. Still loads fine, but if your customers are often on slow
   connections this is worth knowing about.
+- **Always-dark theme**: the app no longer has a light mode — it always opens dark now,
+  regardless of the customer's own phone settings. This was a deliberate choice to match
+  the "modern, dark, premium" look you asked for (styled after a competitor app, PeptIQ,
+  with your blue/logo instead of their gold), but it's a real product decision, not just a
+  visual tweak: if your customers expect the app to follow their phone's own light/dark
+  setting, or you'd rather offer both, say so and I'll add a toggle or bring light mode
+  back — nothing was deleted, the old light-mode colors are sitting in a comment in
+  `src/styles/tokens.css` ready to restore.
 
 ## What's intentionally not in this build
 
