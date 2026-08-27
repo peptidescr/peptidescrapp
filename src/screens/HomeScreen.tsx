@@ -3,11 +3,12 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { EmptyState } from '../components/EmptyState'
 import { getCompoundById } from '../content/compounds'
-import { formatTime } from '../lib/dates'
+import { formatDate, formatTime } from '../lib/dates'
 import { db, type Protocol } from '../lib/db'
 import { logProtocolDose } from '../lib/doseLog'
 import { getDueOccurrences, getNextOccurrence, type Occurrence, type ScheduleContext } from '../lib/schedule'
@@ -30,6 +31,14 @@ function contextOf(protocol: Protocol): ScheduleContext {
     endDate: protocol.endDate,
     reminderTimes: protocol.reminderTimes,
   }
+}
+
+/** Time-of-day greeting — no name/account to personalize with, just the hour. */
+function greetingKey(now: Date): string {
+  const hour = now.getHours()
+  if (hour < 12) return 'home.greetingMorning'
+  if (hour < 19) return 'home.greetingAfternoon'
+  return 'home.greetingEvening'
 }
 
 function formatCountdown(
@@ -98,7 +107,10 @@ export function HomeScreen({ onNavigateToSettings }: { onNavigateToSettings: () 
 
   return (
     <div className="flex flex-col gap-6 px-4 pb-6 pt-4">
-      <h1 className="text-xl font-semibold">{t('nav.home')}</h1>
+      <div>
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{formatDate(now)}</p>
+        <h1 className="text-xl font-semibold text-foreground">{t(greetingKey(now))}</h1>
+      </div>
 
       {showBackupNudge && (
         <button
@@ -194,13 +206,17 @@ function DueCard({ item }: { item: DueItem }) {
   const { t } = useTranslation()
   const compound = getCompoundById(item.protocol.compoundId)
   return (
-    <Card className="flex flex-col gap-3 p-4">
-      <div>
-        <p className="font-medium text-foreground">{item.protocol.name || compound?.name}</p>
-        <p className="text-sm text-muted-foreground">
-          {formatTime(item.occurrence.scheduledAt)}
-          {item.isMissed ? ` · ${t('home.missedLabel')}` : ` · ${t('home.dueLabel')}`}
-        </p>
+    <Card
+      className={`flex flex-col gap-3 border-l-4 p-4 ${item.isMissed ? 'border-l-destructive' : 'border-l-primary'}`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="font-medium text-foreground">{item.protocol.name || compound?.name}</p>
+          <p className="text-sm text-muted-foreground">{formatTime(item.occurrence.scheduledAt)}</p>
+        </div>
+        <Badge variant={item.isMissed ? 'destructive' : 'default'}>
+          {item.isMissed ? t('home.missedLabel') : t('home.dueLabel')}
+        </Badge>
       </div>
       <LogButtons protocol={item.protocol} occurrence={item.occurrence} />
     </Card>

@@ -1,9 +1,10 @@
-import { ChevronLeft, ClipboardList, Plus, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ClipboardList, Plus, Trash2 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { DatePicker } from '@/components/DatePicker'
 import { TimePicker } from '@/components/TimePicker'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -12,10 +13,10 @@ import { EmptyState } from '../components/EmptyState'
 import { TemplatePicker } from '../components/TemplatePicker'
 import { getCompoundById, listSelectableCompounds } from '../content/compounds'
 import type { ProtocolTemplate } from '../content/protocolTemplates'
-import { toIsoDate } from '../lib/dates'
+import { formatDateTime, toIsoDate } from '../lib/dates'
 import { db, type Protocol, type Route } from '../lib/db'
 import { scheduleUpcomingReminders } from '../lib/notifications'
-import type { Schedule, Weekday } from '../lib/schedule'
+import { getMissedOccurrences, getNextOccurrence, type Schedule, type ScheduleContext, type Weekday } from '../lib/schedule'
 import { useLiveQuery } from '../lib/useLiveQuery'
 import type { MassUnit } from '../lib/units'
 
@@ -30,15 +31,30 @@ const WEEKDAY_LABELS_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as
 const SCHEDULE_KINDS: Schedule['kind'][] = ['daily', 'everyNDays', 'weekdays', 'cycle']
 const ROUTES: Route[] = ['subcutaneous', 'intramuscular', 'other']
 
+function contextOf(protocol: Protocol): ScheduleContext {
+  return {
+    schedule: protocol.schedule,
+    startDate: protocol.startDate,
+    endDate: protocol.endDate,
+    reminderTimes: protocol.reminderTimes,
+  }
+}
+
 type Mode =
   | { kind: 'list' }
   | { kind: 'picker' }
   | { kind: 'form'; protocolId?: string; template?: ProtocolTemplate }
 
+/** Mirrors the "My Protocols / Templates" tabs pattern from reference peptide-tracker
+ * apps — templates are browsable any time, not just at the moment of creation. */
+type ListTab = 'mine' | 'templates'
+
 export function ProtocolsScreen() {
   const { t } = useTranslation()
   const protocols = useLiveQuery(() => db.protocols.toArray(), [])
+  const doseLogs = useLiveQuery(() => db.doseLogs.toArray(), [])
   const [mode, setMode] = useState<Mode>({ kind: 'list' })
+  const [listTab, setListTab] = useState<ListTab>('mine')
 
   if (mode.kind === 'picker') {
     return (
@@ -71,31 +87,67 @@ export function ProtocolsScreen() {
         </Button>
       </div>
 
-      {protocols !== undefined && sorted.length === 0 && (
-        <EmptyState icon={ClipboardList} title={t('protocols.emptyTitle')} body={t('protocols.emptyBody')} />
-      )}
-
-      <div className="flex flex-col gap-3">
-        <AnimatePresence initial={false}>
-          {sorted.map((protocol) => (
-            <motion.div
-              key={protocol.id}
-              layout
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.18 }}
-            >
-              <ProtocolRow protocol={protocol} onEdit={() => setMode({ kind: 'form', protocolId: protocol.id })} />
-            </motion.div>
-          ))}
-        </AnimatePresence>
+      <div className="flex overflow-hidden rounded-xl border border-border">
+        {(['mine', 'templates'] as const).map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => setListTab(tab)}
+            className={`min-h-11 flex-1 text-sm font-medium transition-colors ${
+              listTab === tab ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground'
+            }`}
+          >
+            {tab === 'mine' ? t('protocols.tabMine') : t('protocols.tabTemplates')}
+          </button>
+        ))}
       </div>
+
+      {listTab === 'templates' ? (
+        <TemplatePicker
+          onSelectTemplate={(template) => setMode({ kind: 'form', template })}
+          onSelectCustom={() => setMode({ kind: 'form' })}
+        />
+      ) : (
+        <>
+          {protocols !== undefined && sorted.length === 0 && (
+            <EmptyState icon={ClipboardList} title={t('protocols.emptyTitle')} body={t('protocols.emptyBody')} />
+          )}
+
+          <div className="flex flex-col gap-3">
+            <AnimatePresence initial={false}>
+              {sorted.map((protocol) => (
+                <motion.div
+                  key={protocol.id}
+                  layout
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.18 }}
+                >
+                  <ProtocolRow
+                    protocol={protocol}
+                    logs={(doseLogs ?? []).filter((l) => l.protocolId === protocol.id)}
+                    onEdit={() => setMode({ kind: 'form', protocolId: protocol.id })}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        </>
+      )}
     </div>
   )
 }
 
-function ProtocolRow({ protocol, onEdit }: { protocol: Protocol; onEdit: () => void }) {
+function ProtocolRow({
+  protocol,
+  logs,
+  onEdit,
+}: {
+  protocol: Protocol
+  logs: { administeredAt: string }[]
+  onEdit: () => void
+}) {
   const { t } = useTranslation()
   const compound = getCompoundById(protocol.compoundId)
 
@@ -104,19 +156,51 @@ function ProtocolRow({ protocol, onEdit }: { protocol: Protocol; onEdit: () => v
     void rescheduleReminders()
   }
 
+  const ctx = contextOf(protocol)
+  const now = new Date()
+  const loggedTimes = logs.map((l) => new Date(l.administeredAt))
+  const nextOccurrence = protocol.isActive ? getNextOccurrence(ctx, now) : null
+  const missedCount = protocol.isActive ? getMissedOccurrences(ctx, now, loggedTimes).length : 0
+
   return (
     <Card className={protocol.isActive ? undefined : 'bg-muted opacity-60 shadow-none'}>
-      <div className="flex items-center justify-between gap-2 p-4">
+      <div className="flex items-start justify-between gap-2 p-4 pb-0">
         <button type="button" onClick={onEdit} className="min-h-11 flex-1 text-left">
           <p className="font-medium text-foreground">{protocol.name || compound?.name}</p>
-          <p className="text-sm text-muted-foreground">
-            {compound?.name} · {protocol.doseAmount} {protocol.doseUnit} · {t(`schedule.${protocol.schedule.kind}`)}
-          </p>
+          <p className="text-sm text-muted-foreground">{compound?.name}</p>
         </button>
-        <div className="flex shrink-0 items-center gap-2">
-          <Switch checked={protocol.isActive} onCheckedChange={toggleActive} aria-label={t('protocols.activate')} />
-        </div>
+        <Switch checked={protocol.isActive} onCheckedChange={toggleActive} aria-label={t('protocols.activate')} />
       </div>
+
+      <div className="flex flex-wrap gap-1.5 px-4 pt-2">
+        <Badge>{t(`schedule.${protocol.schedule.kind}`)}</Badge>
+        <Badge variant="outline">
+          {protocol.doseAmount} {protocol.doseUnit}
+        </Badge>
+        {missedCount > 0 && (
+          <Badge variant="destructive">{t('protocols.missedCount', { count: missedCount })}</Badge>
+        )}
+      </div>
+
+      {nextOccurrence && (
+        <button
+          type="button"
+          onClick={onEdit}
+          className="mx-4 mt-3 flex min-h-11 items-center justify-between gap-2 rounded-xl bg-accent px-3 py-2 text-left"
+        >
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {t('protocols.nextDose')}
+            </p>
+            <p className="text-sm font-medium text-primary">{formatDateTime(nextOccurrence.scheduledAt)}</p>
+          </div>
+          <ChevronRight className="size-4 shrink-0 text-primary" />
+        </button>
+      )}
+
+      <p className="px-4 py-3 text-xs text-muted-foreground">
+        {t('protocols.loggedCount', { count: logs.length })}
+      </p>
     </Card>
   )
 }

@@ -2,6 +2,51 @@
 
 Running log of decisions and things the client needs to weigh in on. Newest at top.
 
+## 2026-08-26 (later) — Layout reference pass against PeptIQ's actual screens
+
+Downloaded PeptIQ's real App Store screenshots (11 images, direct from Apple's CDN — the
+App Store listing HTML links straight to them) rather than working from text descriptions,
+so this is grounded in what their app actually looks like, not a guess. Looked at all of
+them: Home, "in your system" half-life view, Calculator, My Peptides library, compound
+reference/dosing-guidelines detail, Protocols/Reminders, Apple Health sync, Protocol
+Impact (weight/outcomes charting).
+
+**What I did not copy, on purpose**: their brand identity (dark/gold color scheme, serif
+display type, the PeptIQ name/logo) — copying a specific competitor's brand identity
+wall-to-wall isn't something I'll do regardless of how the layout request is framed, and
+it's separate from "layout" anyway. More importantly, most of their screens are built
+entirely around features this app deliberately excludes: half-life/PK decay curves,
+injection-site body-mapping, vial/inventory ("Create Vial", "My Stock"), Apple Health/
+weight/HRV/sleep sync, an AI tab, a "Community" protocol-sharing tab, and — most
+directly in conflict with this brief — a compound reference screen whose entire content
+is dosing guidance ("Typical research range: 200–500 mcg... Cadence: 1–2x daily...
+Starting Dose: 250–500 mcg daily"). That last one is exactly the "never suggest a dose"
+line this app is built around; I didn't adapt any of that screen's content.
+
+**What I did adopt** — genuine structural/layout patterns that don't carry any of the
+above baggage, rebuilt with our own content and (still blue/light-dark, unchanged for
+now per your note that color comes later):
+
+- **Protocols**: a persistent "My Protocols / Templates" tab pair (their screen has a
+  third "Community" tab — dropped, no accounts/sharing here) so templates are browsable
+  any time, not just mid-creation. Protocol cards gained pill badges (schedule kind,
+  dose), a highlighted "next scheduled dose" sub-card computed live from the same
+  schedule engine Home already uses, a missed-count badge, and a logged-count line —
+  mirroring their reminders-list card without the vial/stock columns.
+- **Home**: swapped the plain "Inicio" title for a date + time-of-day greeting (no name —
+  there's no account to personalize with). Due-dose cards gained a colored left-border
+  accent (destructive red for missed, primary blue for due-now) and a status badge,
+  replacing plain inline text — mirrors their overdue-card treatment.
+- **Calculator**: added a dismissible explainer callout (differs for powder vs.
+  ready-to-use solution) and a "Reset" action in the header, matching their calculator's
+  "What's a vial?" info box and reset control — explaining what a field means, not
+  suggesting what to put in it.
+- **History**: added All/Taken/Skipped filter pills alongside search, matching the
+  filter-pill row on their library screen.
+
+New shared `Badge` component (`src/components/ui/badge.tsx`) for the pill treatment,
+used across all four screens above.
+
 ## 2026-08-26 — Full modern component system (shadcn/ui + Radix + Motion + lucide)
 
 At explicit request, went well beyond the original stack list: Radix UI primitives,

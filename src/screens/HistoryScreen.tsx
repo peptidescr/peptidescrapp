@@ -47,11 +47,14 @@ function doseLabel(log: DoseLog, locale: Locale): string {
   return '—'
 }
 
+type StatusFilter = 'all' | DoseStatus
+
 export function HistoryScreen() {
   const { t, i18n } = useTranslation()
   const locale = i18n.language as Locale
   const logs = useLiveQuery(() => db.doseLogs.toArray(), [])
   const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [editingId, setEditingId] = useState<string | null>(null)
 
   const sorted = useMemo(() => {
@@ -61,16 +64,14 @@ export function HistoryScreen() {
   }, [logs])
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return sorted
-    const q = search.trim().toLowerCase()
     return sorted.filter((log) => {
+      if (statusFilter !== 'all' && log.status !== statusFilter) return false
+      if (!search.trim()) return true
+      const q = search.trim().toLowerCase()
       const compound = getCompoundById(log.compoundId)
-      return (
-        compound?.name.toLowerCase().includes(q) ||
-        log.notes?.toLowerCase().includes(q)
-      )
+      return compound?.name.toLowerCase().includes(q) || log.notes?.toLowerCase().includes(q)
     })
-  }, [sorted, search])
+  }, [sorted, search, statusFilter])
 
   if (editingId) {
     const log = (logs ?? []).find((l) => l.id === editingId)
@@ -92,6 +93,21 @@ export function HistoryScreen() {
           placeholder={t('history.searchPlaceholder')}
           className="min-h-11 w-full rounded-xl border border-input bg-card pl-10 pr-3 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
+      </div>
+
+      <div className="flex gap-2">
+        {(['all', 'taken', 'skipped'] as const).map((f) => (
+          <button
+            key={f}
+            type="button"
+            onClick={() => setStatusFilter(f)}
+            className={`min-h-9 rounded-full border px-3 text-sm font-medium transition-colors ${
+              statusFilter === f ? 'border-primary bg-accent text-primary' : 'border-border text-muted-foreground'
+            }`}
+          >
+            {f === 'all' ? t('history.filterAll') : t(`history.status.${f}`)}
+          </button>
+        ))}
       </div>
 
       {logs !== undefined && filtered.length === 0 && (

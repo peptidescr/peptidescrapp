@@ -1,4 +1,4 @@
-import { AlertTriangle, FlaskConical } from 'lucide-react'
+import { AlertTriangle, FlaskConical, Info, RotateCcw, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -69,6 +69,15 @@ export function CalculatorScreen() {
   const [doseInput, setDoseInput] = useState('')
   const [doseUnit, setDoseUnit] = useState<MassUnit>('mg')
   const [syringeType, setSyringeType] = useState<SyringeType>(settings?.syringeType ?? 'U-100')
+  const [showExplainer, setShowExplainer] = useState(true)
+
+  function handleReset() {
+    setCompoundId(selectable[0]?.id ?? '')
+    setVialSize(selectable[0]?.vialSizes[0] ?? 0)
+    setDiluentMl('')
+    setConcentrationInput('')
+    setDoseInput('')
+  }
 
   function handleSelectCompound(id: string) {
     setCompoundId(id)
@@ -139,7 +148,34 @@ export function CalculatorScreen() {
 
   return (
     <div className="flex flex-col gap-5 px-4 pb-6 pt-4">
-      <h1 className="text-xl font-semibold">{t('calculator.title')}</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold">{t('calculator.title')}</h1>
+        <button
+          type="button"
+          onClick={handleReset}
+          className="flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground"
+        >
+          <RotateCcw className="size-4" />
+          {t('calculator.resetForm')}
+        </button>
+      </div>
+
+      {showExplainer && (
+        <div className="flex items-start gap-3 rounded-2xl border border-border bg-accent px-4 py-3 text-sm">
+          <Info className="mt-0.5 size-4 shrink-0 text-primary" />
+          <p className="flex-1 text-foreground">
+            {isSolution ? t('calculator.explainerSolution') : t('calculator.explainerPowder')}
+          </p>
+          <button
+            type="button"
+            onClick={() => setShowExplainer(false)}
+            aria-label={t('common.cancel')}
+            className="text-muted-foreground"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+      )}
 
       <Field label={t('calculator.compound')}>
         <Select value={compoundId} onValueChange={handleSelectCompound}>
