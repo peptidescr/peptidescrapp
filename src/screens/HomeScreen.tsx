@@ -1,4 +1,5 @@
-import { AlertTriangle, Check, ClipboardList, Clock3, X } from 'lucide-react'
+import { isSameDay } from 'date-fns'
+import { AlertTriangle, Check, ClipboardList, Clock3, Syringe, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -69,6 +70,11 @@ export function HomeScreen({ onNavigateToSettings }: { onNavigateToSettings: () 
 
   const activeProtocols = useMemo(() => (protocols ?? []).filter((p) => p.isActive), [protocols])
 
+  const dosesTodayCount = useMemo(
+    () => (doseLogs ?? []).filter((log) => isSameDay(new Date(log.administeredAt), now)).length,
+    [doseLogs, now],
+  )
+
   const dueItems: DueItem[] = useMemo(() => {
     if (!doseLogs) return []
     const items: DueItem[] = []
@@ -107,10 +113,7 @@ export function HomeScreen({ onNavigateToSettings }: { onNavigateToSettings: () 
 
   return (
     <div className="flex flex-col gap-6 px-4 pb-6 pt-4">
-      <div>
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{formatDate(now)}</p>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">{t(greetingKey(now))}</h1>
-      </div>
+      <HeroHeader now={now} activeCount={activeProtocols.length} dosesTodayCount={dosesTodayCount} />
 
       {showBackupNudge && (
         <button
@@ -171,6 +174,56 @@ export function HomeScreen({ onNavigateToSettings }: { onNavigateToSettings: () 
         )}
       </section>
     </div>
+  )
+}
+
+/**
+ * The app's one branded moment on Home — small logo + name, then the
+ * greeting, then an at-a-glance stat row — set apart from the scrollable
+ * content below with its own card surface rather than floating on the bare
+ * page background.
+ */
+function HeroHeader({
+  now,
+  activeCount,
+  dosesTodayCount,
+}: {
+  now: Date
+  activeCount: number
+  dosesTodayCount: number
+}) {
+  const { t } = useTranslation()
+  return (
+    <Card className="p-4">
+      <div className="flex items-center gap-2">
+        <img src="/brand/icon-192.png" alt="" className="size-6 rounded-lg" />
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">peptidescr</span>
+      </div>
+
+      <p className="mt-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">{formatDate(now)}</p>
+      <h1 className="text-2xl font-bold tracking-tight text-foreground">{t(greetingKey(now))}</h1>
+
+      <div className="mt-4 flex gap-4 border-t border-border pt-4">
+        <div className="flex flex-1 items-center gap-2.5">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent">
+            <ClipboardList className="size-4 text-primary" />
+          </span>
+          <div>
+            <p className="text-lg font-semibold leading-tight text-foreground">{activeCount}</p>
+            <p className="text-xs leading-tight text-muted-foreground">{t('home.statActiveProtocols')}</p>
+          </div>
+        </div>
+        <div className="flex flex-1 items-center gap-2.5">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent">
+            <Syringe className="size-4 text-primary" />
+          </span>
+          <div>
+            <p className="text-lg font-semibold leading-tight text-foreground">{dosesTodayCount}</p>
+            <p className="text-xs leading-tight text-muted-foreground">{t('home.statDosesToday')}</p>
+          </div>
+        </div>
+      </div>
+    </Card>
   )
 }
 

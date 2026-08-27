@@ -2,6 +2,31 @@
 
 Running log of decisions and things the client needs to weigh in on. Newest at top.
 
+## 2026-08-27 — Design pass: Home hero header + logo placement everywhere
+
+Three specific asks: (1) Home's greeting should show more useful info and be visibly
+separated from the content below it, (2) find a place for the actual peptidescr logo
+somewhere in the app, (3) audit what's left before client handoff (see HANDOVER.md).
+
+**Home hero header** (`HeroHeader` in `HomeScreen.tsx`) replaces the plain greeting text:
+now its own `Card` (distinct surface, clearly separated from the page background and the
+due-items/next-dose content below), with a small logo + "peptidescr" wordmark row at top,
+then date + time-of-day greeting, then a 2-stat row — active protocol count and doses
+logged today — each with its own icon badge. Both stats are neutral counts (no streak
+language, no "keep it up" framing) computed live from data already on-screen elsewhere,
+not new tracking.
+
+**Logo placement**: added a small `ScreenHeader` component (icon badge + title, optional
+action slot) used on Calculator, Protocols, History, and Settings — Home gets the fuller
+hero treatment instead of this since it already carries the logo. This gives the app a
+consistent, recognizable brand touch on every screen without a heavy persistent top bar,
+which would have needed extra layout coordination with the tab bar for comparatively
+little benefit.
+
+Verified live: zero console errors across a full click-through in both a normal pass and
+at 320px (icon+title+action-button header combinations checked specifically, since that's
+the tightest fit) — no overflow, no clipping.
+
 ## 2026-08-26 (later still) — Dark theme made permanent, adapted from PeptIQ's colour *structure*
 
 At explicit request: "use their colour scheme but replace colors and logos with

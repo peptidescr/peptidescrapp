@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ScreenHeader } from '../components/ScreenHeader'
 import {
   Select,
   SelectContent,
@@ -148,17 +149,19 @@ export function CalculatorScreen() {
 
   return (
     <div className="flex flex-col gap-5 px-4 pb-6 pt-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">{t('calculator.title')}</h1>
-        <button
-          type="button"
-          onClick={handleReset}
-          className="flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground"
-        >
-          <RotateCcw className="size-4" />
-          {t('calculator.resetForm')}
-        </button>
-      </div>
+      <ScreenHeader
+        title={t('calculator.title')}
+        action={
+          <button
+            type="button"
+            onClick={handleReset}
+            className="flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground"
+          >
+            <RotateCcw className="size-4" />
+            {t('calculator.resetForm')}
+          </button>
+        }
+      />
 
       {showExplainer && (
         <div className="flex items-start gap-3 rounded-2xl border border-border bg-accent px-4 py-3 text-sm">

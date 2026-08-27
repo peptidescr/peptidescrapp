@@ -90,6 +90,8 @@
     "greetingMorning": "Buenos días",
     "greetingAfternoon": "Buenas tardes",
     "greetingEvening": "Buenas noches",
+    "statActiveProtocols": "Protocolos activos",
+    "statDosesToday": "Dosis hoy",
     "catchUpTitle": "Ponerse al día",
     "nextUpTitle": "Próxima dosis",
     "noUpcomingTitle": "Nada programado",

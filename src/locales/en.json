@@ -90,6 +90,8 @@
     "greetingMorning": "Good morning",
     "greetingAfternoon": "Good afternoon",
     "greetingEvening": "Good evening",
+    "statActiveProtocols": "Active protocols",
+    "statDosesToday": "Doses today",
     "catchUpTitle": "Catch up",
     "nextUpTitle": "Next up",
     "noUpcomingTitle": "Nothing scheduled",

@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { EmptyState } from '../components/EmptyState'
+import { ScreenHeader } from '../components/ScreenHeader'
 import { TemplatePicker } from '../components/TemplatePicker'
 import { getCompoundById, listSelectableCompounds } from '../content/compounds'
 import type { ProtocolTemplate } from '../content/protocolTemplates'
@@ -79,13 +80,15 @@ export function ProtocolsScreen() {
 
   return (
     <div className="flex flex-col gap-4 px-4 pb-6 pt-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">{t('nav.protocols')}</h1>
-        <Button onClick={() => setMode({ kind: 'picker' })}>
-          <Plus className="size-4" />
-          {t('protocols.new')}
-        </Button>
-      </div>
+      <ScreenHeader
+        title={t('nav.protocols')}
+        action={
+          <Button onClick={() => setMode({ kind: 'picker' })}>
+            <Plus className="size-4" />
+            {t('protocols.new')}
+          </Button>
+        }
+      />
 
       <div className="flex overflow-hidden rounded-full border border-border">
         {(['mine', 'templates'] as const).map((tab) => (

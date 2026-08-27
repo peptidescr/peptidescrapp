@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '../components/EmptyState'
+import { ScreenHeader } from '../components/ScreenHeader'
 import { getCompoundById } from '../content/compounds'
 import { formatDateTime, formatTime, toIsoDate } from '../lib/dates'
 import { db, type DoseLog, type DoseStatus } from '../lib/db'
@@ -82,7 +83,7 @@ export function HistoryScreen() {
 
   return (
     <div className="flex flex-col gap-4 px-4 pb-6 pt-4">
-      <h1 className="text-xl font-semibold">{t('nav.history')}</h1>
+      <ScreenHeader title={t('nav.history')} />
 
       <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
