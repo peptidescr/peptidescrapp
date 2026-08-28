@@ -50,6 +50,13 @@ browser IndexedDB; UI walked end-to-end (onboarding through all 5 tabs) at 320px
 375px via a scripted headless-browser pass with zero console errors, including confirming
 the dark theme holds even when the device's own setting is light, in Spanish.
 
+**Fixed since:** Settings → Storage was reading the wrong signal to decide whether it
+should say "protected"/"not protected" (it trusted an unreliable async API instead of
+actual install status), so the warning could keep showing even after you installed the
+app. Fixed, and the section now also says plainly, permanently, that install alone only
+covers automatic cleanup — not uninstalling, clearing browser data, or losing the device
+(see "Does installing keep your data safe, full stop?" below).
+
 ## What's left before you and the client can play with it
 
 **One step: deploy.** I don't have Cloudflare/Netlify account access from here. Once
@@ -63,6 +70,32 @@ you've had a look and we're both happy, either:
 
 Nothing else is blocking — everything below is worth the client's attention but doesn't
 need to hold up putting this in front of them for a first look.
+
+## Does installing keep your data safe, full stop?
+
+Short answer: **no** — installing fixes one specific, real risk, but it isn't a complete
+guarantee, and the app now says so on-screen instead of leaving it to be inferred.
+
+What installing *does* fix: browsers are allowed to silently wipe an uninstalled site's
+local storage after a period of inactivity — most aggressively iOS Safari, which does this
+after roughly 7 days without a visit. Installing (Add to Home Screen on iOS, the
+Install/App Store-style prompt on Android/desktop Chrome) exempts the app from that
+automatic cleanup, which is the exact scenario the Storage section in Settings is warning
+about, and now correctly reflects.
+
+What installing does **not** protect against, because nothing built into any browser can:
+uninstalling the app itself, manually clearing site/app data from the device or browser
+settings, or losing/replacing/factory-resetting the device. All of those wipe local data
+just as completely, installed or not — installing narrows the ways data loss happens, it
+doesn't remove them.
+
+The only protection that covers all of those is the Backup & export feature already in
+Settings — a one-tap JSON export (shareable to email, cloud drive, another device, etc.)
+plus CSV history export, with import to restore. That's the real "no matter what," and
+it's on the customer, not the app, to actually run it periodically — the app nudges for
+this on Home after enough time has passed (`home.backupNudge`) and now spells this out
+plainly in the Storage section itself rather than leaving people to assume installing was
+enough.
 
 ## Four things worth the client's deliberate sign-off, not a rubber stamp
 

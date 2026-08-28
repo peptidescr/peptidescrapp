@@ -2,6 +2,43 @@
 
 Running log of decisions and things the client needs to weigh in on. Newest at top.
 
+## 2026-08-28 — Fix: Storage section trusted the wrong signal, plus an honest backup caveat
+
+Bug report: after installing the app, Settings → Storage kept showing the "not protected
+from automatic cleanup" warning instead of switching to the "protected" message.
+
+Root cause: `StorageSection` (`SettingsScreen.tsx`) decided which message to show purely
+from `navigator.storage.persisted()`, an async, best-effort API. That's the wrong signal
+on its own — most notably on iOS Safari, where the thing that actually exempts a site from
+the 7-day no-visit ITP eviction (the specific risk this section exists to warn about) is
+adding the app to the Home Screen, not anything `persisted()` reports. iOS Safari commonly
+still returns `false`/unsupported for `persisted()` even after a real install, so the
+warning never cleared. Chromium/Android's persistence grant is also heuristic and not
+reliably tied to the moment of install, so it's not a great primary signal there either.
+
+Fix: `StorageSection` now uses `useInstallState().isStandalone` — the same
+`display-mode: standalone` / `navigator.standalone` check `InstallSection` already uses
+correctly elsewhere in this file — as the primary condition, OR'd with
+`persisted() === true` as a secondary fallback for the rare case a browser grants
+persistence without a formal install. `protectedFromCleanup = install.isStandalone ||
+persisted === true`.
+
+Also added a new, permanent second line under the status message
+(`settings.storage.backupCaveat`, both locales) that says plainly: this only protects
+against *automatic* cleanup — uninstalling the app, clearing browser data, or losing the
+device still deletes everything, so regular backup (the section right below) is the only
+real "no matter what" protection. This directly answers the client's follow-up question
+("is installing all that's necessary to keep my data intact?") inside the app itself,
+not just in this doc — see HANDOVER.md.
+
+Verified live via headless Chromium/CDP in both directions: (1) simulated standalone mode
+by monkey-patching `window.matchMedia` via `Page.addScriptToEvaluateOnNewDocument` (CDP's
+`Emulation.setEmulatedMedia` doesn't support overriding `display-mode`), confirmed the
+section switches to the "protected" message plus the new caveat text; (2) a fresh,
+unpatched tab confirmed the "not protected" message still correctly shows when not
+installed — no regression. Zero console errors in either case. Full regression also
+re-run clean: 81/81 tests, typecheck, lint, and `npm run build` all pass.
+
 ## 2026-08-27 — Design pass: Home hero header + logo placement everywhere
 
 Three specific asks: (1) Home's greeting should show more useful info and be visibly

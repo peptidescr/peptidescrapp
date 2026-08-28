@@ -155,6 +155,7 @@
       "title": "Almacenamiento",
       "persisted": "Tus datos están protegidos contra la limpieza automática.",
       "notPersisted": "Tus datos todavía no están protegidos contra la limpieza automática — instalar la aplicación (arriba) ayuda con esto.",
+      "backupCaveat": "Esto solo protege contra la limpieza automática. Si desinstalás la aplicación, borrás los datos del navegador, o perdés este dispositivo, igual se borra todo — respaldá tus datos regularmente (abajo) para no perder nunca tu historial.",
       "usage": "Usando aproximadamente {{mb}} MB"
     },
     "backup": {

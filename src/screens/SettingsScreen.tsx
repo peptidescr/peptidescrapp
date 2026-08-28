@@ -164,6 +164,7 @@ function InstallSection() {
 
 function StorageSection() {
   const { t } = useTranslation()
+  const install = useInstallState()
   const [persisted, setPersisted] = useState<boolean | null>(null)
   const [usageMb, setUsageMb] = useState<number | null>(null)
 
@@ -174,11 +175,22 @@ function StorageSection() {
     })
   }, [])
 
+  // Being installed (standalone) is the signal that actually matters here —
+  // on iOS in particular, the Storage Persistence API doesn't reflect the
+  // real protection mechanism at all: adding to the Home Screen is what
+  // exempts a site from Safari's 7-day no-visit eviction, regardless of what
+  // persisted() reports (which is frequently false/unsupported there even
+  // once installed). navigator.storage.persisted() is kept as a secondary
+  // signal for the (rare) case a browser grants persistence without a
+  // formal install. See NOTES.md.
+  const protectedFromCleanup = install.isStandalone || persisted === true
+
   return (
     <SectionCard title={t('settings.storage.title')} icon={Database}>
       <p className="text-sm text-muted-foreground">
-        {persisted === true ? t('settings.storage.persisted') : t('settings.storage.notPersisted')}
+        {protectedFromCleanup ? t('settings.storage.persisted') : t('settings.storage.notPersisted')}
       </p>
+      <p className="text-sm text-muted-foreground">{t('settings.storage.backupCaveat')}</p>
       {usageMb !== null && (
         <p className="text-sm text-muted-foreground">{t('settings.storage.usage', { mb: usageMb.toFixed(1) })}</p>
       )}
