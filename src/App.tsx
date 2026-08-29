@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AnimatePresence, motion } from 'motion/react'
+import { FloatingSettingsButton } from './components/FloatingSettingsButton'
 import { TabBar, type Tab } from './components/TabBar'
 import { Toaster } from './components/ui/sonner'
 import { LEGAL_VERSION } from './content/legal'
@@ -76,8 +77,9 @@ function App() {
   }
 
   return (
-    <div className="min-h-dvh bg-background pb-20 pt-[env(safe-area-inset-top)]">
+    <div className="min-h-dvh bg-background pb-20 pt-[calc(env(safe-area-inset-top)+4rem)]">
       <Toaster />
+      {tab !== 'settings' && <FloatingSettingsButton onClick={() => setTab('settings')} />}
       <AnimatePresence mode="wait">
         <motion.div
           key={tab}

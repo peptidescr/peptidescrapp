@@ -1,62 +1,26 @@
-import { addDays, isSameDay, subDays } from 'date-fns'
-import { AlertTriangle, Bell, Check, ClipboardList, Clock3, Flame, Syringe, X } from 'lucide-react'
+import { isSameDay } from 'date-fns'
+import { AlertTriangle, Bell, ClipboardList, Clock3, Flame, Syringe } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { DoseCardBody, DueCard } from '../components/DoseCard'
 import { EmptyState } from '../components/EmptyState'
+import { NotificationPanel } from '../components/NotificationPanel'
 import { getCompoundById } from '../content/compounds'
-import { formatDate, formatTime } from '../lib/dates'
+import { formatDate } from '../lib/dates'
 import { db, type DoseLog, type Protocol } from '../lib/db'
-import { logProtocolDose } from '../lib/doseLog'
+import {
+  computeDueItems,
+  computeShowBackupNudge,
+  computeStreakDays,
+  contextOf,
+  loggedTimesFor,
+} from '../lib/homeData'
 import { getNotificationCapability } from '../lib/notifications'
-import { getDueOccurrences, getNextOccurrence, type Occurrence, type ScheduleContext } from '../lib/schedule'
+import { getNextOccurrence, type Occurrence } from '../lib/schedule'
 import { useLiveQuery } from '../lib/useLiveQuery'
 import { useSettings } from '../lib/useSettings'
-
-const BACKUP_NUDGE_DAYS = 14
-const MISSED_THRESHOLD_HOURS = 12
-
-interface DueItem {
-  protocol: Protocol
-  occurrence: Occurrence
-  isMissed: boolean
-}
-
-function contextOf(protocol: Protocol): ScheduleContext {
-  return {
-    schedule: protocol.schedule,
-    startDate: protocol.startDate,
-    endDate: protocol.endDate,
-    reminderTimes: protocol.reminderTimes,
-  }
-}
-
-function loggedTimesFor(protocol: Protocol, doseLogs: DoseLog[]): Date[] {
-  return doseLogs.filter((log) => log.protocolId === protocol.id).map((log) => new Date(log.administeredAt))
-}
-
-/**
- * Consecutive calendar days, ending today, with at least one dose log —
- * "logged something" (taken or skipped both count), not "took every dose".
- * If nothing's logged yet today, today doesn't break an existing streak from
- * yesterday — it just doesn't add to it until something is logged.
- */
-function computeStreakDays(now: Date, loggedAt: Date[]): number {
-  if (loggedAt.length === 0) return 0
-  let cursor = now
-  if (!loggedAt.some((d) => isSameDay(d, cursor))) {
-    cursor = addDays(cursor, -1)
-  }
-  let streak = 0
-  while (loggedAt.some((d) => isSameDay(d, cursor))) {
-    streak += 1
-    cursor = addDays(cursor, -1)
-  }
-  return streak
-}
 
 /** Time-of-day greeting — no name/account to personalize with, just the hour. */
 function greetingKey(now: Date): string {
@@ -92,6 +56,7 @@ export function HomeScreen({ onNavigateToSettings, onNavigateToProtocols, onNavi
   const protocols = useLiveQuery(() => db.protocols.toArray(), [])
   const doseLogs = useLiveQuery(() => db.doseLogs.toArray(), [])
   const [now, setNow] = useState(() => new Date())
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 60_000)
@@ -110,20 +75,7 @@ export function HomeScreen({ onNavigateToSettings, onNavigateToProtocols, onNavi
     [doseLogs, now],
   )
 
-  const dueItems: DueItem[] = useMemo(() => {
-    if (!doseLogs) return []
-    const items: DueItem[] = []
-    for (const protocol of activeProtocols) {
-      const ctx = contextOf(protocol)
-      const loggedTimes = loggedTimesFor(protocol, doseLogs)
-      for (const occurrence of getDueOccurrences(ctx, now, loggedTimes)) {
-        const hoursAgo = (now.getTime() - occurrence.scheduledAt.getTime()) / 3_600_000
-        items.push({ protocol, occurrence, isMissed: hoursAgo > MISSED_THRESHOLD_HOURS })
-      }
-    }
-    items.sort((a, b) => a.occurrence.scheduledAt.getTime() - b.occurrence.scheduledAt.getTime())
-    return items
-  }, [activeProtocols, doseLogs, now])
+  const dueItems = useMemo(() => computeDueItems(protocols ?? [], doseLogs ?? [], now), [protocols, doseLogs, now])
 
   // Depends on doseLogs (not just the schedule) so that logging an upcoming
   // dose early from the "Next up" card is actually reflected here — otherwise
@@ -142,13 +94,17 @@ export function HomeScreen({ onNavigateToSettings, onNavigateToProtocols, onNavi
     return soonest
   }, [activeProtocols, doseLogs, now])
 
-  // Only nudge once there's actually something worth losing — a brand-new
-  // install with zero protocols/logs doesn't need a backup yet.
-  const hasData = (protocols?.length ?? 0) > 0 || (doseLogs?.length ?? 0) > 0
-  const showBackupNudge =
-    hasData &&
-    (!settings?.lastBackupAt ||
-      (now.getTime() - new Date(settings.lastBackupAt).getTime()) / (24 * 3_600_000) > BACKUP_NUDGE_DAYS)
+  const showBackupNudge = useMemo(
+    () => computeShowBackupNudge(protocols ?? [], doseLogs ?? [], settings, now),
+    [protocols, doseLogs, settings, now],
+  )
+
+  // Same signals the notification panel itself uses to decide what to show —
+  // kept in lockstep so the bell's badge count always matches what's actually
+  // inside the panel it opens.
+  const capability = getNotificationCapability()
+  const notifNudgeCount = capability.supported && (capability.requiresInstallOnIOS || capability.permission === 'default') ? 1 : 0
+  const notificationCount = dueItems.length + (showBackupNudge ? 1 : 0) + notifNudgeCount
 
   return (
     <div className="flex flex-col gap-6 px-4 pb-6 pt-4">
@@ -156,7 +112,19 @@ export function HomeScreen({ onNavigateToSettings, onNavigateToProtocols, onNavi
         now={now}
         activeCount={activeProtocols.length}
         dosesTodayCount={dosesTodayCount}
-        onOpenNotifications={onNavigateToSettings}
+        notificationCount={notificationCount}
+        onOpenNotifications={() => setNotificationsOpen(true)}
+      />
+
+      <NotificationPanel
+        open={notificationsOpen}
+        onOpenChange={setNotificationsOpen}
+        protocols={protocols ?? []}
+        doseLogs={doseLogs ?? []}
+        settings={settings}
+        now={now}
+        onNavigateToSettings={onNavigateToSettings}
+        onNavigateToProtocols={onNavigateToProtocols}
       />
 
       {overallStreak > 0 && <StreakCard days={overallStreak} onViewHistory={onNavigateToHistory} />}
@@ -240,20 +208,17 @@ function HeroHeader({
   now,
   activeCount,
   dosesTodayCount,
+  notificationCount,
   onOpenNotifications,
 }: {
   now: Date
   activeCount: number
   dosesTodayCount: number
+  notificationCount: number
   onOpenNotifications: () => void
 }) {
   const { t } = useTranslation()
-  // Same condition Settings uses to offer the "enable notifications" button —
-  // a small dot here means there's something to act on, not an unread count
-  // we don't actually have (no in-app notification inbox exists to count).
-  const capability = getNotificationCapability()
-  const notificationsNeedAttention =
-    capability.supported && !capability.requiresInstallOnIOS && capability.permission === 'default'
+  const badgeText = notificationCount > 9 ? '9+' : String(notificationCount)
 
   return (
     <Card className="p-4">
@@ -274,8 +239,10 @@ function HeroHeader({
           className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-accent text-foreground"
         >
           <Bell className="size-4" />
-          {notificationsNeedAttention && (
-            <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-brand-warn" />
+          {notificationCount > 0 && (
+            <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-warn px-1 text-[10px] font-semibold leading-none text-white">
+              {badgeText}
+            </span>
           )}
         </button>
       </div>
@@ -324,174 +291,6 @@ function StreakCard({ days, onViewHistory }: { days: number; onViewHistory: () =
       <button type="button" onClick={onViewHistory} className="mt-1 min-h-11 self-start text-sm font-medium text-primary">
         {t('home.streakCta')} →
       </button>
-    </Card>
-  )
-}
-
-function LogButtons({
-  protocol,
-  administeredAt,
-}: {
-  protocol: Protocol
-  /**
-   * Fixed timestamp to log against — pass the occurrence's own scheduledAt
-   * for something already due (Catch up). Omit it to log against the actual
-   * moment of the tap instead, which is what "logging ahead of schedule"
-   * from the Next up card means: taken/skipped *now*, not at its future
-   * reminder time.
-   */
-  administeredAt?: Date
-}) {
-  const { t } = useTranslation()
-  const [busy, setBusy] = useState(false)
-
-  async function handle(status: 'taken' | 'skipped') {
-    setBusy(true)
-    try {
-      await logProtocolDose(protocol, status, administeredAt ?? new Date())
-      toast.success(status === 'taken' ? t('home.toastTaken') : t('home.toastSkipped'))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div className="flex gap-2">
-      <Button size="sm" disabled={busy} onClick={() => handle('taken')} className="flex-1">
-        <Check className="size-4" />
-        {t('home.logTaken')}
-      </Button>
-      <Button size="sm" variant="secondary" disabled={busy} onClick={() => handle('skipped')} className="flex-1">
-        <X className="size-4" />
-        {t('home.logSkipped')}
-      </Button>
-    </div>
-  )
-}
-
-/**
- * Shared body for both the Catch up and Next up cards, styled to match
- * PeptIQ's upcoming-dose card layout: a colored status line + time pill,
- * icon + name, dose line, a three-stat row (total logs / last 7 days / day
- * streak, all derived from this protocol's own dose logs), the log/skip
- * actions, and a link out to the protocol. We don't carry over PeptIQ's
- * injection-site line or "reschedule in calendar" (no site rotation or
- * calendar view in this app — see HANDOVER.md's "not in this build" list).
- */
-function DoseCardBody({
-  statusLabel,
-  statusClassName,
-  time,
-  protocol,
-  compoundName,
-  doseLogs,
-  now,
-  showActions,
-  administeredAt,
-  onNavigateToProtocols,
-}: {
-  statusLabel: string
-  statusClassName: string
-  time: Date
-  protocol: Protocol
-  compoundName: string | undefined
-  doseLogs: DoseLog[]
-  now: Date
-  showActions: boolean
-  administeredAt?: Date
-  onNavigateToProtocols: () => void
-}) {
-  const { t } = useTranslation()
-  const protocolLogTimes = loggedTimesFor(protocol, doseLogs)
-  const sevenDaysAgo = subDays(now, 7)
-  const totalLogs = protocolLogTimes.length
-  const logs7d = protocolLogTimes.filter((d) => d >= sevenDaysAgo).length
-  const dayStreak = computeStreakDays(now, protocolLogTimes)
-
-  return (
-    <>
-      <div className="flex items-start justify-between gap-2">
-        <p className={`text-xs font-semibold uppercase tracking-wide ${statusClassName}`}>{statusLabel}</p>
-        <span className="flex shrink-0 items-center gap-1 rounded-full bg-background px-2 py-1 text-xs text-muted-foreground">
-          <Clock3 className="size-3" />
-          {formatTime(time)}
-        </span>
-      </div>
-
-      <div className="flex items-center gap-3">
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent">
-          <Syringe className="size-4 text-primary" />
-        </span>
-        <div>
-          <p className="font-medium text-foreground">{protocol.name || compoundName}</p>
-          <p className="text-sm text-muted-foreground">
-            {protocol.doseAmount} {protocol.doseUnit} · {t(`route.${protocol.route}`)}
-          </p>
-        </div>
-      </div>
-
-      <div className="flex gap-2 border-t border-border pt-3 text-center">
-        <div className="flex-1">
-          <p className="text-sm font-semibold text-foreground">{totalLogs}</p>
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{t('home.statTotalLogs')}</p>
-        </div>
-        <div className="flex-1">
-          <p className="text-sm font-semibold text-foreground">{logs7d}</p>
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{t('home.statLogs7d')}</p>
-        </div>
-        <div className="flex-1">
-          <p className="text-sm font-semibold text-foreground">{dayStreak}</p>
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{t('home.statDayStreak')}</p>
-        </div>
-      </div>
-
-      {showActions && <LogButtons protocol={protocol} administeredAt={administeredAt} />}
-
-      <button
-        type="button"
-        onClick={onNavigateToProtocols}
-        className="min-h-11 self-center text-xs text-primary"
-      >
-        {t('home.viewProtocol')} →
-      </button>
-    </>
-  )
-}
-
-function DueCard({
-  item,
-  doseLogs,
-  now,
-  onNavigateToProtocols,
-}: {
-  item: DueItem
-  doseLogs: DoseLog[]
-  now: Date
-  onNavigateToProtocols: () => void
-}) {
-  const { t } = useTranslation()
-  const compound = getCompoundById(item.protocol.compoundId)
-  const dayWord = isSameDay(item.occurrence.scheduledAt, now) ? t('home.today') : formatDate(item.occurrence.scheduledAt)
-  const label = item.isMissed ? t('home.missedLabel') : t('home.dueLabel')
-
-  return (
-    <Card
-      className={`flex flex-col gap-3 border-l-4 p-4 ${
-        item.isMissed ? 'border-l-destructive shadow-[0_0_24px_-8px_var(--destructive)]' : 'border-l-primary'
-      }`}
-    >
-      <DoseCardBody
-        statusLabel={`${label} · ${dayWord}`}
-        statusClassName={item.isMissed ? 'text-destructive' : 'text-primary'}
-        time={item.occurrence.scheduledAt}
-        protocol={item.protocol}
-        compoundName={compound?.name}
-        doseLogs={doseLogs}
-        now={now}
-        showActions
-        administeredAt={item.occurrence.scheduledAt}
-        onNavigateToProtocols={onNavigateToProtocols}
-      />
     </Card>
   )
 }
