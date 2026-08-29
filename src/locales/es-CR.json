@@ -107,7 +107,18 @@
     "toastTaken": "Dosis registrada como aplicada.",
     "toastSkipped": "Dosis registrada como omitida.",
     "missedLabel": "Perdida",
-    "dueLabel": "Pendiente"
+    "dueLabel": "Pendiente",
+    "upcomingLabel": "Próxima",
+    "today": "Hoy",
+    "statTotalLogs": "Total",
+    "statLogs7d": "Últ. 7d",
+    "statDayStreak": "Racha",
+    "viewProtocol": "Ver protocolo",
+    "streakTitle_one": "Racha de {{count}} día",
+    "streakTitle_other": "Racha de {{count}} días",
+    "streakBody_one": "Registraste una dosis {{count}} día seguido.",
+    "streakBody_other": "Registraste una dosis {{count}} días seguidos.",
+    "streakCta": "Ver historial"
   },
   "history": {
     "searchPlaceholder": "Buscar por compuesto o nota",

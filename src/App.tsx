@@ -85,7 +85,13 @@ function App() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.15 }}
         >
-          {tab === 'home' && <HomeScreen onNavigateToSettings={() => setTab('settings')} />}
+          {tab === 'home' && (
+            <HomeScreen
+              onNavigateToSettings={() => setTab('settings')}
+              onNavigateToProtocols={() => setTab('protocols')}
+              onNavigateToHistory={() => setTab('history')}
+            />
+          )}
           {tab === 'calculator' && <CalculatorScreen />}
           {tab === 'protocols' && <ProtocolsScreen />}
           {tab === 'history' && <HistoryScreen />}

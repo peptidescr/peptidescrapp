@@ -107,7 +107,18 @@
     "toastTaken": "Dose logged as taken.",
     "toastSkipped": "Dose logged as skipped.",
     "missedLabel": "Missed",
-    "dueLabel": "Due"
+    "dueLabel": "Due",
+    "upcomingLabel": "Upcoming",
+    "today": "Today",
+    "statTotalLogs": "Total",
+    "statLogs7d": "Last 7d",
+    "statDayStreak": "Streak",
+    "viewProtocol": "View protocol",
+    "streakTitle_one": "{{count}}-day streak",
+    "streakTitle_other": "{{count}}-day streak",
+    "streakBody_one": "You've logged a dose {{count}} day in a row.",
+    "streakBody_other": "You've logged a dose {{count}} days in a row.",
+    "streakCta": "View history"
   },
   "history": {
     "searchPlaceholder": "Search by compound or note",

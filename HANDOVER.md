@@ -42,20 +42,29 @@ proper calendar/time picker, pill-shaped controls), and a permanent dark theme s
 after PeptIQ's layout/color structure with your own blue and logo swapped in. Home's
 header is now a small branded card with the logo, a greeting, and at-a-glance stats
 (active protocols, doses logged today); every other screen carries a small logo badge
-next to its title.
+next to its title. Most recently, a closer pass at PeptIQ's home-screen UX specifically:
+a notification shortcut in the header, a logging-streak card, Settings moved to a plain
+icon in the bottom nav instead of a labelled tab, and the due/upcoming dose cards
+restyled to match PeptIQ's layout (status + time, dose info, a per-protocol stats row,
+then the log/skip actions) — see the streak item under "deliberate sign-off" below.
 
-**Verified, not just written:** 81 automated tests green; typecheck and lint clean;
+**Verified, not just written:** 83 automated tests green; typecheck and lint clean;
 production build succeeds; export→wipe→import round-trip tested live against a real
 browser IndexedDB; UI walked end-to-end (onboarding through all 5 tabs) at 320px and
 375px via a scripted headless-browser pass with zero console errors, including confirming
 the dark theme holds even when the device's own setting is light, in Spanish.
 
-**Fixed since:** Settings → Storage was reading the wrong signal to decide whether it
-should say "protected"/"not protected" (it trusted an unreliable async API instead of
-actual install status), so the warning could keep showing even after you installed the
-app. Fixed, and the section now also says plainly, permanently, that install alone only
-covers automatic cleanup — not uninstalling, clearing browser data, or losing the device
-(see "Does installing keep your data safe, full stop?" below).
+**Fixed since:**
+- Settings → Storage was reading the wrong signal to decide whether it should say
+  "protected"/"not protected" (it trusted an unreliable async API instead of actual
+  install status), so the warning could keep showing even after you installed the app.
+  Fixed, and the section now also says plainly, permanently, that install alone only
+  covers automatic cleanup — not uninstalling, clearing browser data, or losing the
+  device (see "Does installing keep your data safe, full stop?" below).
+- Home's "Next up" card let you log its dose ahead of the reminder time, but the log
+  silently didn't register — the card just sat there looking unresponsive after tapping
+  Taken/Skipped. Fixed (`NOTES.md` has the technical detail); it now updates immediately
+  and logs against the actual time you tapped it, not its future reminder time.
 
 ## What's left before you and the client can play with it
 
@@ -116,6 +125,15 @@ enough.
    version of their actual favicon mark — not your original vector file, so worth a look.
    If the client has the real source (AI/SVG/EPS), send it and it drops straight into
    `public/brand/` under the same filenames.
+5. **Logging-streak counter**, new on Home ("Racha de N días"). This reverses an earlier,
+   deliberate design restraint (no streak/gamification language, to keep this strictly a
+   record-keeping tool and stay clear of anything that could read as encouraging a dose)
+   — added because it's part of PeptIQ's UX and you asked to match it. Copy is kept
+   factual ("you've logged N days in a row") rather than motivational, and it counts any
+   logged status (including Skipped) toward the streak, not just doses taken, so it never
+   rewards compliance specifically. Worth your own read given the client sells these
+   compounds — easy to soften further or remove if it reads as the wrong tone once you
+   see it live.
 
 ## Two things that are genuine tradeoffs, worth knowing about
 

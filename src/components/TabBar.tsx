@@ -21,15 +21,24 @@ const ICONS: Record<Tab, ComponentType<{ className?: string }>> = {
   settings: Settings,
 }
 
+/**
+ * Settings gets an icon-only slot here rather than a labelled tab like the
+ * other four — mirrors PeptIQ, which keeps Settings as a plain icon in the
+ * nav bar (there, a distinct floating button; here, a lighter-weight slot
+ * set off with a divider) instead of a fifth equal-weight tab.
+ */
+const ICON_ONLY_TABS = new Set<Tab>(['settings'])
+
 /** Bottom tab nav — fixed, safe-area aware, 44px+ touch targets for one-handed use. */
 export function TabBar({ active, onChange, labels, navLabel }: TabBarProps) {
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-10 flex gap-1 border-t border-border bg-card px-1 pb-[env(safe-area-inset-bottom)]"
+      className="fixed inset-x-0 bottom-0 z-10 flex items-stretch gap-1 border-t border-border bg-card px-1 pb-[env(safe-area-inset-bottom)]"
       aria-label={navLabel}
     >
       {TABS.map((tab) => {
         const isActive = tab === active
+        const isIconOnly = ICON_ONLY_TABS.has(tab)
         const Icon = ICONS[tab]
         return (
           <button
@@ -37,9 +46,10 @@ export function TabBar({ active, onChange, labels, navLabel }: TabBarProps) {
             type="button"
             onClick={() => onChange(tab)}
             aria-current={isActive ? 'page' : undefined}
-            className={`relative flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-2 font-medium ${
-              isActive ? 'text-primary' : 'text-muted-foreground'
-            }`}
+            aria-label={isIconOnly ? labels[tab] : undefined}
+            className={`relative flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 py-2 font-medium ${
+              isIconOnly ? 'flex-none w-16 border-l border-border' : 'flex-1'
+            } ${isActive ? 'text-primary' : 'text-muted-foreground'}`}
           >
             {isActive && (
               <motion.span
@@ -49,9 +59,11 @@ export function TabBar({ active, onChange, labels, navLabel }: TabBarProps) {
               />
             )}
             <Icon className="size-5" />
-            <span className="text-center text-[11px] leading-tight tracking-tight break-words">
-              {labels[tab]}
-            </span>
+            {!isIconOnly && (
+              <span className="text-center text-[11px] leading-tight tracking-tight break-words">
+                {labels[tab]}
+              </span>
+            )}
           </button>
         )
       })}

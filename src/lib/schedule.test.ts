@@ -218,4 +218,30 @@ describe('getNextOccurrence', () => {
     }
     expect(getNextOccurrence(ctx, day(2026, 1, 5))).toBeNull()
   })
+
+  it('skips today\'s occurrence once it has a matching log, advancing to the next day', () => {
+    // Regression: Home's "Next up" card lets a dose be logged ahead of its
+    // reminder time. Without this filter, the same occurrence kept coming
+    // back as "next" forever — the log button appeared to do nothing.
+    const ctx: ScheduleContext = {
+      schedule: { kind: 'daily' },
+      startDate: '2026-01-01',
+      reminderTimes: ['08:00'],
+    }
+    const now = day(2026, 1, 5, 6, 0) // before today's 08:00 reminder
+    const loggedEarly = [day(2026, 1, 5, 6, 0)] // logged now, ahead of schedule
+    const next = getNextOccurrence(ctx, now, loggedEarly)
+    expect(next?.date).toBe('2026-01-06')
+  })
+
+  it('with no logs, still returns the first upcoming occurrence unfiltered', () => {
+    const ctx: ScheduleContext = {
+      schedule: { kind: 'daily' },
+      startDate: '2026-01-01',
+      reminderTimes: ['08:00'],
+    }
+    const now = day(2026, 1, 5, 6, 0)
+    expect(getNextOccurrence(ctx, now, [])?.date).toBe('2026-01-05')
+    expect(getNextOccurrence(ctx, now)?.date).toBe('2026-01-05')
+  })
 })

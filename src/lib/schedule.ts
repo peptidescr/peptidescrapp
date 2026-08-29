@@ -215,12 +215,24 @@ export function getMissedOccurrences(
   return getUnloggedOccurrencesUpTo(ctx, cutoff, now, loggedAdministeredAt)
 }
 
-/** The next occurrence at or after `now`, or null if the schedule has ended / produces nothing further. */
-export function getNextOccurrence(ctx: ScheduleContext, now: Date): Occurrence | null {
+/**
+ * The next occurrence at or after `now` with no matching DoseLog yet, or null
+ * if the schedule has ended / produces nothing further. `loggedAdministeredAt`
+ * matters here, not just for the catch-up list above: without it, logging an
+ * upcoming dose early (Home's "Next up" card allows this) would never be
+ * reflected — the same occurrence would keep coming back as "next" until the
+ * clock caught up to it, making the log button look like it did nothing.
+ */
+export function getNextOccurrence(
+  ctx: ScheduleContext,
+  now: Date,
+  loggedAdministeredAt: Date[] = [],
+): Occurrence | null {
   const horizonEnd = ctx.endDate
     ? parseISO(ctx.endDate)
     : addDays(now, NEXT_OCCURRENCE_HORIZON_DAYS)
   if (horizonEnd < now) return null
   const occurrences = getOccurrencesInRange(ctx, now, horizonEnd)
-  return occurrences[0] ?? null
+  const unlogged = findUnloggedOccurrences(occurrences, loggedAdministeredAt)
+  return unlogged[0] ?? null
 }

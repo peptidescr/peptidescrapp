@@ -2,6 +2,101 @@
 
 Running log of decisions and things the client needs to weigh in on. Newest at top.
 
+## 2026-08-28 (later) — Home redesign pass for closer PeptIQ UX parity, plus a real bug fix along the way
+
+Client's ask, in two parts: (1) the Next up card's Taken/Skipped buttons appeared to do
+nothing when tapped, (2) match PeptIQ's home-screen UX more closely — a notification
+button in its top card, a streak counter, Settings as a nav icon rather than a labelled
+tab, and its upcoming-dose card layout — while keeping our own feature set.
+
+**The bug, and why it happened:** `getNextOccurrence()` (`schedule.ts`) never looked at
+existing dose logs — only `getDueOccurrences`/`getMissedOccurrences` did. Home's "Next
+up" card *does* let you log its dose early (tap Taken/Skipped before the reminder time,
+matching PeptIQ's own upcoming-dose card), but since the underlying query didn't filter
+out already-logged occurrences, the exact same occurrence kept coming back as "next"
+after logging it — the write to Dexie succeeded and the toast fired, but nothing on
+screen ever changed, which reads as "the button does nothing." Fixed by giving
+`getNextOccurrence` the same `loggedAdministeredAt` filter its siblings already had (via
+the existing `findUnloggedOccurrences` matcher), and threading Home's dose logs into it.
+Two new tests in `schedule.test.ts` cover this directly (logging today's occurrence early
+advances "next" to the following day; the unfiltered case is unchanged).
+
+A second, related correctness bug: `LogButtons` always logged against the *occurrence's*
+scheduled time. For an already-due item that's a reasonable approximation; for the Next
+up card it's wrong — tapping "Taken" at 8pm for a dose reminder-timed at 11pm would have
+recorded a dose "administered" three hours in the future. `LogButtons` now takes an
+optional `administeredAt`; Catch-up cards still pass the occurrence's scheduled time,
+Next-up logging omits it and logs against the real moment of the tap instead.
+
+One more deliberate constraint that falls out of the architecture: this app has no
+ScheduledDose table, so "was this occurrence fulfilled" is inferred by same-calendar-day
+matching against dose logs (see `findUnloggedOccurrences`'s doc comment). Logging "now"
+only correctly cancels out an occurrence scheduled *today* — for a dose several days out
+(an everyNDays/weekly/cycling protocol between reminders), logging it "now" would date-
+mismatch against its real scheduled day and the card would never register the log against
+it. Rather than let that produce a card that *looks* actionable but silently misbehaves,
+Next up's log/skip buttons are only shown when its occurrence falls on today
+(`canLogToday` in `HomeScreen.tsx`) — verified live (see below).
+
+**Design changes, adapted from PeptIQ's actual screenshots (`/tmp/peptiq-shots/`), not
+copied wholesale — kept our own vocabulary and left out anything tied to a banned
+feature:**
+
+- **Notification bell** in the hero header, next to the greeting (PeptIQ's spot). Clicking
+  it opens Settings' Notifications section. Shows a small dot only when there's something
+  to actually act on (permission not yet requested and the platform supports it — the
+  same condition Settings already used to decide whether to show its own "enable" button)
+  rather than a fabricated unread count; we have no in-app notification inbox to count.
+  PeptIQ's top card also has a search icon — left out for now since we don't have an
+  obvious destination for it (History already has its own search); can wire it up on
+  request.
+- **Streak card** ("Racha de N días 🔥"), shown under the hero header once there's a
+  logging streak of 1+ days. This is a direct reversal of the earlier deliberate "no
+  streak language, no keep it up framing" restraint documented in the 2026-08-27 entry
+  below — done at the client's explicit request, same category of call as the protocol
+  templates deviation. Kept the copy factual ("you've logged a dose N days in a row.")
+  rather than motivational, and it counts *any* logged status (taken or skipped) toward
+  the streak, not just taken doses — it's measuring "you're keeping records," not
+  rewarding compliance, which is the one framing that stays consistent with a record-
+  keeping-only app that must never nudge someone toward taking something. Streak logic
+  (`computeStreakDays`) counts consecutive calendar days with a dose log, not resetting
+  today's count to zero just because it's morning and nothing's logged yet today.
+  Proper i18next plural forms added (`streakTitle_one`/`_other`, `streakBody_one`/
+  `_other`) — worth calling out because a first pass without them read "Racha de 1 días"
+  (grammatically wrong Spanish), caught in live verification, not by inspection.
+- **Settings as an icon-only nav item** (`TabBar.tsx`): the other four tabs keep their
+  label; Settings is now icon-only with a divider setting it apart, same idea as PeptIQ
+  keeping Settings out of its labelled-tab row. `aria-label` added since the visible text
+  is gone.
+- **Upcoming-dose card layout**, applied to both Catch up and Next up cards (unified via
+  a shared `DoseCardBody`): colored status line + a time pill, icon + protocol name, dose
+  + route line, a three-stat row (total logs / last 7 days / day streak — per protocol,
+  same `computeStreakDays` helper), the log/skip actions, and a link out to the protocol.
+  Left out PeptIQ's injection-site line (no site rotation in this app) and its
+  "reschedule in calendar" link (no calendar view) — swapped that last one for "View
+  protocol," which does exist. Next up no longer gets a distinct hero treatment (large
+  countdown number, tinted background) — it now renders with the same card template as
+  Catch up, matching PeptIQ's one consistent card style; the countdown is still shown, in
+  the status line instead of as a giant standalone number. **Not done yet, flagged for a
+  follow-up if wanted:** PeptIQ actually renders Catch up + Next up as one swipeable
+  carousel of cards rather than two separate labelled sections — this pass keeps our
+  existing section split and just matches the card design itself.
+
+**Verified live** (headless Chromium via CDP, `/tmp/claude-1000/.../scratchpad/cdp-*.mjs`
+— not committed, throwaway scripts): seeded two protocols directly via IndexedDB (one
+already due today, one due later today) to exercise both cards without fighting the
+onboarding form UI. Confirmed zero console errors throughout; confirmed tapping Taken on
+the Catch-up card removes it and updates the doses-today count; confirmed tapping Taken
+on the Next-up card (a) actually logs (checked the raw IndexedDB row) against the real
+current timestamp, not its future reminder time, (b) makes the streak card appear at 1
+day, and (c) correctly advances "Next up" to the following day's occurrence — with its
+log/skip buttons now correctly withheld, since that occurrence is no longer today. Also
+hit and fixed a real testing pitfall worth recording: a stale service worker from an
+earlier build kept serving old JS after a plain reload, masking the plural-forms fix
+until it was explicitly unregistered — a good reminder that this app's offline caching is
+working as designed, and to always clear SW/caches between test passes, not just rebuild.
+Checked 320px and 390px; no overflow or clipping.
+
 ## 2026-08-28 — Fix: Storage section trusted the wrong signal, plus an honest backup caveat
 
 Bug report: after installing the app, Settings → Storage kept showing the "not protected
