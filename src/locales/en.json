@@ -140,6 +140,13 @@
       "skipped": "Skipped"
     }
   },
+  "notifications": {
+    "description": "Pending items that need your attention.",
+    "enableNudgeTitle": "Turn on notifications",
+    "enableNudgeBody": "Get an alert when your next dose is due.",
+    "emptyTitle": "You're all caught up",
+    "emptyBody": "Nothing needs your attention right now."
+  },
   "settings": {
     "language": "Language",
     "spanish": "Español (CR)",

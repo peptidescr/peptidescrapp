@@ -2,6 +2,72 @@
 
 Running log of decisions and things the client needs to weigh in on. Newest at top.
 
+## 2026-08-28 (later still) — Settings as a floating top button; a real notification panel
+
+Client's follow-up, explicitly asking for full parity even where it means adding
+features: (1) Settings should be a floating button pinned to the top of the screen,
+staying put while the page scrolls underneath it, not a nav-bar icon; (2) the
+notification bell should actually do something, PeptIQ-style.
+
+**Floating Settings button** (`FloatingSettingsButton.tsx`): `position: fixed`, top-right,
+rendered once in `App.tsx` so it's present on every screen — not per-screen, and not part
+of `TabBar`. Hidden while already on the Settings screen (no reason to navigate to
+Settings from Settings). `TabBar` goes back to its original four labelled tabs; `Tab` the
+type still includes `'settings'` as a valid screen, `TabBar` just no longer offers a way
+to reach it. The app's outer content wrapper (`App.tsx`) now reserves
+`calc(env(safe-area-inset-top) + 4rem)` of top padding so no screen's own header content
+(the hero card's logo row, each `ScreenHeader`) ever sits under the fixed button — checked
+at 320px specifically, since that's the tightest fit (Calculator's two-line title comes
+closest but still clears it).
+
+**Notification panel** (`NotificationPanel.tsx`): we don't have a screenshot of PeptIQ's
+actual notification screen — only their home card's bell + unread badge — so this is a
+from-scratch, honest equivalent rather than a copy: a bottom-sheet dialog (reusing the
+existing `Dialog` primitive, which was already sheet-shaped on mobile) listing everything
+that actually needs attention right now, fully actionable in place:
+
+- A "turn on notifications" nudge when the browser supports it and permission hasn't been
+  asked yet (or the iOS-specific "install first" note), reusing the exact same capability
+  check Settings already used — no divergent copy between the two places.
+- The backup nudge, if it's been a while (same condition Home already used).
+- Every due/missed occurrence across active protocols, rendered as the *exact* same card
+  component Home's Catch-up section uses (`DueCard`, now shared, not duplicated) —
+  Taken/Skipped work right there in the panel, live-updating through the same Dexie
+  `liveQuery` everything else here uses, closing no dialog, requiring no extra step.
+- An empty state ("Estás al día") when none of the above apply.
+
+The bell's badge is a real count (dueItems + backup nudge + notification nudge, capped at
+display "9+"), not a fabricated unread number — replaces the small "needs attention" dot
+from the previous pass, which is now redundant with a real count available.
+
+**Refactor that fell out of this:** `LogButtons`, `DoseCardBody`, and `DueCard` moved out
+of `HomeScreen.tsx` into a shared `src/components/DoseCard.tsx`; `contextOf`,
+`loggedTimesFor`, `computeStreakDays`, `computeDueItems`, and `computeShowBackupNudge`
+moved into a shared `src/lib/homeData.ts`. Both Home and the notification panel now call
+the same functions and render the same components — no risk of the two silently
+disagreeing about what counts as "due" or how a streak is counted.
+
+**Verified live** (fresh headless Chromium instance + a clean `vite preview` on a
+throwaway port, separate from the dev server so as not to disturb it — see the
+"mishap" note below): confirmed the floating button is genuinely `position: fixed` (same
+screen coordinates before and after scrolling), confirmed it disappears specifically on
+the Settings screen, confirmed no overlap with any screen's own header at 320px/390px.
+Confirmed the bell's badge count (seeded one due protocol + a fresh browser profile with
+no notification permission yet + no backup ever run → badge read "3"), opened the panel,
+confirmed all three items rendered correctly, tapped Taken on the due item from inside
+the panel, and confirmed both the panel (item removed) and the badge (3 → 2) updated
+live without closing/reopening anything. Zero console errors throughout. Full regression
+clean: 83/83 tests, typecheck, lint, build; i18n parity 187/187.
+
+**Process mishap, corrected, worth recording:** while starting a throwaway `vite preview`
+instance on a separate port for this verification, a `pkill -f "vite$"` intended to stop
+a stray dev-server process from earlier testing instead matched and killed the client's
+own `npm run dev` server (the one just fixed for the "web app isn't loading" report) —
+caught immediately via a routine "is the dev server still up" check, restarted right
+away, no further impact. Lesson applied: never pattern-match a kill command against a
+bare command name that could match a server the user is actively relying on — target the
+specific PID instead once you've confirmed which process it is.
+
 ## 2026-08-28 (later) — Home redesign pass for closer PeptIQ UX parity, plus a real bug fix along the way
 
 Client's ask, in two parts: (1) the Next up card's Taken/Skipped buttons appeared to do

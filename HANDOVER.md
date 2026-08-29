@@ -43,10 +43,19 @@ after PeptIQ's layout/color structure with your own blue and logo swapped in. Ho
 header is now a small branded card with the logo, a greeting, and at-a-glance stats
 (active protocols, doses logged today); every other screen carries a small logo badge
 next to its title. Most recently, a closer pass at PeptIQ's home-screen UX specifically:
-a notification shortcut in the header, a logging-streak card, Settings moved to a plain
-icon in the bottom nav instead of a labelled tab, and the due/upcoming dose cards
+a logging-streak card, Settings moved out of the bottom nav entirely into a floating
+button pinned to the top of the screen (stays put while you scroll, on every screen), a
+real notification panel behind the bell (see below), and the due/upcoming dose cards
 restyled to match PeptIQ's layout (status + time, dose info, a per-protocol stats row,
 then the log/skip actions) — see the streak item under "deliberate sign-off" below.
+
+**Notification panel.** Tapping the bell now opens an actual panel, not just a shortcut
+to Settings: everything currently needing attention — due/missed doses, the backup
+reminder, a nudge to turn on notifications — all listed together and fully actionable
+right there (Taken/Skipped work in the panel itself). We don't have a screenshot of
+PeptIQ's own notification screen to copy exactly (only their bell + badge), so this is a
+genuine, from-scratch feature built to the same spirit rather than a pixel copy — the
+bell's badge number is a real count of pending items, not a fabricated unread number.
 
 **Verified, not just written:** 83 automated tests green; typecheck and lint clean;
 production build succeeds; export→wipe→import round-trip tested live against a real

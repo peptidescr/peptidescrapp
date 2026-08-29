@@ -140,6 +140,13 @@
       "skipped": "Omitida"
     }
   },
+  "notifications": {
+    "description": "Cosas pendientes que necesitan tu atención.",
+    "enableNudgeTitle": "Activá las notificaciones",
+    "enableNudgeBody": "Recibí un aviso cuando sea hora de tu próxima dosis.",
+    "emptyTitle": "Estás al día",
+    "emptyBody": "No tenés nada pendiente en este momento."
+  },
   "settings": {
     "language": "Idioma",
     "spanish": "Español (CR)",
