@@ -16,8 +16,8 @@ export function TemplatePicker({ onSelectTemplate, onSelectCustom }: TemplatePic
   const locale = i18n.language as Locale
 
   return (
-    <div className="flex flex-col gap-4 px-4 pb-6 pt-4">
-      <h1 className="text-xl font-semibold">{t('templates.pickerTitle')}</h1>
+    <div className="flex flex-col gap-6 px-4 pb-6 pt-4">
+      <h1 className="font-display text-xl font-semibold text-foreground">{t('templates.pickerTitle')}</h1>
 
       <button
         type="button"

@@ -3,7 +3,8 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ScreenHeader } from '../components/ScreenHeader'
+import { Input } from '@/components/ui/input'
+import { AppHeader } from '../components/AppHeader'
 import {
   Select,
   SelectContent,
@@ -148,8 +149,8 @@ export function CalculatorScreen() {
   }
 
   return (
-    <div className="flex flex-col gap-5 px-4 pb-6 pt-4">
-      <ScreenHeader
+    <div className="flex flex-col gap-6 px-4 pb-6 pt-4">
+      <AppHeader
         title={t('calculator.title')}
         action={
           <button
@@ -345,12 +346,11 @@ function NumberInput({
 }) {
   return (
     <div className="relative flex-1">
-      <input
+      <Input
         type="text"
         inputMode="decimal"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="min-h-11 w-full rounded-full border border-input bg-card px-4 text-base text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
         placeholder="0"
       />
       {suffix && (

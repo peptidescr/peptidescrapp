@@ -1,4 +1,4 @@
-import { ChevronLeft, History as HistoryIcon, Search, Trash2 } from 'lucide-react'
+import { History as HistoryIcon, Search, Trash2 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,8 +17,9 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { EmptyState } from '../components/EmptyState'
-import { ScreenHeader } from '../components/ScreenHeader'
+import { AppHeader } from '../components/AppHeader'
 import { getCompoundById } from '../content/compounds'
 import { formatDateTime, formatTime, toIsoDate } from '../lib/dates'
 import { db, type DoseLog, type DoseStatus } from '../lib/db'
@@ -82,17 +83,17 @@ export function HistoryScreen() {
   }
 
   return (
-    <div className="flex flex-col gap-4 px-4 pb-6 pt-4">
-      <ScreenHeader title={t('nav.history')} />
+    <div className="flex flex-col gap-6 px-4 pb-6 pt-4">
+      <AppHeader title={t('nav.history')} />
 
       <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <input
+        <Input
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t('history.searchPlaceholder')}
-          className="min-h-11 w-full rounded-full border border-input bg-card pl-10 pr-4 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="pl-10"
         />
       </div>
 
@@ -202,14 +203,7 @@ function HistoryEditForm({ log, onDone }: { log: DoseLog; onDone: () => void }) 
 
   return (
     <div className="flex flex-col gap-5 px-4 pb-6 pt-4">
-      <div className="flex items-center justify-between">
-        <button type="button" onClick={onDone} className="flex min-h-11 items-center gap-1 text-primary">
-          <ChevronLeft className="size-5" />
-          {t('common.cancel')}
-        </button>
-        <h1 className="text-lg font-semibold">{compound?.name ?? t('history.unknownCompound')}</h1>
-        <div className="w-16" />
-      </div>
+      <AppHeader title={compound?.name ?? t('history.unknownCompound')} onBack={onDone} />
 
       <FormField label={t('history.date')}>
         <DatePicker value={date} onChange={setDate} />
@@ -221,7 +215,7 @@ function HistoryEditForm({ log, onDone }: { log: DoseLog; onDone: () => void }) 
 
       <FormField label={t('history.doseAmount')}>
         <div className="flex gap-2">
-          <input
+          <Input
             type="text"
             inputMode="decimal"
             value={amount}

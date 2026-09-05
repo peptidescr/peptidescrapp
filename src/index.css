@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
+@import './styles/fonts.css';
 @import './styles/tokens.css';
 
 @theme {
@@ -13,7 +14,10 @@
   --color-brand-border: var(--brand-border);
   --color-brand-warn: var(--brand-warn);
   --color-brand-warn-lt: var(--brand-warn-lt);
+  --color-brand-contrast: var(--brand-contrast);
+  --color-brand-contrast-foreground: var(--brand-contrast-foreground);
   --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
 
   /*
    * shadcn/ui's standard semantic token vocabulary, bridged onto our brand

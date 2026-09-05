@@ -59,7 +59,7 @@ function StepDots({ step }: { step: Step }) {
 function StepShell({ title, body, children }: { title: string; body?: string; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold text-foreground">{title}</h1>
+      <h1 className="font-display text-2xl font-semibold text-foreground">{title}</h1>
       {body && <p className="text-sm text-muted-foreground">{body}</p>}
       {children}
     </div>

@@ -1,19 +1,24 @@
 /*
  * Brand tokens — the single file to edit when swapping the palette.
  *
- * This is now a permanently-dark theme, by explicit request: a premium dark
- * UI, structured after PeptIQ's actual app (near-black page, a lighter
- * neutral-gray elevated card surface, one bold accent colour used
- * consistently for CTAs/active states/highlights) — but with THEIR gold
- * swapped for the client's own blue, sourced from peptidescostarica.net,
- * and their brand/logo swapped for the client's real ones. Nothing here is
- * copied from PeptIQ's actual colour values; only the *structure* (how dark
- * the page is vs. a card, one accent used everywhere) is adapted, mapped
- * onto our own sourced brand colour. See NOTES.md.
+ * This is a permanently-dark theme, by explicit request: a premium dark UI,
+ * structured after PeptIQ's actual app (true-black page, a lighter neutral
+ * card surface, one bold accent used consistently for CTAs/active
+ * states/highlights) — but with THEIR gold swapped for the client's own
+ * blue, sourced from peptidescostarica.net, and their brand/logo swapped for
+ * the client's real ones. Only the *structure* is adapted, mapped onto our
+ * own sourced brand colour. See NOTES.md.
+ *
+ * The three neutrals below were re-sampled directly from PeptIQ's shipped
+ * web app (app.peptiq.io) rather than eyeballed: page #000000, card #171717,
+ * border #262626. Those are Tailwind's own neutral-950/900/800, which is no
+ * coincidence — their app is React Native Web styled with NativeWind, so
+ * their palette *is* the Tailwind neutral scale. Matching it exactly is what
+ * makes the surfaces read as "the same class of app" at a glance.
  *
  * --brand-primary/-dk are the client's own two blues (their site's Astra
  * theme globals --ast-global-color-0/-1: #046bd2 / #045cb4, lightened here
- * for contrast against a near-black background) — -dk is additionally the
+ * for contrast against a true-black background) — -dk is additionally the
  * exact navy sampled from the client's own favicon/app-icon mark (a 3-circle
  * molecular-chain glyph), reused as the pressed-state shade. --brand-warn is
  * intentionally NOT sourced from the brand — it's a deliberately
@@ -32,9 +37,9 @@
   --brand-primary-lt: #15294a;
   --brand-ink: #f2f4f7;
   --brand-muted: #97a1af;
-  --brand-surface: #19191c;
-  --brand-surface-2: #0a0a0b;
-  --brand-border: #2a2a2e;
+  --brand-surface: #171717;
+  --brand-surface-2: #000000;
+  --brand-border: #262626;
   --brand-warn: #e0954b;
   --brand-warn-lt: #3a2a1a;
   /* Standard destructive-action red (delete, wipe+import) — a UI safety
@@ -42,11 +47,25 @@
      --brand-warn's non-alarming amber (which is about measurement accuracy,
      never framed as danger — see units.ts). */
   --destructive: #f87171;
-  --destructive-foreground: #19191c;
+  --destructive-foreground: #171717;
+
+  /* PeptIQ's primary CTA is a white pill with black text rather than an
+     accent-filled button — it's the single loudest thing on their screen and
+     the reason their onboarding reads as premium. Kept as its own pair so
+     the accent-filled Button variant stays untouched. */
+  --brand-contrast: #ffffff;
+  --brand-contrast-foreground: #000000;
 
   --radius: 0.75rem;
 
+  /* Fraunces for display, Instrument Sans for everything else — the same
+     pairing PeptIQ ships (confirmed from their stylesheet). Faces are
+     self-hosted; see styles/fonts.css for why. The system stack stays as the
+     fallback so the app is still legible if a font file ever fails to load. */
+  --font-display:
+    'Fraunces', ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
+
   --font-sans:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif,
-    'Apple Color Emoji', 'Segoe UI Emoji';
+    'Instrument Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
+    Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
 }

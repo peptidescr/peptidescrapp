@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, ClipboardList, Plus, Trash2 } from 'lucide-react'
+import { ChevronRight, ClipboardList, Plus, Trash2 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -7,10 +7,11 @@ import { TimePicker } from '@/components/TimePicker'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { EmptyState } from '../components/EmptyState'
-import { ScreenHeader } from '../components/ScreenHeader'
+import { AppHeader } from '../components/AppHeader'
 import { TemplatePicker } from '../components/TemplatePicker'
 import { getCompoundById, listSelectableCompounds } from '../content/compounds'
 import type { ProtocolTemplate } from '../content/protocolTemplates'
@@ -79,8 +80,8 @@ export function ProtocolsScreen() {
   const sorted = [...(protocols ?? [])].sort((a, b) => Number(b.isActive) - Number(a.isActive))
 
   return (
-    <div className="flex flex-col gap-4 px-4 pb-6 pt-4">
-      <ScreenHeader
+    <div className="flex flex-col gap-6 px-4 pb-6 pt-4">
+      <AppHeader
         title={t('nav.protocols')}
         action={
           <Button onClick={() => setMode({ kind: 'picker' })}>
@@ -329,16 +330,10 @@ export function ProtocolForm({ protocolId, template, onDone }: ProtocolFormProps
 
   return (
     <div className="flex flex-col gap-5 px-4 pb-6 pt-4">
-      <div className="flex items-center justify-between">
-        <button type="button" onClick={onDone} className="flex min-h-11 items-center gap-1 text-primary">
-          <ChevronLeft className="size-5" />
-          {t('common.cancel')}
-        </button>
-        <h1 className="text-lg font-semibold">
-          {protocolId ? t('protocols.editTitle') : t('protocols.newTitle')}
-        </h1>
-        <div className="w-16" />
-      </div>
+      <AppHeader
+        title={protocolId ? t('protocols.editTitle') : t('protocols.newTitle')}
+        onBack={onDone}
+      />
 
       <FormField label={t('protocols.compound')}>
         <Select
@@ -363,18 +358,17 @@ export function ProtocolForm({ protocolId, template, onDone }: ProtocolFormProps
       </FormField>
 
       <FormField label={t('protocols.name')}>
-        <input
+        <Input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder={compound?.name}
-          className="min-h-11 w-full rounded-full border border-input bg-card px-4 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        />
+          />
       </FormField>
 
       <FormField label={t('protocols.doseAmount')}>
         <div className="flex gap-2">
-          <input
+          <Input
             type="text"
             inputMode="decimal"
             value={doseAmount}
@@ -419,13 +413,12 @@ export function ProtocolForm({ protocolId, template, onDone }: ProtocolFormProps
 
       {scheduleKind === 'everyNDays' && (
         <FormField label={t('protocols.everyNDays')}>
-          <input
+          <Input
             type="number"
             min={1}
             value={everyN}
             onChange={(e) => setEveryN(e.target.value)}
-            className="min-h-11 w-full rounded-full border border-input bg-card px-4 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
+              />
         </FormField>
       )}
 
@@ -453,22 +446,20 @@ export function ProtocolForm({ protocolId, template, onDone }: ProtocolFormProps
       {scheduleKind === 'cycle' && (
         <div className="flex gap-3">
           <FormField label={t('protocols.daysOn')}>
-            <input
+            <Input
               type="number"
               min={1}
               value={daysOn}
               onChange={(e) => setDaysOn(e.target.value)}
-              className="min-h-11 w-full rounded-full border border-input bg-card px-4 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
+                  />
           </FormField>
           <FormField label={t('protocols.daysOff')}>
-            <input
+            <Input
               type="number"
               min={0}
               value={daysOff}
               onChange={(e) => setDaysOff(e.target.value)}
-              className="min-h-11 w-full rounded-full border border-input bg-card px-4 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
+                  />
           </FormField>
         </div>
       )}

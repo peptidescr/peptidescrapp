@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ScreenHeader } from '../components/ScreenHeader'
+import { AppHeader } from '../components/AppHeader'
 import { LEGAL_PLACEHOLDER, LEGAL_VERSION } from '../content/legal'
 import {
   backupToJson,
@@ -47,8 +47,8 @@ export function SettingsScreen() {
   const { t } = useTranslation()
 
   return (
-    <div className="flex flex-col gap-6 px-4 pb-10 pt-4">
-      <ScreenHeader title={t('nav.settings')} />
+    <div className="flex flex-col gap-6 px-4 pb-6 pt-4">
+      <AppHeader title={t('nav.settings')} />
       <LanguageSection />
       <NotificationsSection />
       <InstallSection />

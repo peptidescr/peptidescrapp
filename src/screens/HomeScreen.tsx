@@ -230,7 +230,7 @@ function HeroHeader({
       <div className="mt-4 flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{formatDate(now)}</p>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">{t(greetingKey(now))}</h1>
+          <h1 className="font-display text-3xl font-semibold tracking-tight text-foreground">{t(greetingKey(now))}</h1>
         </div>
         <button
           type="button"

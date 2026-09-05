@@ -2,6 +2,75 @@
 
 Running log of decisions and things the client needs to weigh in on. Newest at top.
 
+## 2026-09-05 — Stage 1 of the PeptIQ parity plan: design system
+
+First of three stages (design system → per-page feature parity → onboarding rebuild). This
+one is deliberately all foundation and no new features, so the look can be reviewed before
+anything is built on top of it.
+
+**PeptIQ research, this time from their actual web app** (`app.peptiq.io`), not just App
+Store screenshots. Two findings changed what we did:
+
+- Their web app is **Expo / React Native Web** — the same codebase as their phone app,
+  styled with NativeWind, i.e. literal Tailwind classes. So their design translates almost
+  directly into ours, and their App Store screenshots are a faithful web reference.
+- Their palette is **Tailwind's own neutral scale**: page `#000000`, card `#171717`,
+  border `#262626` (sampled from their shipped screens). Ours was a near-black
+  `#0a0a0b`/`#19191c`/`#2a2a2e` — close enough to look accidental rather than intentional.
+  Now matched exactly, with the client's blue kept as the accent where they use gold.
+- Their type is **Fraunces** (display serif) + **Instrument Sans** (body), confirmed from
+  their stylesheet. Adopted both.
+
+**Fonts are self-hosted, not CDN-loaded** (`public/fonts/`, `src/styles/fonts.css`). A CDN
+font is the one asset that would silently fall back to a system face exactly when the user
+is offline — which for an offline-first PWA is the case we care most about. Workbox's
+`globPatterns` already covered `woff2`, so they precache automatically: the build's
+precache count went 15 → 19 entries, which is the confirmation that they ship inside the
+service worker. Both families are variable fonts, so one file per unicode-range covers
+every weight — four files, ~168 KB total, rather than twelve static instances.
+
+**`font-display` is applied to headline slots only** — screen titles, Home's greeting,
+empty-state titles, dialog/sheet titles, onboarding questions. Never to numbers, labels, or
+body copy: a serif set at 11px in a stat row just looks like a rendering bug.
+
+**Four header patterns became one** (`AppHeader`). There were previously: `ScreenHeader`
+(brand icon + text-xl), Home's hero title (text-2xl), and hand-rolled
+"Cancel / title / invisible w-16 spacer" bars inside both `ProtocolForm` and
+`HistoryEditForm` (text-lg, no brand mark at all — so entering a sub-view silently dropped
+the branding). Sub-view mode went through two attempts worth recording: a
+`grid-cols-[1fr_auto_1fr]` centred title still drifted 26px at 320px, because Spanish's
+"Cancelar" is wider than the column it was allotted. Replaced with an icon-only back
+chevron + left-aligned title — the standard mobile pattern, which survives any label length
+in any language and needs no measuring. The cancel wording lives on as the button's
+`aria-label`.
+
+**New primitives**: `ui/input.tsx` (the identical 130-character class string had been
+copy-pasted into six places, so a radius change meant six edits and inevitable drift),
+`ui/progress.tsx`, `ui/option-card.tsx` (PeptIQ's icon-badge + label + description + radio
+row — the component that makes their onboarding feel considered, because every choice gets
+a sentence explaining what picking it means), and `ui/sheet.tsx` (a height-capped,
+independently-scrolling bottom sheet, distinct from `ui/dialog.tsx` which is sized for
+short confirms). The last two are unused until Stages 2 and 3 — built now because they're
+part of the design system, not of any one screen.
+
+`OptionCard` is a real `<button>` with `aria-pressed` rather than a styled `div`: the
+existing ad-hoc pickers signalled selection with colour alone, which tells a screen-reader
+user nothing.
+
+**Spacing**: page roots all converge on `gap-6 px-4 pb-6 pt-4` (they were a spread of
+gap-4/5/6 and pb-6/pb-10). Form sub-views deliberately keep the tighter `gap-5` field
+rhythm — that difference is intentional; the drift between *page* roots was not.
+
+Also fixed a small visible glitch spotted while verifying: "+ Agregar otra hora" rendered a
+doubled plus, because the locale string carried a literal "+" next to a `Plus` icon.
+
+**Verified live** (headless Chromium/CDP against a production `vite preview`, service
+worker and IndexedDB cleared first): `document.fonts` reports both families loaded, `<h1>`
+computes to Fraunces, `body` computes to Instrument Sans and `rgb(0, 0, 0)`; walked
+onboarding → Home → Calculator → Protocols → History plus the protocol form at 390px and
+320px with zero console errors and no horizontal overflow. Regression clean: 83/83 tests,
+typecheck, lint, build; i18n parity 187/187.
+
 ## 2026-08-28 (later still) — Settings as a floating top button; a real notification panel
 
 Client's follow-up, explicitly asking for full parity even where it means adding
