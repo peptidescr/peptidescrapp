@@ -47,6 +47,15 @@ export interface Settings {
   legalAcceptedVersion?: number
   legalAcceptedAt?: string // ISO datetime
   lastBackupAt?: string // ISO datetime
+  /**
+   * Home's get-started checklist derives every other step from real data
+   * (a protocol exists, a dose is logged, a backup has run). Using a
+   * calculator deliberately leaves no trace — it computes, it doesn't record
+   * — so that one step is the only part of the checklist that needs a flag.
+   */
+  hasUsedCalculator?: boolean
+  /** Set when the user dismisses the checklist, so it stays dismissed. */
+  getStartedDismissedAt?: string // ISO datetime
 }
 
 export interface Snapshot {

@@ -20,6 +20,7 @@ import {
   type Microliter,
   type MilliIU,
   type SyringeType,
+  microlitersFromSyringeUnits,
   mlFromMicroliters,
   quantizeVolumeToSyringe,
   syringeUnitsFromMicroliters,
@@ -136,4 +137,82 @@ export function mixFromSolutionIU(params: {
     params.desiredDoseMilliIU,
     params.syringeType,
   )
+}
+
+// ---------------------------------------------------------------------------
+// Reverse path — "how much water do I add?" instead of "what do I draw?"
+// ---------------------------------------------------------------------------
+
+/**
+ * The question this answers is the one people actually ask before they mix a
+ * vial: *"I want my dose to sit on a round number of units, so how much water
+ * do I put in?"* Every function above answers the opposite question — you've
+ * already mixed, now what do you draw — which is no help while you're stood
+ * over an unmixed vial. PeptIQ ships both directions; we only had one.
+ *
+ * Deriving it: the draw volume for a dose is `dose / concentration`, and
+ * concentration is `vialAmount / totalVolume`. Fixing the draw volume at
+ * `targetUnits` worth of syringe graduations and solving for total volume:
+ *
+ *     totalVolume = targetDrawVolume * vialAmount / dose
+ *
+ * The powder's own displaced volume is treated as negligible, which is the
+ * same assumption the forward path already makes (a few mg of lyophilised
+ * powder against millilitres of water).
+ *
+ * Unit-agnostic by construction: `vialAmount` and `desiredDose` only ever
+ * appear as a ratio, so they can both be µg or both be milli-IU. They must
+ * never be mixed — that's the invariant units.ts exists to protect.
+ */
+export interface ReverseMixResult {
+  /** Diluent to add, quantized to something a syringe can actually measure. */
+  diluentVolumeUl: Microliter
+  /** Same value in mL, for display. */
+  diluentVolumeMl: number
+  /** What the vial ends up at, per mL — informational, not rounded for an action. */
+  concentrationPerMl: number
+  /**
+   * Units the dose actually lands on after quantizing the water volume. Worth
+   * showing rather than echoing the target back: asking for a volume the
+   * syringe can't measure means the real answer is a graduation or two off,
+   * and silently pretending otherwise is how people mis-dose.
+   */
+  actualSyringeUnits: number
+  /** True when the requested target lands somewhere hard to read precisely. */
+  lowVolumeWarning: boolean
+}
+
+export function waterVolumeForTargetUnits(params: {
+  /** Total amount in the vial — µg for mass compounds, milli-IU for IU ones. */
+  vialAmount: number
+  /** One dose, in the same unit as `vialAmount`. */
+  desiredDose: number
+  /** How many syringe graduations you want one dose to occupy. */
+  targetSyringeUnits: number
+  syringeType: SyringeType
+}): ReverseMixResult {
+  const { vialAmount, desiredDose, targetSyringeUnits, syringeType } = params
+  if (!(vialAmount > 0)) throw new RangeError('vialAmount must be greater than zero')
+  if (!(desiredDose > 0)) throw new RangeError('desiredDose must be greater than zero')
+  if (!(targetSyringeUnits > 0)) throw new RangeError('targetSyringeUnits must be greater than zero')
+
+  const targetDrawVolumeUl = microlitersFromSyringeUnits(targetSyringeUnits, syringeType)
+  const rawTotalVolumeUl = (targetDrawVolumeUl * vialAmount) / desiredDose
+
+  // Rounded to the nearest graduation, not down: this is water going *into* a
+  // vial, so erring low would concentrate the mix and push every subsequent
+  // draw below the target. Nearest keeps the resulting dose closest to asked.
+  const diluentVolumeUl = quantizeVolumeToSyringe(rawTotalVolumeUl, syringeType, 'nearest')
+
+  // Re-run the forward calculation against the volume we can actually measure,
+  // so what we report back is what the syringe will really show.
+  const forward = buildMixResult(vialAmount, diluentVolumeUl, desiredDose, syringeType)
+
+  return {
+    diluentVolumeUl,
+    diluentVolumeMl: mlFromMicroliters(diluentVolumeUl),
+    concentrationPerMl: forward.concentrationPerMl,
+    actualSyringeUnits: forward.drawSyringeUnits,
+    lowVolumeWarning: forward.lowVolumeWarning,
+  }
 }

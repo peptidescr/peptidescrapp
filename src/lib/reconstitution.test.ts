@@ -5,6 +5,7 @@ import {
   mixFromSolutionMass,
   mixFromVialIU,
   mixFromVialMass,
+  waterVolumeForTargetUnits,
 } from './reconstitution'
 import {
   microgramsFromMg,
@@ -168,5 +169,85 @@ describe('mass/IU separation', () => {
       (name) => /iu/i.test(name) && /(mcg|milligram|microgram)/i.test(name),
     )
     expect(suspicious).toEqual([])
+  })
+})
+
+describe('waterVolumeForTargetUnits — the reverse direction', () => {
+  it('gives the water volume that puts a dose on the target graduation', () => {
+    // 5 mg vial, 250 mcg dose, want it to read 20 units on a U-100.
+    // 20 U-100 units = 0.2 mL. 0.2 mL must contain 250 mcg, so the whole
+    // 5000 mcg needs 5000/250 * 0.2 = 4 mL.
+    const result = waterVolumeForTargetUnits({
+      vialAmount: 5000,
+      desiredDose: 250,
+      targetSyringeUnits: 20,
+      syringeType: 'U-100',
+    })
+    expect(result.diluentVolumeMl).toBeCloseTo(4, 6)
+    expect(result.actualSyringeUnits).toBe(20)
+    expect(result.concentrationPerMl).toBeCloseTo(1250, 6)
+  })
+
+  it('round-trips against the forward calculation', () => {
+    // The property that matters: mixing with the water volume this returns and
+    // then asking the forward calculator what to draw must give back the target.
+    for (const targetUnits of [5, 10, 12, 25, 40]) {
+      const reverse = waterVolumeForTargetUnits({
+        vialAmount: 10_000,
+        desiredDose: 500,
+        targetSyringeUnits: targetUnits,
+        syringeType: 'U-100',
+      })
+      const forward = mixFromVialMass({
+        vialAmountMcg: 10_000 as never,
+        diluentVolumeUl: reverse.diluentVolumeUl,
+        desiredDoseMcg: 500 as never,
+        syringeType: 'U-100',
+      })
+      expect(forward.drawSyringeUnits).toBe(reverse.actualSyringeUnits)
+      expect(reverse.actualSyringeUnits).toBe(targetUnits)
+    }
+  })
+
+  it('reports the graduation actually reachable rather than echoing the target', () => {
+    // A U-40 syringe has coarser graduations, so not every requested target is
+    // physically measurable — the result must say what the syringe will really
+    // read, not repeat what was asked for.
+    const result = waterVolumeForTargetUnits({
+      vialAmount: 3333,
+      desiredDose: 137,
+      targetSyringeUnits: 17,
+      syringeType: 'U-40',
+    })
+    expect(result.actualSyringeUnits).toBeGreaterThan(0)
+    expect(Number.isInteger(result.actualSyringeUnits)).toBe(true)
+  })
+
+  it('flags a target too small to read precisely', () => {
+    const result = waterVolumeForTargetUnits({
+      vialAmount: 5000,
+      desiredDose: 250,
+      targetSyringeUnits: 2,
+      syringeType: 'U-100',
+    })
+    expect(result.lowVolumeWarning).toBe(true)
+  })
+
+  it('works identically on the IU path, since only the ratio matters', () => {
+    const result = waterVolumeForTargetUnits({
+      vialAmount: 12_000, // milli-IU (12 IU)
+      desiredDose: 2000, // milli-IU (2 IU)
+      targetSyringeUnits: 10,
+      syringeType: 'U-100',
+    })
+    expect(result.actualSyringeUnits).toBe(10)
+    expect(result.diluentVolumeMl).toBeCloseTo(0.6, 6)
+  })
+
+  it('rejects non-positive inputs', () => {
+    const base = { vialAmount: 5000, desiredDose: 250, targetSyringeUnits: 20, syringeType: 'U-100' } as const
+    expect(() => waterVolumeForTargetUnits({ ...base, vialAmount: 0 })).toThrow(RangeError)
+    expect(() => waterVolumeForTargetUnits({ ...base, desiredDose: 0 })).toThrow(RangeError)
+    expect(() => waterVolumeForTargetUnits({ ...base, targetSyringeUnits: 0 })).toThrow(RangeError)
   })
 })

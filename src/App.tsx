@@ -92,6 +92,7 @@ function App() {
               onNavigateToSettings={() => setTab('settings')}
               onNavigateToProtocols={() => setTab('protocols')}
               onNavigateToHistory={() => setTab('history')}
+              onNavigateToCalculator={() => setTab('calculator')}
             />
           )}
           {tab === 'calculator' && <CalculatorScreen />}
