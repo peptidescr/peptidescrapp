@@ -63,7 +63,21 @@
     "loggedCount": "{{count}} registradas",
     "startDate": "Fecha de inicio",
     "endDate": "Fecha de fin (opcional)",
-    "route": "Vía"
+    "route": "Vía",
+    "headerStats": "{{total}} en total · {{active}} activos",
+    "sectionActive": "Activos",
+    "sectionPaused": "Pausados ({{count}})",
+    "pausedBadge": "Pausado",
+    "perpetual": "Sin fecha de fin",
+    "pause": "Pausar",
+    "resume": "Reanudar",
+    "menuLabel": "Opciones del protocolo",
+    "upcomingCount": "{{count}} próximas esta semana",
+    "deleted": "Protocolo eliminado.",
+    "deleteDialogTitle": "¿Eliminar este protocolo?",
+    "deleteDialogDescription": "Se va a eliminar \"{{name}}\" y sus recordatorios. Las dosis que ya registraste quedan en tu historial.",
+    "emptyCreateCta": "Crear un protocolo",
+    "emptyTemplatesCta": "Ver plantillas"
   },
   "schedule": {
     "daily": "Diario",
@@ -256,6 +270,10 @@
       "longevityBasics": { "name": "Longevidad — Básico" },
       "ghBlast": { "name": "Impulso GH" },
       "brainBoost": { "name": "Impulso Cognitivo" }
-    }
+    },
+    "searchPlaceholder": "Buscar plantillas",
+    "filterAll": "Todas",
+    "resultCount": "{{count}} plantillas",
+    "noResults": "Ninguna plantilla coincide con esa búsqueda."
   }
 }

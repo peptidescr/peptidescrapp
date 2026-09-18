@@ -198,10 +198,13 @@ function FirstProtocolStep({ onDone, onSkip }: { onDone: () => void; onSkip: () 
 
   if (mode === 'picker') {
     return (
-      <TemplatePicker
-        onSelectTemplate={(template) => setMode({ template })}
-        onSelectCustom={() => setMode({ template: undefined })}
-      />
+      <div className="flex flex-col gap-4">
+        <h1 className="font-display text-2xl font-semibold text-foreground">{t('templates.pickerTitle')}</h1>
+        <TemplatePicker
+          onSelectTemplate={(template) => setMode({ template })}
+          onSelectCustom={() => setMode({ template: undefined })}
+        />
+      </div>
     )
   }
 

@@ -63,7 +63,21 @@
     "loggedCount": "{{count}} logged",
     "startDate": "Start date",
     "endDate": "End date (optional)",
-    "route": "Route"
+    "route": "Route",
+    "headerStats": "{{total}} total · {{active}} active",
+    "sectionActive": "Active",
+    "sectionPaused": "Paused ({{count}})",
+    "pausedBadge": "Paused",
+    "perpetual": "Ongoing",
+    "pause": "Pause",
+    "resume": "Resume",
+    "menuLabel": "Protocol options",
+    "upcomingCount": "{{count}} upcoming this week",
+    "deleted": "Protocol deleted.",
+    "deleteDialogTitle": "Delete this protocol?",
+    "deleteDialogDescription": "\"{{name}}\" and its reminders will be removed. Doses you've already logged stay in your history.",
+    "emptyCreateCta": "Create a protocol",
+    "emptyTemplatesCta": "Browse templates"
   },
   "schedule": {
     "daily": "Daily",
@@ -256,6 +270,10 @@
       "longevityBasics": { "name": "Longevity Basics" },
       "ghBlast": { "name": "GH Blast" },
       "brainBoost": { "name": "Brain Boost" }
-    }
+    },
+    "searchPlaceholder": "Search templates",
+    "filterAll": "All",
+    "resultCount": "{{count}} templates",
+    "noResults": "No templates match that search."
   }
 }

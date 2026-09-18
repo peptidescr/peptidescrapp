@@ -1,13 +1,35 @@
-import { ChevronRight, ClipboardList, Plus, Trash2 } from 'lucide-react'
+import {
+  ChevronRight,
+  ClipboardList,
+  type LucideIcon,
+  MoreVertical,
+  Pause,
+  Pencil,
+  Play,
+  Plus,
+  Trash2,
+} from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { DatePicker } from '@/components/DatePicker'
 import { TimePicker } from '@/components/TimePicker'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { EmptyState } from '../components/EmptyState'
@@ -16,9 +38,10 @@ import { TemplatePicker } from '../components/TemplatePicker'
 import { getCompoundById, listSelectableCompounds } from '../content/compounds'
 import type { ProtocolTemplate } from '../content/protocolTemplates'
 import { formatDateTime, toIsoDate } from '../lib/dates'
-import { db, type Protocol, type Route } from '../lib/db'
+import { db, type DoseLog, type Protocol, type Route } from '../lib/db'
+import { computeProtocolStats } from '../lib/homeData'
 import { scheduleUpcomingReminders } from '../lib/notifications'
-import { getMissedOccurrences, getNextOccurrence, type Schedule, type ScheduleContext, type Weekday } from '../lib/schedule'
+import type { Schedule, Weekday } from '../lib/schedule'
 import { useLiveQuery } from '../lib/useLiveQuery'
 import type { MassUnit } from '../lib/units'
 
@@ -32,15 +55,6 @@ async function rescheduleReminders(): Promise<void> {
 const WEEKDAY_LABELS_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const
 const SCHEDULE_KINDS: Schedule['kind'][] = ['daily', 'everyNDays', 'weekdays', 'cycle']
 const ROUTES: Route[] = ['subcutaneous', 'intramuscular', 'other']
-
-function contextOf(protocol: Protocol): ScheduleContext {
-  return {
-    schedule: protocol.schedule,
-    startDate: protocol.startDate,
-    endDate: protocol.endDate,
-    reminderTimes: protocol.reminderTimes,
-  }
-}
 
 type Mode =
   | { kind: 'list' }
@@ -60,10 +74,13 @@ export function ProtocolsScreen() {
 
   if (mode.kind === 'picker') {
     return (
-      <TemplatePicker
-        onSelectTemplate={(template) => setMode({ kind: 'form', template })}
-        onSelectCustom={() => setMode({ kind: 'form' })}
-      />
+      <div className="flex flex-col gap-6 px-4 pb-6 pt-4">
+        <AppHeader title={t('templates.pickerTitle')} onBack={() => setMode({ kind: 'list' })} />
+        <TemplatePicker
+          onSelectTemplate={(template) => setMode({ kind: 'form', template })}
+          onSelectCustom={() => setMode({ kind: 'form' })}
+        />
+      </div>
     )
   }
 
@@ -77,7 +94,9 @@ export function ProtocolsScreen() {
     )
   }
 
-  const sorted = [...(protocols ?? [])].sort((a, b) => Number(b.isActive) - Number(a.isActive))
+  const all = protocols ?? []
+  const activeProtocols = all.filter((p) => p.isActive)
+  const pausedProtocols = all.filter((p) => !p.isActive)
 
   return (
     <div className="flex flex-col gap-6 px-4 pb-6 pt-4">
@@ -90,6 +109,12 @@ export function ProtocolsScreen() {
           </Button>
         }
       />
+
+      {all.length > 0 && (
+        <p className="-mt-3 text-sm text-muted-foreground">
+          {t('protocols.headerStats', { total: all.length, active: activeProtocols.length })}
+        </p>
+      )}
 
       <div className="flex overflow-hidden rounded-full border border-border">
         {(['mine', 'templates'] as const).map((tab) => (
@@ -113,30 +138,58 @@ export function ProtocolsScreen() {
         />
       ) : (
         <>
-          {protocols !== undefined && sorted.length === 0 && (
-            <EmptyState icon={ClipboardList} title={t('protocols.emptyTitle')} body={t('protocols.emptyBody')} />
+          {protocols !== undefined && all.length === 0 && (
+            <EmptyState
+              icon={ClipboardList}
+              title={t('protocols.emptyTitle')}
+              body={t('protocols.emptyBody')}
+              action={
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button onClick={() => setMode({ kind: 'form' })}>{t('protocols.emptyCreateCta')}</Button>
+                  <Button variant="secondary" onClick={() => setListTab('templates')}>
+                    {t('protocols.emptyTemplatesCta')}
+                  </Button>
+                </div>
+              }
+            />
           )}
 
-          <div className="flex flex-col gap-3">
-            <AnimatePresence initial={false}>
-              {sorted.map((protocol) => (
-                <motion.div
-                  key={protocol.id}
-                  layout
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.18 }}
-                >
-                  <ProtocolRow
-                    protocol={protocol}
-                    logs={(doseLogs ?? []).filter((l) => l.protocolId === protocol.id)}
-                    onEdit={() => setMode({ kind: 'form', protocolId: protocol.id })}
-                  />
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
+          {/* Active and paused are separate sections rather than one list
+              sorted by isActive: a paused protocol is a different kind of
+              thing, not just a lower-priority active one, and grouping makes
+              "why isn't this reminding me?" answerable at a glance. */}
+          {([
+            { key: 'active' as const, items: activeProtocols },
+            { key: 'paused' as const, items: pausedProtocols },
+          ]).map(({ key, items }) =>
+            items.length === 0 ? null : (
+              <section key={key} className="flex flex-col gap-3">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                  {key === 'active'
+                    ? t('protocols.sectionActive')
+                    : t('protocols.sectionPaused', { count: items.length })}
+                </h2>
+                <AnimatePresence initial={false}>
+                  {items.map((protocol) => (
+                    <motion.div
+                      key={protocol.id}
+                      layout
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.18 }}
+                    >
+                      <ProtocolRow
+                        protocol={protocol}
+                        doseLogs={doseLogs ?? []}
+                        onEdit={() => setMode({ kind: 'form', protocolId: protocol.id })}
+                      />
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </section>
+            ),
+          )}
         </>
       )}
     </div>
@@ -145,35 +198,81 @@ export function ProtocolsScreen() {
 
 function ProtocolRow({
   protocol,
-  logs,
+  doseLogs,
   onEdit,
 }: {
   protocol: Protocol
-  logs: { administeredAt: string }[]
+  doseLogs: DoseLog[]
   onEdit: () => void
 }) {
   const { t } = useTranslation()
   const compound = getCompoundById(protocol.compoundId)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  const stats = useMemo(() => computeProtocolStats(protocol, doseLogs, new Date()), [protocol, doseLogs])
 
   async function toggleActive() {
+    setMenuOpen(false)
     await db.protocols.update(protocol.id, { isActive: !protocol.isActive })
     void rescheduleReminders()
   }
 
-  const ctx = contextOf(protocol)
-  const now = new Date()
-  const loggedTimes = logs.map((l) => new Date(l.administeredAt))
-  const nextOccurrence = protocol.isActive ? getNextOccurrence(ctx, now) : null
-  const missedCount = protocol.isActive ? getMissedOccurrences(ctx, now, loggedTimes).length : 0
+  async function handleDelete() {
+    setConfirmDelete(false)
+    setMenuOpen(false)
+    await db.protocols.delete(protocol.id)
+    // Dose logs are deliberately NOT deleted with the protocol. They're the
+    // record of something that actually happened to the person, and DoseLog
+    // already treats protocolId as optional — History renders from compoundId,
+    // so past entries survive intact and simply stop being tied to a schedule.
+    void rescheduleReminders()
+    toast.success(t('protocols.deleted'))
+  }
 
   return (
-    <Card className={protocol.isActive ? undefined : 'bg-muted opacity-60 shadow-none'}>
+    <Card className={protocol.isActive ? undefined : 'bg-muted opacity-70 shadow-none'}>
       <div className="flex items-start justify-between gap-2 p-4 pb-0">
         <button type="button" onClick={onEdit} className="min-h-11 flex-1 text-left">
           <p className="font-medium text-foreground">{protocol.name || compound?.name}</p>
           <p className="text-sm text-muted-foreground">{compound?.name}</p>
         </button>
-        <Switch checked={protocol.isActive} onCheckedChange={toggleActive} aria-label={t('protocols.activate')} />
+
+        <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              aria-label={t('protocols.menuLabel')}
+              className="-mr-1 flex size-11 shrink-0 items-center justify-center rounded-full text-muted-foreground"
+            >
+              <MoreVertical className="size-5" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-48 p-1">
+            <MenuItem
+              icon={Pencil}
+              label={t('common.edit')}
+              onClick={() => {
+                setMenuOpen(false)
+                onEdit()
+              }}
+            />
+            <MenuItem
+              icon={protocol.isActive ? Pause : Play}
+              label={protocol.isActive ? t('protocols.pause') : t('protocols.resume')}
+              onClick={toggleActive}
+            />
+            <MenuItem
+              icon={Trash2}
+              label={t('common.delete')}
+              destructive
+              onClick={() => {
+                setMenuOpen(false)
+                setConfirmDelete(true)
+              }}
+            />
+          </PopoverContent>
+        </Popover>
       </div>
 
       <div className="flex flex-wrap gap-1.5 px-4 pt-2">
@@ -181,12 +280,14 @@ function ProtocolRow({
         <Badge variant="outline">
           {protocol.doseAmount} {protocol.doseUnit}
         </Badge>
-        {missedCount > 0 && (
-          <Badge variant="destructive">{t('protocols.missedCount', { count: missedCount })}</Badge>
+        {stats.isPerpetual && <Badge variant="outline">∞ {t('protocols.perpetual')}</Badge>}
+        {!protocol.isActive && <Badge variant="outline">{t('protocols.pausedBadge')}</Badge>}
+        {stats.missedCount > 0 && (
+          <Badge variant="destructive">{t('protocols.missedCount', { count: stats.missedCount })}</Badge>
         )}
       </div>
 
-      {nextOccurrence && (
+      {stats.nextOccurrence && (
         <button
           type="button"
           onClick={onEdit}
@@ -196,16 +297,57 @@ function ProtocolRow({
             <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               {t('protocols.nextDose')}
             </p>
-            <p className="text-sm font-medium text-primary">{formatDateTime(nextOccurrence.scheduledAt)}</p>
+            <p className="text-sm font-medium text-primary">{formatDateTime(stats.nextOccurrence.scheduledAt)}</p>
           </div>
           <ChevronRight className="size-4 shrink-0 text-primary" />
         </button>
       )}
 
       <p className="px-4 py-3 text-xs text-muted-foreground">
-        {t('protocols.loggedCount', { count: logs.length })}
+        {t('protocols.loggedCount', { count: stats.loggedCount })}
+        {stats.upcomingCount > 0 && ` · ${t('protocols.upcomingCount', { count: stats.upcomingCount })}`}
       </p>
+
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('protocols.deleteDialogTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('protocols.deleteDialogDescription', { name: protocol.name || compound?.name })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={handleDelete}>{t('common.delete')}</AlertDialogAction>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
+  )
+}
+
+function MenuItem({
+  icon: Icon,
+  label,
+  onClick,
+  destructive = false,
+}: {
+  icon: LucideIcon
+  label: string
+  onClick: () => void
+  destructive?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex min-h-11 w-full items-center gap-2.5 rounded-xl px-3 text-left text-sm ${
+        destructive ? 'text-destructive' : 'text-foreground'
+      }`}
+    >
+      <Icon className="size-4 shrink-0" />
+      {label}
+    </button>
   )
 }
 
