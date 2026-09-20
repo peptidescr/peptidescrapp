@@ -7,7 +7,8 @@
     "cancel": "Cancelar",
     "save": "Guardar",
     "delete": "Eliminar",
-    "edit": "Editar"
+    "edit": "Editar",
+    "back": "Atrás"
   },
   "nav": {
     "home": "Inicio",
@@ -231,6 +232,10 @@
     "contact": {
       "title": "Contacto",
       "whatsapp": "Escribinos por WhatsApp"
+    },
+    "howItWorks": {
+      "body": "Un vistazo rápido a qué hace cada parte de la app.",
+      "cta": "Ver de nuevo"
     }
   },
   "onboarding": {
@@ -254,6 +259,19 @@
       "body": "Un protocolo es un compuesto, una dosis y un horario. Podés agregar más o editarlo cuando quieras.",
       "cta": "Crear un protocolo",
       "skip": "Omitir por ahora"
+    },
+    "progressLabel": "Paso {{step}} de {{total}}",
+    "howItWorks": {
+      "title": "Así funciona peptidescr",
+      "subtitle": "Todo queda en este dispositivo — así es cada parte de la app.",
+      "calculatorTitle": "Calculadora",
+      "calculatorBody": "Calculá exactamente qué extraer, desde un vial o una solución ya lista.",
+      "protocolsTitle": "Protocolos",
+      "protocolsBody": "Configurá un compuesto, una dosis y un horario — empezá con una plantilla o hacelo a tu manera.",
+      "homeTitle": "Inicio",
+      "homeBody": "Mirá qué te toca hoy y registrá una dosis con un toque.",
+      "historyTitle": "Historial",
+      "historyBody": "Tu registro completo — buscá, editá, y exportalo cuando quieras."
     }
   },
   "templates": {

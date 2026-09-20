@@ -2,6 +2,100 @@
 
 Running log of decisions and things the client needs to weigh in on. Newest at top.
 
+## 2026-09-19 — Finish and commit the onboarding rebuild (Part 4 of the light-mode/settings-IA/nav plan)
+
+This closes out work a previous session left written but uncommitted: the onboarding
+wizard rebuilt from 5 steps to 6 (**Language → How it works → Legal → Install →
+Notifications → First protocol**), plus a real fix for a cancel-exits-onboarding bug.
+Nothing here is a redesign — it's finishing, verifying, and committing what was already
+built, per Part 4 of the current plan (`~/.claude/plans/golden-roaming-hickey.md`); Parts
+1–3 (light mode, settings IA, back-button navigation) are separate follow-on work.
+
+**What the wizard changes, and why:**
+
+- **New step 2, "How it works"** (`onboarding.howItWorks.*`): one row per real tab
+  (Calculator/Protocols/Home/History), same lucide icon each tab uses in `TabBar`, so the
+  preview maps 1:1 onto the navigation the user is about to land on. Lives in a new
+  `HowItWorksList` component so the content has exactly one copy — also reused by a new
+  "How it works" section in Settings (`SettingsScreen.tsx`, opens the same list in a
+  `ui/sheet.tsx` Sheet), so it's a revisitable reference, not a one-time thing you can
+  only half-read on your way past it.
+- **`onboardingCompletedAt` replaces `legalAcceptedVersion` as the "has onboarding run"
+  signal** (`db.ts`, `App.tsx`). The old flow conflated two different questions into one
+  comparison — whether onboarding had ever finished, and whether the accepted legal
+  wording was current — which had two real consequences: quitting the wizard partway
+  through (after the legal step but before finishing) meant the app treated onboarding as
+  done forever, and any future `LEGAL_VERSION` bump would silently re-run the *entire*
+  wizard (language, install, notifications, first protocol) just to get a re-acceptance
+  of updated wording. `onboardingCompletedAt` is now set exactly once, only by the
+  wizard's own completion (save a protocol, or explicitly skip); `legalAcceptedVersion`
+  goes back to meaning only what it says. A standalone `LegalGate` (exported from
+  `OnboardingScreen.tsx`, no wizard chrome) is what `App.tsx` shows instead when someone
+  who's already onboarded needs to re-accept a bumped legal version. `App.tsx`'s gate is
+  now `'loading' | 'onboarding' | 'legalReaccept' | 'app'`, and it backfills
+  `onboardingCompletedAt` for anyone already sitting on `legalAcceptedVersion ===
+  LEGAL_VERSION` from the old flow, so nobody who's already onboarded gets sent through
+  the wizard again — verified live, see below.
+- **The actual bug fix**: `ProtocolForm` (`ProtocolsScreen.tsx`) only ever had one notion
+  of "back" — `onDone`, correct for the real Protocols screen where cancel and save both
+  just return to the list. Onboarding's first-protocol step reused the same form for
+  picking a template then filling it in, and wired that same `onDone` to the form's back
+  button — so tapping Cancel after picking a template didn't return you to the template
+  picker, it **finished onboarding outright** (jumped straight to Home, protocol
+  unsaved). Fixed with a new optional `onCancel?: () => void` prop (defaults to `onDone`,
+  so the real Protocols screen is unaffected) that onboarding now points back at the
+  picker instead. Confirmed fixed live, both at 390px and 320px — see below.
+
+**Verification performed** (the previous session had gotten as far as `tsc`/`vitest`/
+`build` all clean and stopped there — lint and live verification never ran):
+
+- Re-ran `npx tsc -b`, `npx vitest run` (117/117), `npm run build` — all still clean.
+- `npx eslint .` **timed out at 30s again** (exit 124) — a pre-existing environment issue
+  unrelated to this diff (already discussed and settled elsewhere, not re-investigated
+  here). Relied on `tsc` plus the manual/live review below in its place.
+- i18n parity: flattened both locale files to dotted keys and diffed the sets —
+  **237/237**, zero keys on either side only, matching the count already recorded before
+  this session started.
+- **Live verification, real headless Chromium over CDP** (`/usr/bin/chromium
+  --headless=new`, raw Node `WebSocket` scripts — no Playwright/Puppeteer — against a
+  `vite preview` build on a throwaway port; both processes started and killed by their
+  own PIDs, never by a name pattern). Service worker unregistered and the `peptidescr`
+  IndexedDB database deleted before every fresh pass, per this project's standing rule
+  that a stale SW has masked fixes here before. Three passes, 59 assertions total, all
+  passing, **zero console errors in any pass**:
+  1. **390px, fresh install, full wizard walk**: Language → How it works (all 4 rows'
+     copy and all 4 icons confirmed present) → Legal → Install → Notifications → First
+     protocol. Picked a template, confirmed the form pre-filled from it, tapped Cancel,
+     confirmed it returns to the **template picker** (not Home) — the exact bug above.
+     Backed out further to the intro sub-step, then tapped **Skip**, confirmed the wizard
+     exits to the main app shell and `onboardingCompletedAt` is now set in IndexedDB.
+  2. **Backfill path, 390px**: cleared SW/IDB, let a fresh row get created, then wrote
+     `{legalAcceptedVersion: 1, legalAcceptedAt: <iso>}` directly into IndexedDB with no
+     `onboardingCompletedAt` (simulating an install from before this change) and
+     reloaded. Confirmed onboarding does **not** run — lands straight on Home — and that
+     `onboardingCompletedAt` gets backfilled into the same IndexedDB row without
+     disturbing the original `legalAcceptedVersion`/`legalAcceptedAt`. From that
+     onboarded state, opened Settings → "How it works" → Sheet, confirmed all 4 rows
+     (correct copy, 4 icons) — the identical content and component the wizard step uses.
+  3. **320px, fresh install, same full wizard walk** (including the cancel-to-picker
+     check and Skip) — same 22 assertions, all passing, no horizontal overflow
+     (`scrollWidth` vs `clientWidth`) at any step.
+  - One real scripting bug caught and fixed along the way, worth recording since it's a
+    trap the next CDP pass could hit too: a helper that grabbed `document.body.innerText`
+    truncated at 800 characters by default. The How-it-works Sheet is portaled to the end
+    of `<body>`, after the whole Settings screen's own content, so its text landed past
+    the truncation point and every assertion about its contents initially read as a false
+    "not found" even though the DOM (and a direct icon-count query) confirmed it had
+    rendered correctly. Not an app bug — a harness one — fixed by raising the slice limit
+    for that check.
+
+Commit is scoped to exactly the files the previous session had modified/added
+(`App.tsx`, `db.ts`, both locale files, `OnboardingScreen.tsx`, `ProtocolsScreen.tsx`,
+`SettingsScreen.tsx`, `HowItWorksList.tsx`) plus this entry and a short `HANDOVER.md`
+note — nothing from the untracked `public/brand/peptidescrlogo.jpeg` (unrelated, left
+untouched) and nothing from the rest of the plan (light mode / settings IA / back button),
+which land as their own separate commits.
+
 ## 2026-09-05 — Stage 1 of the PeptIQ parity plan: design system
 
 First of three stages (design system → per-page feature parity → onboarding rebuild). This

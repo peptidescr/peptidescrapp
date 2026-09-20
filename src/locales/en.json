@@ -7,7 +7,8 @@
     "cancel": "Cancel",
     "save": "Save",
     "delete": "Delete",
-    "edit": "Edit"
+    "edit": "Edit",
+    "back": "Back"
   },
   "nav": {
     "home": "Home",
@@ -231,6 +232,10 @@
     "contact": {
       "title": "Contact",
       "whatsapp": "Message us on WhatsApp"
+    },
+    "howItWorks": {
+      "body": "A quick look at what each part of the app does.",
+      "cta": "View again"
     }
   },
   "onboarding": {
@@ -254,6 +259,19 @@
       "body": "A protocol is a compound, a dose, and a schedule. You can add more or edit this one anytime.",
       "cta": "Create a protocol",
       "skip": "Skip for now"
+    },
+    "progressLabel": "Step {{step}} of {{total}}",
+    "howItWorks": {
+      "title": "How peptidescr works",
+      "subtitle": "Everything stays on this device — here's what each part does.",
+      "calculatorTitle": "Calculator",
+      "calculatorBody": "Work out exactly what to draw, from a vial or a ready-made solution.",
+      "protocolsTitle": "Protocols",
+      "protocolsBody": "Set up a compound, a dose, and a schedule — start from a template or build your own.",
+      "homeTitle": "Home",
+      "homeBody": "See what's due today and log a dose with one tap.",
+      "historyTitle": "History",
+      "historyBody": "Your full record — searchable, editable, and yours to export anytime."
     }
   },
   "templates": {

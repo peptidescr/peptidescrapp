@@ -56,6 +56,16 @@ export interface Settings {
   hasUsedCalculator?: boolean
   /** Set when the user dismisses the checklist, so it stays dismissed. */
   getStartedDismissedAt?: string // ISO datetime
+  /**
+   * Set once, the moment the onboarding wizard truly finishes (save a
+   * protocol, or explicitly skip). This is the one signal App.tsx uses to
+   * decide whether onboarding needs to run — NOT `legalAcceptedVersion`,
+   * which only records legal acceptance and is written mid-wizard (so using
+   * it as the completion flag meant quitting partway through skipped every
+   * remaining step forever, and bumping the legal version re-ran the entire
+   * wizard including language/install/notifications). See App.tsx.
+   */
+  onboardingCompletedAt?: string // ISO datetime
 }
 
 export interface Snapshot {

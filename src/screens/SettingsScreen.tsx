@@ -1,5 +1,6 @@
 import {
   Bell,
+  Compass,
   Database,
   Globe,
   type LucideIcon,
@@ -25,7 +26,9 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { AppHeader } from '../components/AppHeader'
+import { HowItWorksList } from '../components/HowItWorksList'
 import { LEGAL_PLACEHOLDER, LEGAL_VERSION } from '../content/legal'
 import {
   backupToJson,
@@ -50,6 +53,7 @@ export function SettingsScreen() {
     <div className="flex flex-col gap-6 px-4 pb-6 pt-4">
       <AppHeader title={t('nav.settings')} />
       <LanguageSection />
+      <HowItWorksSection />
       <NotificationsSection />
       <InstallSection />
       <StorageSection />
@@ -109,6 +113,38 @@ function LanguageSection() {
         ))}
       </div>
     </SectionCard>
+  )
+}
+
+/**
+ * Reopens the exact same content OnboardingScreen's how-it-works step
+ * shows — a revisitable reference for anyone who skimmed past it the first
+ * time, or just forgets what a screen does months later.
+ */
+function HowItWorksSection() {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+
+  return (
+    <>
+      <SectionCard title={t('onboarding.howItWorks.title')} icon={Compass}>
+        <p className="text-sm text-muted-foreground">{t('settings.howItWorks.body')}</p>
+        <Button variant="secondary" onClick={() => setOpen(true)}>
+          {t('settings.howItWorks.cta')}
+        </Button>
+      </SectionCard>
+
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>{t('onboarding.howItWorks.title')}</SheetTitle>
+          </SheetHeader>
+          <SheetBody>
+            <HowItWorksList />
+          </SheetBody>
+        </SheetContent>
+      </Sheet>
+    </>
   )
 }
 

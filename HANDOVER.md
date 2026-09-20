@@ -74,6 +74,17 @@ the dark theme holds even when the device's own setting is light, in Spanish.
   silently didn't register — the card just sat there looking unresponsive after tapping
   Taken/Skipped. Fixed (`NOTES.md` has the technical detail); it now updates immediately
   and logs against the actual time you tapped it, not its future reminder time.
+- First-time setup could, in one specific path, quietly abandon itself: pick a starter
+  protocol template during setup, then tap Cancel on the form, and it used to dump you
+  straight into the finished app with no protocol saved instead of taking you back to the
+  template list to try again. Fixed — Cancel there now correctly returns to the template
+  list, not out of setup entirely.
+
+**Onboarding now has an extra "how this app works" screen**, right after picking a
+language: a quick one-row-per-feature preview (Calculator, Protocols, Home, History)
+before the legal/install/notifications steps, so first-time users get a map of the app
+before they're dropped into it. The same content is also reachable any time afterward
+from Settings, in case someone wants a refresher later.
 
 ## What's left before you and the client can play with it
 

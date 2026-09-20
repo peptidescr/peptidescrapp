@@ -356,10 +356,18 @@ interface ProtocolFormProps {
   /** Prefills a new protocol's fields from a starter template — still fully editable before saving. */
   template?: ProtocolTemplate
   onDone: () => void
+  /**
+   * Where the header's back button goes. Defaults to `onDone` — fine for the
+   * real Protocols screen, where "cancel" and "saved" both just return to the
+   * list. Onboarding passes a distinct value: cancelling out of protocol
+   * creation there needs to return to the template picker, not finish the
+   * entire wizard (which is what `onDone` means in that context).
+   */
+  onCancel?: () => void
 }
 
 /** Exported so Onboarding's "create your first protocol" step can reuse this exact form. */
-export function ProtocolForm({ protocolId, template, onDone }: ProtocolFormProps) {
+export function ProtocolForm({ protocolId, template, onDone, onCancel }: ProtocolFormProps) {
   const { t } = useTranslation()
   const existing = useLiveQuery(
     () => (protocolId ? db.protocols.get(protocolId) : undefined),
@@ -474,7 +482,7 @@ export function ProtocolForm({ protocolId, template, onDone }: ProtocolFormProps
     <div className="flex flex-col gap-5 px-4 pb-6 pt-4">
       <AppHeader
         title={protocolId ? t('protocols.editTitle') : t('protocols.newTitle')}
-        onBack={onDone}
+        onBack={onCancel ?? onDone}
       />
 
       <FormField label={t('protocols.compound')}>

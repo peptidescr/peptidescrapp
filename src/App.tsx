@@ -9,32 +9,52 @@ import { maybeCreateDailySnapshot } from './lib/backup'
 import { db, ensureCompoundsSeeded, ensureSettingsRow } from './lib/db'
 import { DEFAULT_LOCALE } from './i18n'
 import { scheduleUpcomingReminders } from './lib/notifications'
-import { useSettings } from './lib/useSettings'
+import { updateSettings, useSettings } from './lib/useSettings'
 import { HomeScreen } from './screens/HomeScreen'
 import { CalculatorScreen } from './screens/CalculatorScreen'
-import { OnboardingScreen } from './screens/OnboardingScreen'
+import { LegalGate, OnboardingScreen } from './screens/OnboardingScreen'
 import { ProtocolsScreen } from './screens/ProtocolsScreen'
 import { HistoryScreen } from './screens/HistoryScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
+
+type Gate = 'loading' | 'onboarding' | 'legalReaccept' | 'app'
 
 function App() {
   const { t, i18n } = useTranslation()
   const [tab, setTab] = useState<Tab>('home')
   const settings = useSettings()
 
-  // Whether onboarding still needs to run. Deliberately NOT recomputed from
-  // `settings` on every render: legalAcceptedVersion gets set partway through
-  // the wizard (the disclaimer step), and if this were derived live it would
-  // flip to "done" and unmount the wizard before the remaining steps
-  // (install/notifications/first protocol) ran. Set once from the first
-  // settings load, then only ever changed by the wizard's own onComplete. A
-  // user who closes the app mid-wizard returns straight to the main app next
-  // time (legal is already accepted) rather than mid-flow — the remaining
-  // steps are also all reachable from Settings/Protocols directly, so
-  // nothing is lost, just not re-prompted.
-  const [needsOnboarding, setNeedsOnboarding] = useState<boolean | null>(null)
-  if (settings && needsOnboarding === null) {
-    setNeedsOnboarding(settings.legalAcceptedVersion !== LEGAL_VERSION)
+  // Two separate questions used to be conflated into one comparison
+  // (`legalAcceptedVersion !== LEGAL_VERSION`, treated as "needs onboarding"):
+  // whether onboarding has ever finished, and whether the accepted legal
+  // version is current. They're different — bumping LEGAL_VERSION for a
+  // wording fix shouldn't re-run the whole wizard (language, install,
+  // notifications, first protocol) for someone who already did all of that,
+  // it should just ask them to re-accept. `onboardingCompletedAt` (set once,
+  // by the wizard's own completion) answers the first question;
+  // `legalAcceptedVersion` still answers only the second, which is all it
+  // ever should have meant.
+  //
+  // Deliberately NOT recomputed from `settings` on every render — the wizard
+  // writes `legalAcceptedVersion` partway through (the disclaimer step), and
+  // a live derivation would flip the gate and unmount the wizard before the
+  // remaining steps ran. Computed once from the first settings load, then
+  // only ever changed by an explicit callback below.
+  const [gate, setGate] = useState<Gate>('loading')
+  if (settings && gate === 'loading') {
+    const alreadyOnboardedBeforeThisFlagExisted =
+      !settings.onboardingCompletedAt && settings.legalAcceptedVersion === LEGAL_VERSION
+    if (alreadyOnboardedBeforeThisFlagExisted) {
+      // Backfill so this branch is only ever taken once per install.
+      void updateSettings({ onboardingCompletedAt: new Date().toISOString() })
+      setGate('app')
+    } else if (!settings.onboardingCompletedAt) {
+      setGate('onboarding')
+    } else if (settings.legalAcceptedVersion !== LEGAL_VERSION) {
+      setGate('legalReaccept')
+    } else {
+      setGate('app')
+    }
   }
 
   // Runs once per app open: seed/sync the read-only compound catalogue,
@@ -68,12 +88,16 @@ function App() {
     settings: t('nav.settings'),
   }
 
-  if (needsOnboarding === null) {
+  if (gate === 'loading') {
     return <div className="min-h-dvh bg-background" />
   }
 
-  if (needsOnboarding) {
-    return <OnboardingScreen onComplete={() => setNeedsOnboarding(false)} />
+  if (gate === 'onboarding') {
+    return <OnboardingScreen onComplete={() => setGate('app')} />
+  }
+
+  if (gate === 'legalReaccept') {
+    return <LegalGate onAccept={() => setGate('app')} />
   }
 
   return (
