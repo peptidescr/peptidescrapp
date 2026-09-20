@@ -184,6 +184,13 @@
     "language": "Idioma",
     "spanish": "Español (CR)",
     "english": "English",
+    "appearance": {
+      "title": "Apariencia",
+      "light": "Claro",
+      "dark": "Oscuro",
+      "system": "Sistema",
+      "quickToggle": "Cambiar entre tema claro y oscuro"
+    },
     "notifications": "Notificaciones",
     "notif": {
       "notSupported": "Este navegador no admite notificaciones.",

@@ -13,7 +13,14 @@ export function Switch({ className, ...props }: ComponentProps<typeof SwitchPrim
     >
       <SwitchPrimitive.Thumb
         className={cn(
-          'pointer-events-none block size-6 rounded-full bg-white shadow-sm ring-0 transition-transform data-[state=checked]:translate-x-5 data-[state=unchecked]:translate-x-0.5',
+          // bg-foreground rather than a literal white: in dark mode
+          // foreground is near-white (matches the previous look), but in
+          // light mode it's dark ink — which is what actually keeps the
+          // thumb visible against the light-grey unchecked track, where a
+          // literal white thumb nearly disappeared. The checked track is
+          // always the saturated primary blue, so primary-foreground (always
+          // white) reads fine there in both themes.
+          'pointer-events-none block size-6 rounded-full shadow-sm ring-0 transition-transform data-[state=checked]:translate-x-5 data-[state=checked]:bg-primary-foreground data-[state=unchecked]:translate-x-0.5 data-[state=unchecked]:bg-foreground',
         )}
       />
     </SwitchPrimitive.Root>

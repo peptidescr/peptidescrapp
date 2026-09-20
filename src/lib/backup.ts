@@ -1,6 +1,7 @@
 import { getCompoundById } from '../content/compounds'
 import { toIsoDate } from './dates'
 import { db, SETTINGS_ID, type DoseLog, type Protocol, type Settings } from './db'
+import { applyTheme, resolveTheme } from './theme'
 
 const BACKUP_VERSION = 1
 const SNAPSHOT_KEEP = 7
@@ -71,6 +72,14 @@ export async function importBackupPayload(payload: BackupPayload): Promise<void>
     if (payload.doseLogs.length) await db.doseLogs.bulkAdd(payload.doseLogs)
     if (payload.settings) await db.settings.put({ ...payload.settings, id: SETTINGS_ID })
   })
+
+  // A restored backup can carry a different `theme` than what's currently
+  // applied (buildBackupPayload spreads the whole settings row). Without
+  // this, the localStorage pre-paint mirror stays stale until the next
+  // explicit theme change, and the *next* cold start would flash the old
+  // theme once before Dexie's real value caught up. Re-resolve and re-apply
+  // immediately so both the live app and the mirror reflect the import.
+  applyTheme(resolveTheme(payload.settings?.theme ?? 'system'))
 }
 
 function downloadFile(content: string, filename: string, mime: string): void {

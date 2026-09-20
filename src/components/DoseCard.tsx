@@ -158,7 +158,11 @@ export function DueCard({
   return (
     <Card
       className={`flex flex-col gap-3 border-l-4 p-4 ${
-        item.isMissed ? 'border-l-destructive shadow-[0_0_24px_-8px_var(--destructive)]' : 'border-l-primary'
+        // --destructive-glow is a dark-mode-only "lit" glow on the dark
+        // block, replaced with a ring + tint on the light block — see
+        // tokens.css, which is why this reads via the CSS var rather than a
+        // literal shadow value here.
+        item.isMissed ? 'border-l-destructive shadow-[var(--destructive-glow)]' : 'border-l-primary'
       }`}
     >
       <DoseCardBody

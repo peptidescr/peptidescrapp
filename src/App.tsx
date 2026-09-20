@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AnimatePresence, motion } from 'motion/react'
 import { FloatingSettingsButton } from './components/FloatingSettingsButton'
+import { FloatingThemeToggleButton } from './components/FloatingThemeToggleButton'
 import { TabBar, type Tab } from './components/TabBar'
 import { Toaster } from './components/ui/sonner'
 import { LEGAL_VERSION } from './content/legal'
@@ -9,6 +10,7 @@ import { maybeCreateDailySnapshot } from './lib/backup'
 import { db, ensureCompoundsSeeded, ensureSettingsRow } from './lib/db'
 import { DEFAULT_LOCALE } from './i18n'
 import { scheduleUpcomingReminders } from './lib/notifications'
+import { applyTheme, resolveTheme, subscribeToSystemTheme, type ResolvedTheme } from './lib/theme'
 import { updateSettings, useSettings } from './lib/useSettings'
 import { HomeScreen } from './screens/HomeScreen'
 import { CalculatorScreen } from './screens/CalculatorScreen'
@@ -80,6 +82,57 @@ function App() {
     }
   }, [settings, i18n])
 
+  // Deliberately does nothing while `settings` is still undefined (Dexie's
+  // first read hasn't resolved yet) rather than falling back to a guessed
+  // 'system' default — that guess briefly overwrote index.html's correct
+  // pre-paint `data-theme` with the wrong one before the real value arrived
+  // a beat later, producing an actual light→dark→light (or reverse) flash.
+  // Caught live via CDP: a MutationObserver timeline on cold load showed
+  // exactly that transition. Only re-applies once the real stored value (or
+  // its documented 'system' default) is known.
+  const themeMode = settings ? (settings.theme ?? 'system') : undefined
+
+  // Mirrors whatever `applyTheme` last set on <html>, so the floating quick
+  // toggle's icon (Sun/Moon) reflects the actual resolved theme rather than
+  // the raw mode — under 'system' those can differ. Initialized by reading
+  // the DOM directly: index.html's inline script has already set
+  // `data-theme` by the time React mounts, so this is never a guess.
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(
+    () => (document.documentElement.getAttribute('data-theme') as ResolvedTheme | null) ?? 'dark',
+  )
+
+  useEffect(() => {
+    if (!themeMode) return
+    const resolved = resolveTheme(themeMode)
+    applyTheme(resolved)
+    setResolvedTheme(resolved)
+  }, [themeMode])
+
+  // Lets 'system' mode follow the device live while the app stays open,
+  // without waiting for a re-render that would trigger the effect above.
+  useEffect(() => {
+    if (themeMode !== 'system') return
+    return subscribeToSystemTheme((prefersDark) => {
+      const resolved = prefersDark ? 'dark' : 'light'
+      applyTheme(resolved)
+      setResolvedTheme(resolved)
+    })
+  }, [themeMode])
+
+  // The floating quick-toggle's handler: a straight two-way flip (not the
+  // three-way Light/Dark/System control, which stays in Settings). Always
+  // sets an explicit choice, moving off 'system' if that was active — that's
+  // what a quick top-of-screen toggle is for. Same persist-then-apply shape
+  // as LanguageSection/AppearanceSection; writing through `updateSettings`
+  // (rather than only local state) is what keeps this button and Settings'
+  // own segmented control in sync via Dexie's live query.
+  async function toggleTheme() {
+    const next: ResolvedTheme = resolvedTheme === 'light' ? 'dark' : 'light'
+    await updateSettings({ theme: next })
+    applyTheme(next)
+    setResolvedTheme(next)
+  }
+
   const labels = {
     home: t('nav.home'),
     calculator: t('nav.calculator'),
@@ -103,7 +156,12 @@ function App() {
   return (
     <div className="min-h-dvh bg-background pb-20 pt-[calc(env(safe-area-inset-top)+4rem)]">
       <Toaster />
-      {tab !== 'settings' && <FloatingSettingsButton onClick={() => setTab('settings')} />}
+      {tab !== 'settings' && (
+        <div className="fixed right-4 top-[calc(env(safe-area-inset-top)+0.75rem)] z-30 flex items-center gap-2">
+          <FloatingThemeToggleButton resolvedTheme={resolvedTheme} onToggle={() => void toggleTheme()} />
+          <FloatingSettingsButton onClick={() => setTab('settings')} />
+        </div>
+      )}
       <AnimatePresence mode="wait">
         <motion.div
           key={tab}

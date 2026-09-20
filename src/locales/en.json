@@ -184,6 +184,13 @@
     "language": "Language",
     "spanish": "Español (CR)",
     "english": "English",
+    "appearance": {
+      "title": "Appearance",
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System",
+      "quickToggle": "Toggle light/dark theme"
+    },
     "notifications": "Notifications",
     "notif": {
       "notSupported": "This browser doesn't support notifications.",

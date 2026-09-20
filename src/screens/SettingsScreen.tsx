@@ -10,6 +10,7 @@ import {
   Save,
   Scale,
   Smartphone,
+  SunMoon,
 } from 'lucide-react'
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -43,7 +44,8 @@ import { formatDateTime } from '../lib/dates'
 import { db } from '../lib/db'
 import { useInstallState } from '../lib/install'
 import { getNotificationCapability, requestNotificationPermission } from '../lib/notifications'
-import type { Locale } from '../lib/units'
+import { applyTheme, resolveTheme } from '../lib/theme'
+import type { Locale, ThemeMode } from '../lib/units'
 import { updateSettings, useSettings } from '../lib/useSettings'
 
 export function SettingsScreen() {
@@ -53,6 +55,7 @@ export function SettingsScreen() {
     <div className="flex flex-col gap-6 px-4 pb-6 pt-4">
       <AppHeader title={t('nav.settings')} />
       <LanguageSection />
+      <AppearanceSection />
       <HowItWorksSection />
       <NotificationsSection />
       <InstallSection />
@@ -109,6 +112,44 @@ function LanguageSection() {
             }`}
           >
             {l === 'es-CR' ? t('settings.spanish') : t('settings.english')}
+          </button>
+        ))}
+      </div>
+    </SectionCard>
+  )
+}
+
+const THEME_MODES = ['light', 'dark', 'system'] as const
+
+/**
+ * Same hand-rolled segmented-control shape as LanguageSection (persist via
+ * updateSettings, then apply the side effect) — three options instead of
+ * two. 'system' with no stored preference is the default, matching
+ * `settings?.theme ?? 'system'` everywhere else this is read.
+ */
+function AppearanceSection() {
+  const { t } = useTranslation()
+  const settings = useSettings()
+  const theme: ThemeMode = settings?.theme ?? 'system'
+
+  async function setTheme(next: ThemeMode) {
+    await updateSettings({ theme: next })
+    applyTheme(resolveTheme(next))
+  }
+
+  return (
+    <SectionCard title={t('settings.appearance.title')} icon={SunMoon}>
+      <div className="flex gap-2">
+        {THEME_MODES.map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            onClick={() => setTheme(mode)}
+            className={`min-h-11 flex-1 rounded-full border text-sm font-medium transition-colors ${
+              theme === mode ? 'border-primary bg-accent text-primary' : 'border-border text-muted-foreground'
+            }`}
+          >
+            {t(`settings.appearance.${mode}`)}
           </button>
         ))}
       </div>

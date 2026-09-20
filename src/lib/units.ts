@@ -35,6 +35,12 @@ export type MassUnit = 'mg' | 'mcg'
 export type SyringeType = 'U-100' | 'U-50' | 'U-40'
 export type Locale = 'es-CR' | 'en'
 export type RoundDirection = 'down' | 'up' | 'nearest'
+/**
+ * 'system' follows the device's `prefers-color-scheme`; 'light'/'dark' are
+ * explicit overrides. Always resolved to a concrete 'light' | 'dark' before
+ * it reaches the DOM — see src/lib/theme.ts.
+ */
+export type ThemeMode = 'light' | 'dark' | 'system'
 
 const MCG_PER_MG = 1000
 const UL_PER_ML = 1000

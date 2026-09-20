@@ -25,7 +25,9 @@ export function SheetContent({ className, children, ...props }: ComponentProps<t
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay
         className={cn(
-          'fixed inset-0 z-50 bg-black/60',
+          // Unified with dialog.tsx/alert-dialog.tsx's scrim opacity (was
+          // /60 here, inconsistent with their /50).
+          'fixed inset-0 z-50 bg-black/50',
           'data-[state=open]:animate-in data-[state=open]:fade-in-0',
           'data-[state=closed]:animate-out data-[state=closed]:fade-out-0',
         )}

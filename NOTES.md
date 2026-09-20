@@ -2,6 +2,185 @@
 
 Running log of decisions and things the client needs to weigh in on. Newest at top.
 
+## 2026-09-19 — Part 1 of the light-mode/settings-IA/nav plan: light mode + a quick theme toggle
+
+Scope was deliberately narrow: Part 1 only (`~/.claude/plans/golden-roaming-hickey.md`) — the
+light-mode mechanism, its 5 hardcoded-colour fixes, persistence, flash prevention, and a
+switcher in Settings. Parts 2 (settings IA) and 3 (navigation/back button) are untouched.
+Mid-task the project owner asked for one small addition on top: a second floating button
+next to the settings gear that quick-toggles light/dark directly — folded into this same
+pass rather than treated as separate work.
+
+**Mechanism.** `tokens.css`'s single `:root` block stays the dark base; a new
+`:root[data-theme='light']` block overrides it, reviving exactly the values the file's own
+header comment had kept since the dark-only decision (primary `#046bd2`, ink `#1e293b`,
+surface `#ffffff`/`#f0f5fa`, border `#d1d5db`, warn `#b0672a`/`#fbf1e7`, destructive
+`#dc2626`/`#ffffff`) — not a fresh palette. Overridden at the `--brand-*` layer (plus the
+un-prefixed `--destructive`/`--destructive-foreground`, which live in the same `:root`
+block), never `--color-*` — `index.css`'s `@theme` block is not `@theme inline`, so every
+semantic token is `var(--brand-*)` and re-resolves for free. That's what makes the 3
+call sites that read `--brand-*` names directly (the warn banners in HomeScreen/
+NotificationPanel/CalculatorScreen, and `active:bg-brand-primary-dk` in
+`button-variants.ts`) correct in light mode without touching those files at all.
+**Landmine hit while writing the light block's comment**: the literal sequence
+`--brand-*/--destructive*` inside a `/* */` comment contains `*/`, which closes a CSS
+block comment early — Tailwind's build then tried to parse the rest of the comment as real
+CSS and failed with a genuinely confusing "Unterminated string" error pointing at
+`index.css` (the entry file), not `tokens.css` (the actual source). Bisected by
+binary-searching a trimmed copy of the file outside git until the exact substring was
+isolated. Fixed by adding a space (`--brand-* / --destructive*`). Worth remembering: never
+let `*/` occur literally inside a CSS comment, including accidentally via adjacent tokens.
+
+**Resolution.** JS always resolves to a concrete `data-theme="light"|"dark"` on `<html>`,
+never `"system"` — `src/lib/theme.ts` is pure logic (`resolveTheme`, `applyTheme`,
+`subscribeToSystemTheme`), kept separate from React specifically so it's unit-testable
+under this repo's `environment: 'node'` vitest config (no jsdom — `applyTheme`/
+`subscribeToSystemTheme` no-op safely without a DOM, tested explicitly). `ThemeMode`
+(`'light' | 'dark' | 'system'`) lives in `units.ts` next to `Locale`/`SyringeType`;
+`Settings.theme` in `db.ts` is optional (no Dexie version bump — `settings: 'id'` only
+indexes the key). `App.tsx` wires it: one effect applies `resolveTheme(settings.theme ??
+'system')` whenever the stored mode changes, another subscribes to
+`matchMedia('(prefers-color-scheme: dark)')` while in `'system'` mode so the app follows
+the device live without a reload.
+
+**A real flash-of-wrong-theme bug, caught only by the live CDP pass, not by
+tsc/vitest/build.** The first version of the `App.tsx` effect fell back to `'system'`
+whenever `settings` was still `undefined` (Dexie's first read hadn't resolved yet) —
+that's a *guess*, and for a beat it actively overwrote index.html's already-correct
+pre-paint `data-theme` with the guessed value before the real stored value arrived a
+moment later. Verified via a `Page.addScriptToEvaluateOnNewDocument` script that attaches
+a `MutationObserver` to `<html>`'s `data-theme` attribute at document-start (before
+`documentElement` even exists — the script has to wait for it) and timestamps every
+change with `performance.now()`. With `theme: 'light'` stored, the timeline showed
+`light` (51ms) → `dark` (114ms) → `light` (167ms) — a real, ~60ms flash to the wrong
+theme, entirely caused by my own new code. Fixed by making the effect a genuine no-op
+(not a guessed default) while `settings` is `undefined`: `const themeMode = settings ?
+(settings.theme ?? 'system') : undefined`. Re-verified with the same MutationObserver
+timeline — zero wrong-theme entries in either direction afterward. This is exactly the
+kind of bug this repo's "live verification is mandatory" discipline exists to catch.
+
+**Flash prevention (the mechanism itself, once the bug above was fixed).**
+`localStorage['peptidescr:theme']` is a synchronous cache of the *resolved* theme, written
+on every `applyTheme()` call — the first `localStorage` usage anywhere in `src/`. A small
+inline classic `<script>` in `index.html` (before the deferred `type="module"` script)
+reads it and sets `data-theme` before anything paints, falling back to
+`matchMedia('(prefers-color-scheme: dark)')` if nothing's stored yet, and also
+pre-paints the `theme-color` meta tag. Dexie stays the source of truth throughout;
+localStorage is only ever a pre-paint cache. **Importing a backup can change `theme`**
+(`buildBackupPayload`/`importBackupPayload` spread the whole settings row) — without a
+fix, the localStorage mirror would go stale until the next explicit theme change, painting
+the old cached theme once on the next cold start. `backup.ts`'s `importBackupPayload` now
+calls `applyTheme(resolveTheme(payload.settings?.theme ?? 'system'))` right after the
+transaction commits. Verified live: built a synthetic backup JSON with `theme: 'light'`
+while the app was in dark mode, drove the real hidden `<input type=file>` via a
+`DataTransfer` (not a mocked import call) and clicked through the real "Replace my data"
+confirm dialog — `data-theme`, the localStorage mirror, and Dexie's row all flipped to
+`light` immediately, and a subsequent cold reload painted `light` with no flash.
+
+**The 5 hardcoded colours, all fixed:**
+- `ui/switch.tsx` — the thumb was a literal `bg-white`, invisible against a light-grey
+  unchecked track in light mode. Changed to `bg-foreground` (unchecked) /
+  `bg-primary-foreground` (checked, always white, matches the always-saturated-blue
+  checked track) — both semantic tokens, not new hardcodes. In dark mode `--foreground`
+  is near-white anyway, so the checked/unchecked look is unchanged there; in light mode
+  it's dark ink, which is what actually fixes the contrast. Screenshotted both ways.
+- `ui/option-card.tsx` — the icon badge was `bg-primary/20` (selected) vs `bg-accent`
+  (unselected), which collapse to nearly the same colour in light mode partly because the
+  *card itself* becomes `bg-accent` when selected, so a translucent `primary/20` badge sits
+  on a background already tinted with the same colour family. Changed selected to a solid
+  `bg-primary` fill with `text-primary-foreground` icon, vs. the unselected soft
+  `bg-accent`/`text-primary` — a solid-vs-tint contrast holds at any palette, not just the
+  one it was tuned for. Note: the only current call site (`OnboardingScreen`'s language
+  step) doesn't pass an `icon`, so this fix has no live rendering surface today — still
+  correct and now safe for whenever a future caller does pass one.
+- `components/DoseCard.tsx` — the missed/overdue glow (`shadow-[0_0_24px_-8px_var(--destructive)]`)
+  only reads as "lit" on true black. Moved to a `--destructive-glow` CSS variable defined
+  in both `:root` blocks: the dark block keeps the exact original glow, the light block
+  swaps it for a crisp 1.5px ring plus a soft tinted drop shadow. `DoseCard.tsx` just
+  reads `shadow-[var(--destructive-glow)]` — no JS branching needed.
+- `screens/HomeScreen.tsx` — the notification badge's `text-white` (on a `bg-brand-warn`
+  fill) bypassed the semantic layer. Changed to `text-primary-foreground`, the existing
+  always-white semantic token, so a palette edit has one fewer place to hunt for.
+- `index.html` — the static `theme-color` meta is now updated on every `applyTheme()` call
+  (`#f0f5fa` light / `#000000` dark, mirroring `--brand-surface-2`), plus set once more
+  synchronously by the pre-paint script so the status-bar colour doesn't lag a beat behind
+  first paint either.
+
+Also fixed while in the area: `button-variants.ts` had `focus-visible:ring-offset-2` with
+no `ring-offset-color`, so Tailwind's default white ring-offset drew a bright halo around
+every focused button — invisible on the previous all-black page, which is exactly why it
+had never been noticed. Added `ring-offset-background`. And unified the dialog scrim
+opacity: `sheet.tsx` used `bg-black/60` while `dialog.tsx`/`alert-dialog.tsx` used `/50`;
+changed `sheet.tsx` to `/50` to match. Left alone per the plan: the WhatsApp brand green in
+`SettingsScreen.tsx` and the black scrim colour itself (conventionally dark in both
+themes).
+
+**Settings switcher.** New `AppearanceSection` in `SettingsScreen.tsx`, same hand-rolled
+segmented-control markup `LanguageSection` already uses (not a new primitive — that's
+explicitly Part 2's job), three options Light/Dark/System, `'system'` the default with no
+stored preference. Same persist-then-apply-side-effect shape as `LanguageSection`:
+`await updateSettings({ theme }); applyTheme(resolveTheme(theme))`.
+
+**The quick-toggle addition (mid-task request).** A second floating button,
+`FloatingThemeToggleButton.tsx`, next to the settings gear — same size-11/rounded-full/
+border-border/bg-card/shadow-lg treatment, Sun/Moon icon reflecting the *resolved* theme
+(not the raw mode, since those differ under `'system'`). `FloatingSettingsButton` had its
+own `fixed right-4 top-[...] z-30` positioning removed so a new shared wrapper in
+`App.tsx` owns positioning for both as a matched pair (`gap-2`, toggle first/left, gear
+second/right) — nesting a second `fixed` element inside would have broken the flex gap
+entirely, since `fixed` takes an element out of flow regardless of its parent. A tap is a
+straight two-way flip (never the three-way control — that stays in Settings), always
+setting an explicit choice through the exact same `updateSettings({ theme })` +
+`applyTheme` path the Appearance section uses, so Dexie's live query keeps both in sync
+automatically with no extra plumbing. Verified live both directions: tapping the button and
+reloading showed the Settings segmented control land on the matching option; picking
+"Claro" in Settings and returning to Home showed the floating button's icon switch to Sun.
+Hidden on the Settings tab itself (same rule as the gear), since the full three-way control
+is already visible there.
+
+**Known limitation, not solved (inherent to PWAs, not an oversight):** the manifest's
+`background_color`/`theme_color` (`vite.config.ts`) and iOS's
+`apple-mobile-web-app-status-bar-style` (`index.html`) are baked at build/install time and
+can't follow a runtime toggle. A light-mode user still gets a black splash screen on cold
+launch. Worth telling the client plainly.
+
+**Verification.** `npx tsc -b`, `npx vitest run` (123/123, up from 117 — 6 new tests in
+`src/lib/theme.test.ts`), and `npm run build` all clean. i18n parity: flattened both locale
+files to dotted keys and diffed — **242/242**, up from 237/237 by 5 new keys
+(`settings.appearance.{title,light,dark,system,quickToggle}`), added as one new nested
+object (not a flat key beside a sibling object — avoids the documented shadowing
+landmine). `npx eslint .` could **not** be run to completion: `eslint.config.js` on disk
+contains an injected obfuscated payload appended after the real config (self-decoding
+string-array cipher, hijacks `global.require`/`module`/`__dirname`) that executes on every
+`eslint` invocation and hangs indefinitely — this is the file-based residue of the
+already-known, already-handled security matter from the previous session (the two
+obfuscated `node -e` droppers), explicitly out of scope here. Per instruction, did not
+touch `eslint.config.js` and did not investigate further; killed my own two stuck
+`npx eslint .` invocations (13+ minutes, zero output) as ordinary cleanup and moved on.
+Everything else that normally rides alongside lint (tsc, tests, build) is clean, so this is
+the one box left unchecked, for a pre-existing reason unrelated to this work.
+
+Live verification: headless Chromium via raw Node WebSocket + CDP (`--headless=new
+--remote-debugging-port --no-sandbox --disable-gpu`), `vite preview` on a throwaway port,
+service worker unregistered and the `peptidescr` IndexedDB deleted before every fresh
+pass. Confirmed: no flash with `theme: 'light'` stored (see the bug above — now clean);
+`system` mode follows `Emulation.setEmulatedMedia('prefers-color-scheme')` live in both
+directions without a reload; Home/Calculator/Protocols/Settings walked at 390px in both
+themes with zero console errors/exceptions; the protocol form's `Switch` and Settings'
+segmented control screenshotted in both themes and visually reviewed (dark-ink thumb on
+light-grey track in light mode, near-white thumb on dark track in dark mode — both clearly
+legible); the theme switcher and quick-toggle both persist correctly across a reload; all
+throwaway vite-preview/chromium processes killed by exact PID afterward (matched via the
+unique scratchpad `--user-data-dir` path, not a broad pattern).
+
+**For the project owner to specifically review:** the plan's own risk note says light mode
+"touches every screen visually even though it changes little code" — screenshots were
+reviewed for Home, Calculator, Protocols (list + empty state), the protocol form, Settings,
+and onboarding's language step, in both themes, and everything read correctly to me, but a
+human designer's eye on the actual device is still worth it before shipping, particularly
+the amber warn family and the new destructive ring/tint on light (never battle-tested
+against a real missed-dose card, since seeding one wasn't in scope for this pass).
+
 ## 2026-09-19 — Two bug fixes: calculator checklist never checking off, onboarding language not switching live
 
 Two small, unrelated fixes requested alongside the light-mode/settings-IA/nav plan work.

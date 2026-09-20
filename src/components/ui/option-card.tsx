@@ -45,11 +45,16 @@ export function OptionCard({
       {Icon && (
         <span
           className={cn(
+            // Selected renders as a solid fill (not just a stronger tint of
+            // the same accent used for the whole selected card behind it) —
+            // a translucent primary/20 badge on top of the equally-tinted
+            // bg-accent card collapsed to nearly the same colour in light
+            // mode. A solid vs. soft-tint contrast holds at any palette.
             'flex size-10 shrink-0 items-center justify-center rounded-full transition-colors',
-            selected ? 'bg-primary/20' : 'bg-accent',
+            selected ? 'bg-primary' : 'bg-accent',
           )}
         >
-          <Icon className="size-5 text-primary" />
+          <Icon className={cn('size-5', selected ? 'text-primary-foreground' : 'text-primary')} />
         </span>
       )}
 

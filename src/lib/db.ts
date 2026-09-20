@@ -1,7 +1,7 @@
 import Dexie, { type EntityTable } from 'dexie'
 import { COMPOUNDS, type Compound } from '../content/compounds'
 import type { Schedule } from './schedule'
-import type { Locale, SyringeType } from './units'
+import type { Locale, SyringeType, ThemeMode } from './units'
 
 export type DoseStatus = 'taken' | 'skipped'
 export type Route = 'subcutaneous' | 'intramuscular' | 'other'
@@ -66,6 +66,12 @@ export interface Settings {
    * wizard including language/install/notifications). See App.tsx.
    */
   onboardingCompletedAt?: string // ISO datetime
+  /**
+   * Optional so no Dexie version bump is needed (`settings: 'id'` indexes
+   * only the key; existing rows stay valid with this field simply absent).
+   * Missing/undefined means 'system' — see src/lib/theme.ts for resolution.
+   */
+  theme?: ThemeMode
 }
 
 export interface Snapshot {

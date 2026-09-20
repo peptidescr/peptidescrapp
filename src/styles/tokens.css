@@ -24,8 +24,10 @@
  * intentionally NOT sourced from the brand — it's a deliberately
  * non-alarming amber for measurement-accuracy notices (see units.ts).
  *
- * Previous light-theme values (kept here only for reference, not active —
- * see NOTES.md if a light mode is wanted later):
+ * Light mode (2026-09-19): the block below revives exactly the values
+ * documented here, now active behind `:root[data-theme='light']`. See the
+ * light-mode NOTES.md entry for the mechanism (why `--brand-*`, not
+ * `--color-*`) and the values kept:
  *   primary #046bd2 / primary-dk #092771 / primary-lt #e6f0fb
  *   ink #1e293b / muted #64748b / surface #ffffff / surface-2 #f0f5fa
  *   border #d1d5db / warn #b0672a / warn-lt #fbf1e7
@@ -48,6 +50,10 @@
      never framed as danger — see units.ts). */
   --destructive: #f87171;
   --destructive-foreground: #171717;
+  /* Missed/overdue dose cards read as "lit" via this glow — reads correctly
+     only on a true-black page, so the light block below replaces it with a
+     ring + tint instead of tuning the same shadow shape. See DoseCard.tsx. */
+  --destructive-glow: 0 0 24px -8px var(--destructive);
 
   /* PeptIQ's primary CTA is a white pill with black text rather than an
      accent-filled button — it's the single loudest thing on their screen and
@@ -68,4 +74,41 @@
   --font-sans:
     'Instrument Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
     Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+}
+
+/*
+ * Light mode. JS (src/lib/theme.ts) always resolves 'system' to a concrete
+ * theme and sets this attribute on <html> — this selector never has to
+ * compete with a media query. Overriding at the --brand-* / --destructive*
+ * layer (not --color-*) is deliberate: src/index.css's `@theme` block is
+ * NOT `@theme inline`, so every --color-* semantic token is late-bound as
+ * var(--brand-*) and re-resolves automatically. It also catches the 5 call
+ * sites that read --brand-* names directly (bg-brand-warn-lt/text-brand-warn
+ * in HomeScreen/NotificationPanel/CalculatorScreen, and
+ * active:bg-brand-primary-dk in button-variants.ts) for free.
+ *
+ * Only properties that actually need a different light value are listed —
+ * --brand-contrast/-foreground, --radius and the font stacks aren't
+ * redefined here and simply cascade down from the dark :root block above.
+ */
+:root[data-theme='light'] {
+  --brand-primary: #046bd2;
+  --brand-primary-dk: #092771;
+  --brand-primary-lt: #e6f0fb;
+  --brand-ink: #1e293b;
+  --brand-muted: #64748b;
+  --brand-surface: #ffffff;
+  --brand-surface-2: #f0f5fa;
+  --brand-border: #d1d5db;
+  --brand-warn: #b0672a;
+  --brand-warn-lt: #fbf1e7;
+
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  /* A glow only reads as "lit" on a black page — on light it was a muddy
+     smudge, so this is a crisp ring plus a soft tinted drop shadow instead,
+     not a tuned version of the same shadow shape. */
+  --destructive-glow:
+    0 0 0 1.5px var(--destructive),
+    0 6px 16px -6px rgb(220 38 38 / 0.35);
 }

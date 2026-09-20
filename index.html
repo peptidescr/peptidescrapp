@@ -15,6 +15,37 @@
     <meta name="apple-mobile-web-app-title" content="peptidescr" />
 
     <title>peptidescr</title>
+
+    <!--
+      Pre-paint theme resolution. Settings.theme (the source of truth) lives
+      in Dexie, which is async — by the time it loads the app has already
+      painted. This synchronous read of the localStorage mirror that
+      src/lib/theme.ts's applyTheme() writes on every change is what avoids a
+      flash of the wrong theme. Runs as a plain classic script (not
+      type="module", which is deferred) so it executes immediately, before
+      the module script and before anything is painted. Deliberately tiny
+      and dependency-free; the 'peptidescr:theme' key and the two theme-color
+      hex values must be kept in sync with src/lib/theme.ts by hand.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('peptidescr:theme')
+          var theme =
+            stored === 'light' || stored === 'dark'
+              ? stored
+              : window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light'
+          document.documentElement.setAttribute('data-theme', theme)
+          var meta = document.querySelector('meta[name="theme-color"]')
+          if (meta) meta.setAttribute('content', theme === 'light' ? '#f0f5fa' : '#000000')
+        } catch (e) {
+          // localStorage can throw (private mode, disabled) — default stays
+          // dark, matching tokens.css's base :root block.
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>
