@@ -19,7 +19,7 @@ import { ProtocolForm } from './ProtocolsScreen'
 type Step = 1 | 2 | 3 | 4 | 5 | 6
 const TOTAL_STEPS = 6
 
-export function OnboardingScreen({ onComplete }: { onComplete: () => void }) {
+export function OnboardingScreen({ onComplete }: { onComplete: (calculatorProtocolId?: string) => void }) {
   const { t, i18n } = useTranslation()
   const [step, setStep] = useState<Step>(1)
   const locale = (i18n.language === 'en' ? 'en' : 'es-CR') as Locale
@@ -35,9 +35,10 @@ export function OnboardingScreen({ onComplete }: { onComplete: () => void }) {
     setStep((s) => (s > 1 ? ((s - 1) as Step) : s))
   }
 
-  async function finishOnboarding() {
+  /** `calculatorProtocolId` is set when the user accepted the "reconstitute next" offer for their first protocol. */
+  async function finishOnboarding(calculatorProtocolId?: string) {
     await updateSettings({ onboardingCompletedAt: new Date().toISOString() })
-    onComplete()
+    onComplete(calculatorProtocolId)
   }
 
   return (
@@ -78,8 +79,8 @@ export function OnboardingScreen({ onComplete }: { onComplete: () => void }) {
             {step === 5 && <NotificationStep onNext={() => setStep(6)} />}
             {step === 6 && (
               <FirstProtocolStep
-                onDone={finishOnboarding}
-                onSkip={finishOnboarding}
+                onDone={(protocolId) => void finishOnboarding(protocolId)}
+                onSkip={() => void finishOnboarding()}
                 onHeaderModeChange={setInnerStepOwnsHeader}
               />
             )}
@@ -277,7 +278,8 @@ function FirstProtocolStep({
   onSkip,
   onHeaderModeChange,
 }: {
-  onDone: () => void
+  /** Finish onboarding; `protocolId` is passed when the user chose to reconstitute right away. */
+  onDone: (protocolId?: string) => void
   onSkip: () => void
   /** Reported up so the outer wizard can hide its own back/progress row while this step shows its own. */
   onHeaderModeChange: (ownsHeader: boolean) => void
@@ -306,7 +308,14 @@ function FirstProtocolStep({
   }
 
   if (mode !== 'intro') {
-    return <ProtocolForm template={mode.template} onDone={onDone} onCancel={() => setMode('picker')} />
+    return (
+      <ProtocolForm
+        template={mode.template}
+        onDone={() => onDone()}
+        onCancel={() => setMode('picker')}
+        onReconstitute={onDone}
+      />
+    )
   }
 
   return (

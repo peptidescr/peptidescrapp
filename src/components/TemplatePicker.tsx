@@ -3,7 +3,7 @@ import { motion } from 'motion/react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
-import { getCompoundById } from '../content/compounds'
+import { compareAlphabetical, getCompoundById } from '../content/compounds'
 import { PROTOCOL_TEMPLATES, type ProtocolTemplate } from '../content/protocolTemplates'
 import { formatDecimal, type Locale } from '../lib/units'
 
@@ -32,7 +32,7 @@ export function TemplatePicker({ onSelectTemplate, onSelectCustom }: TemplatePic
       const c = getCompoundById(template.compoundId)?.category
       if (c) seen.add(c)
     }
-    return [...seen].sort((a, b) => a.localeCompare(b))
+    return [...seen].sort(compareAlphabetical)
   }, [])
 
   const results = useMemo(() => {
@@ -45,7 +45,7 @@ export function TemplatePicker({ onSelectTemplate, onSelectCustom }: TemplatePic
       // template in Spanish rather than only matching the English compound id.
       const haystack = `${t(template.nameKey)} ${compound?.name ?? ''} ${compound?.category ?? ''}`.toLowerCase()
       return haystack.includes(needle)
-    })
+    }).sort((a, b) => compareAlphabetical(t(a.nameKey), t(b.nameKey)))
   }, [query, category, t])
 
   return (

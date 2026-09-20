@@ -1,6 +1,7 @@
 import {
   ChevronRight,
   ClipboardList,
+  FlaskConical,
   type LucideIcon,
   MoreVertical,
   Pause,
@@ -10,9 +11,11 @@ import {
   Trash2,
 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
+import { parseISO, startOfToday } from 'date-fns'
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { enUS, es } from 'react-day-picker/locale'
 import { DatePicker } from '@/components/DatePicker'
 import { TimePicker } from '@/components/TimePicker'
 import {
@@ -27,49 +30,64 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Calendar } from '@/components/ui/calendar'
 import { Card } from '@/components/ui/card'
+import { Combobox } from '@/components/ui/combobox'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { EmptyState } from '../components/EmptyState'
 import { AppHeader } from '../components/AppHeader'
+import { ProtocolSavedPrompt } from '../components/ProtocolSavedPrompt'
 import { TemplatePicker } from '../components/TemplatePicker'
-import { getCompoundById, listSelectableCompounds } from '../content/compounds'
-import type { ProtocolTemplate } from '../content/protocolTemplates'
+import { compareAlphabetical, getCompoundById, listSelectableCompounds } from '../content/compounds'
+import { PROTOCOL_TEMPLATES, type ProtocolTemplate } from '../content/protocolTemplates'
 import { formatDateTime, toIsoDate } from '../lib/dates'
 import { db, type DoseLog, type Protocol, type Route } from '../lib/db'
 import { computeProtocolStats } from '../lib/homeData'
 import { scheduleUpcomingReminders } from '../lib/notifications'
+import { alphabeticalOptions } from '../lib/options'
+import { requestPushSync } from '../lib/push'
 import type { Schedule, Weekday } from '../lib/schedule'
 import { useLiveQuery } from '../lib/useLiveQuery'
-import type { MassUnit } from '../lib/units'
+import { formatDecimal, type Locale, type MassUnit } from '../lib/units'
 
 /** Reminder scheduling (best-effort, Chromium-only — see notifications.ts) needs to pick
  * up new/changed/deactivated protocols right away, not just on the next app open. */
 async function rescheduleReminders(): Promise<void> {
   const protocols = await db.protocols.toArray()
   await scheduleUpcomingReminders(protocols)
+  requestPushSync()
 }
 
 const WEEKDAY_LABELS_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const
-const SCHEDULE_KINDS: Schedule['kind'][] = ['daily', 'everyNDays', 'weekdays', 'cycle']
+const SCHEDULE_KINDS: Schedule['kind'][] = ['daily', 'everyNDays', 'weekdays', 'cycle', 'custom']
 const ROUTES: Route[] = ['subcutaneous', 'intramuscular', 'other']
 
 type Mode =
   | { kind: 'list' }
   | { kind: 'picker' }
-  | { kind: 'form'; protocolId?: string; template?: ProtocolTemplate }
+  | { kind: 'form'; protocolId?: string; template?: ProtocolTemplate; compoundId?: string }
 
 /** Mirrors the "My Protocols / Templates" tabs pattern from reference peptide-tracker
  * apps — templates are browsable any time, not just at the moment of creation. */
 type ListTab = 'mine' | 'templates'
 
-export function ProtocolsScreen() {
+interface ProtocolsScreenProps {
+  /** Opens the calculator for a protocol — the "next step" offered right after saving a new one. */
+  onReconstitute: (protocolId: string) => void
+  /** Open straight into a new-protocol form for this compound (from the calculator's "create a protocol"). */
+  initialCompoundId?: string
+}
+
+export function ProtocolsScreen({ onReconstitute, initialCompoundId }: ProtocolsScreenProps) {
   const { t } = useTranslation()
   const protocols = useLiveQuery(() => db.protocols.toArray(), [])
   const doseLogs = useLiveQuery(() => db.doseLogs.toArray(), [])
-  const [mode, setMode] = useState<Mode>({ kind: 'list' })
+  const [mode, setMode] = useState<Mode>(
+    initialCompoundId ? { kind: 'form', compoundId: initialCompoundId } : { kind: 'list' },
+  )
   const [listTab, setListTab] = useState<ListTab>('mine')
 
   if (mode.kind === 'picker') {
@@ -89,7 +107,9 @@ export function ProtocolsScreen() {
       <ProtocolForm
         protocolId={mode.protocolId}
         template={mode.template}
+        initialCompoundId={mode.compoundId}
         onDone={() => setMode({ kind: 'list' })}
+        onReconstitute={onReconstitute}
       />
     )
   }
@@ -205,7 +225,8 @@ function ProtocolRow({
   doseLogs: DoseLog[]
   onEdit: () => void
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = i18n.language as Locale
   const compound = getCompoundById(protocol.compoundId)
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -214,7 +235,12 @@ function ProtocolRow({
 
   async function toggleActive() {
     setMenuOpen(false)
-    await db.protocols.update(protocol.id, { isActive: !protocol.isActive })
+    // Resuming restarts tracking from now: the days it spent paused weren't
+    // missed doses, so they must not reappear as a backlog on Home.
+    await db.protocols.update(protocol.id, {
+      isActive: !protocol.isActive,
+      ...(protocol.isActive ? {} : { trackingStartsAt: new Date().toISOString() }),
+    })
     void rescheduleReminders()
   }
 
@@ -287,6 +313,24 @@ function ProtocolRow({
         )}
       </div>
 
+      {protocol.reconstitution && (
+        <p className="mx-4 mt-3 flex items-start gap-2 rounded-2xl bg-accent px-3 py-2 text-sm text-foreground">
+          <FlaskConical className="mt-0.5 size-4 shrink-0 text-primary" />
+          {protocol.reconstitution.diluentMl === undefined
+            ? t('protocols.mixSummarySolution', {
+                units: formatDecimal(protocol.reconstitution.drawSyringeUnits, locale, 1),
+                ml: formatDecimal(protocol.reconstitution.drawVolumeMl, locale, 3),
+                dose: `${formatDecimal(protocol.reconstitution.doseAmount, locale, 3)} ${protocol.reconstitution.doseUnit}`,
+              })
+            : t('protocols.mixSummary', {
+                water: formatDecimal(protocol.reconstitution.diluentMl, locale, 2),
+                units: formatDecimal(protocol.reconstitution.drawSyringeUnits, locale, 1),
+                ml: formatDecimal(protocol.reconstitution.drawVolumeMl, locale, 3),
+                dose: `${formatDecimal(protocol.reconstitution.doseAmount, locale, 3)} ${protocol.reconstitution.doseUnit}`,
+              })}
+        </p>
+      )}
+
       {stats.nextOccurrence && (
         <button
           type="button"
@@ -355,6 +399,8 @@ interface ProtocolFormProps {
   protocolId?: string
   /** Prefills a new protocol's fields from a starter template — still fully editable before saving. */
   template?: ProtocolTemplate
+  /** Preselects the compound on a new protocol (the calculator's "create a protocol" shortcut). */
+  initialCompoundId?: string
   onDone: () => void
   /**
    * Where the header's back button goes. Defaults to `onDone` — fine for the
@@ -364,24 +410,55 @@ interface ProtocolFormProps {
    * entire wizard (which is what `onDone` means in that context).
    */
   onCancel?: () => void
+  /**
+   * When provided, saving a NEW protocol shows the "next step: reconstitute"
+   * offer instead of returning straight away. Editing an existing protocol
+   * never shows it — that person already made their way through it once.
+   */
+  onReconstitute?: (protocolId: string) => void
 }
 
 /** Exported so Onboarding's "create your first protocol" step can reuse this exact form. */
-export function ProtocolForm({ protocolId, template, onDone, onCancel }: ProtocolFormProps) {
-  const { t } = useTranslation()
+export function ProtocolForm({
+  protocolId,
+  template,
+  initialCompoundId,
+  onDone,
+  onCancel,
+  onReconstitute,
+}: ProtocolFormProps) {
+  const { t, i18n } = useTranslation()
   const existing = useLiveQuery(
     () => (protocolId ? db.protocols.get(protocolId) : undefined),
     [protocolId],
   )
   const compounds = useMemo(() => listSelectableCompounds(), [])
 
+  const compoundOptions = useMemo(
+    () => compounds.map((c) => ({ value: c.id, label: c.name, hint: c.category })),
+    [compounds],
+  )
+  const scheduleOptions = useMemo(() => alphabeticalOptions(SCHEDULE_KINDS, (k) => t(`schedule.${k}`)), [t])
+  const routeOptions = useMemo(() => alphabeticalOptions(ROUTES, (r) => t(`route.${r}`)), [t])
+  // Free-text field with suggestions: template and compound names are the
+  // things people actually call a protocol, so they're offered, not required.
+  const nameOptions = useMemo(() => {
+    const names = new Set<string>([...PROTOCOL_TEMPLATES.map((tpl) => t(tpl.nameKey)), ...compounds.map((c) => c.name)])
+    return [...names].sort(compareAlphabetical).map((n) => ({ value: n, label: n }))
+  }, [t, compounds])
+
+  const initialCompound = compounds.find((c) => c.id === (template?.compoundId ?? initialCompoundId))
+
   const [loaded, setLoaded] = useState(!protocolId)
+  const [saved, setSaved] = useState<Protocol | null>(null)
   const [name, setName] = useState(template ? t(template.nameKey) : '')
-  const [compoundId, setCompoundId] = useState(template?.compoundId ?? compounds[0]?.id ?? '')
+  const [compoundId, setCompoundId] = useState(initialCompound?.id ?? compounds[0]?.id ?? '')
   const [doseAmount, setDoseAmount] = useState(
     template ? String(template.doseAmount).replace('.', ',') : '',
   )
-  const [doseUnit, setDoseUnit] = useState<MassUnit | 'IU'>(template?.doseUnit ?? 'mg')
+  const [doseUnit, setDoseUnit] = useState<MassUnit | 'IU'>(
+    template?.doseUnit ?? initialCompound?.defaultUnit ?? 'mg',
+  )
   const [scheduleKind, setScheduleKind] = useState<Schedule['kind']>(template?.schedule.kind ?? 'daily')
   const [everyN, setEveryN] = useState(
     template?.schedule.kind === 'everyNDays' ? String(template.schedule.n) : '2',
@@ -395,6 +472,7 @@ export function ProtocolForm({ protocolId, template, onDone, onCancel }: Protoco
   const [daysOff, setDaysOff] = useState(
     template?.schedule.kind === 'cycle' ? String(template.schedule.daysOff) : '2',
   )
+  const [customDates, setCustomDates] = useState<string[]>([])
   const [reminderTimes, setReminderTimes] = useState<string[]>(template?.reminderTimes ?? ['08:00'])
   const [startDate, setStartDate] = useState(toIsoDate(new Date()))
   const [hasEndDate, setHasEndDate] = useState(false)
@@ -413,6 +491,7 @@ export function ProtocolForm({ protocolId, template, onDone, onCancel }: Protoco
       setDaysOn(String(existing.schedule.daysOn))
       setDaysOff(String(existing.schedule.daysOff))
     }
+    if (existing.schedule.kind === 'custom') setCustomDates(existing.schedule.dates)
     setReminderTimes(existing.reminderTimes.length ? existing.reminderTimes : ['08:00'])
     setStartDate(existing.startDate)
     setHasEndDate(Boolean(existing.endDate))
@@ -437,29 +516,59 @@ export function ProtocolForm({ protocolId, template, onDone, onCancel }: Protoco
           daysOn: Math.max(1, Number(daysOn) || 1),
           daysOff: Math.max(0, Number(daysOff) || 0),
         }
+      case 'custom':
+        return { kind: 'custom', dates: [...customDates].sort() }
     }
   }
 
-  const canSave = compound !== undefined && doseAmount.trim() !== '' && reminderTimes.length > 0
+  const needsCustomDays = scheduleKind === 'custom' && customDates.length === 0
+  const canSave =
+    compound !== undefined && doseAmount.trim() !== '' && reminderTimes.length > 0 && !needsCustomDays
 
   async function handleSave() {
     if (!compound) return
+    const schedule = scheduleFromForm()
+    // A hand-picked schedule has no meaningful start/end of its own — its
+    // first and last picked days are the start and end, which also keeps
+    // "ongoing" and "next dose" logic elsewhere honest without special cases.
+    const customDays = schedule.kind === 'custom' ? schedule.dates : null
+    const effectiveStart = customDays ? customDays[0]! : startDate
+    const effectiveEnd = customDays ? customDays[customDays.length - 1] : hasEndDate && endDate ? endDate : undefined
+
+    // Doses whose time has already passed by the moment of saving were never
+    // "missed" — the app didn't know about them yet. Restart tracking from
+    // now whenever the schedule itself changes; leave it alone for edits to
+    // things like the name or dose so an unrelated tweak can't quietly erase
+    // a genuinely missed dose.
+    const scheduleUnchanged =
+      existing !== undefined &&
+      JSON.stringify([schedule, reminderTimes, effectiveStart, effectiveEnd]) ===
+        JSON.stringify([existing.schedule, existing.reminderTimes, existing.startDate, existing.endDate])
+
     const protocol: Protocol = {
       id: protocolId ?? crypto.randomUUID(),
       name: name.trim(),
       compoundId: compound.id,
       doseAmount: Number(doseAmount.replace(',', '.')) || 0,
       doseUnit: doseUnit,
-      schedule: scheduleFromForm(),
+      schedule,
       reminderTimes,
-      startDate,
-      endDate: hasEndDate && endDate ? endDate : undefined,
+      startDate: effectiveStart,
+      endDate: effectiveEnd,
       route,
       isActive: existing?.isActive ?? true,
+      trackingStartsAt: scheduleUnchanged ? existing?.trackingStartsAt : new Date().toISOString(),
+      // A saved mix is for one specific compound; carrying it across a change
+      // of compound would show the wrong draw volume.
+      reconstitution: existing?.compoundId === compound.id ? existing.reconstitution : undefined,
     }
     await db.protocols.put(protocol)
     void rescheduleReminders()
-    onDone()
+    if (!protocolId && onReconstitute) {
+      setSaved(protocol)
+    } else {
+      onDone()
+    }
   }
 
   function updateReminderTime(index: number, value: string) {
@@ -478,6 +587,19 @@ export function ProtocolForm({ protocolId, template, onDone, onCancel }: Protoco
     setWeekdays((days) => (days.includes(day) ? days.filter((d) => d !== day) : [...days, day].sort()))
   }
 
+  if (saved && onReconstitute) {
+    return (
+      <ProtocolSavedPrompt
+        protocol={saved}
+        onReconstitute={() => onReconstitute(saved.id)}
+        onSkip={onDone}
+      />
+    )
+  }
+
+  const selectedCustomDates = customDates.map((d) => parseISO(d))
+  const today = startOfToday()
+
   return (
     <div className="flex flex-col gap-5 px-4 pb-6 pt-4">
       <AppHeader
@@ -486,34 +608,27 @@ export function ProtocolForm({ protocolId, template, onDone, onCancel }: Protoco
       />
 
       <FormField label={t('protocols.compound')}>
-        <Select
+        <Combobox
           value={compoundId}
           onValueChange={(value) => {
             setCompoundId(value)
             const c = compounds.find((x) => x.id === value)
             if (c) setDoseUnit(c.defaultUnit)
           }}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {compounds.map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          options={compoundOptions}
+          emptyText={t('common.noMatches')}
+        />
       </FormField>
 
       <FormField label={t('protocols.name')}>
-        <Input
-          type="text"
+        <Combobox
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onValueChange={setName}
+          options={nameOptions}
+          allowCustom
           placeholder={compound?.name}
-          />
+          emptyText={t('common.noMatches')}
+        />
       </FormField>
 
       <FormField label={t('protocols.doseAmount')}>
@@ -552,9 +667,9 @@ export function ProtocolForm({ protocolId, template, onDone, onCancel }: Protoco
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {SCHEDULE_KINDS.map((kind) => (
-              <SelectItem key={kind} value={kind}>
-                {t(`schedule.${kind}`)}
+            {scheduleOptions.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -568,7 +683,7 @@ export function ProtocolForm({ protocolId, template, onDone, onCancel }: Protoco
             min={1}
             value={everyN}
             onChange={(e) => setEveryN(e.target.value)}
-              />
+          />
         </FormField>
       )}
 
@@ -601,7 +716,7 @@ export function ProtocolForm({ protocolId, template, onDone, onCancel }: Protoco
               min={1}
               value={daysOn}
               onChange={(e) => setDaysOn(e.target.value)}
-                  />
+            />
           </FormField>
           <FormField label={t('protocols.daysOff')}>
             <Input
@@ -609,8 +724,39 @@ export function ProtocolForm({ protocolId, template, onDone, onCancel }: Protoco
               min={0}
               value={daysOff}
               onChange={(e) => setDaysOff(e.target.value)}
-                  />
+            />
           </FormField>
+        </div>
+      )}
+
+      {scheduleKind === 'custom' && (
+        <div className="flex flex-col gap-2">
+          <span className="text-sm font-medium text-foreground">{t('protocols.customDays')}</span>
+          <p className="text-sm text-muted-foreground">{t('protocols.customDaysHint')}</p>
+          <div className="relative rounded-2xl border border-border bg-card p-2">
+            <Calendar
+              mode="multiple"
+              selected={selectedCustomDates}
+              onSelect={(dates) => setCustomDates((dates ?? []).map(toIsoDate).sort())}
+              locale={i18n.language === 'en' ? enUS : es}
+              // Past days can't be newly picked (they'd instantly read as
+              // missed), but a day already in an edited protocol stays
+              // deselectable.
+              disabled={(date) => date < today && !customDates.includes(toIsoDate(date))}
+              classNames={{
+                month_grid: 'w-full border-collapse mt-2',
+                weekday: 'flex-1 text-muted-foreground text-xs font-medium text-center',
+                day: 'relative h-11 flex-1 p-0 text-center text-sm',
+                day_button:
+                  'inline-flex size-full items-center justify-center rounded-lg text-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring',
+              }}
+            />
+          </div>
+          <p className={`text-sm ${needsCustomDays ? 'text-destructive' : 'text-muted-foreground'}`} aria-live="polite">
+            {needsCustomDays
+              ? t('protocols.customDaysRequired')
+              : t('protocols.customDaysCount', { count: customDates.length })}
+          </p>
         </div>
       )}
 
@@ -642,18 +788,22 @@ export function ProtocolForm({ protocolId, template, onDone, onCancel }: Protoco
         </div>
       </FormField>
 
-      <FormField label={t('protocols.startDate')}>
-        <DatePicker value={startDate} onChange={setStartDate} />
-      </FormField>
+      {scheduleKind !== 'custom' && (
+        <>
+          <FormField label={t('protocols.startDate')}>
+            <DatePicker value={startDate} onChange={setStartDate} />
+          </FormField>
 
-      <FormField label={t('protocols.endDate')}>
-        <div className="flex items-center gap-3">
-          <Switch checked={hasEndDate} onCheckedChange={setHasEndDate} />
-          <div className="flex-1">
-            <DatePicker value={endDate} onChange={setEndDate} disabled={!hasEndDate} />
-          </div>
-        </div>
-      </FormField>
+          <FormField label={t('protocols.endDate')}>
+            <div className="flex items-center gap-3">
+              <Switch checked={hasEndDate} onCheckedChange={setHasEndDate} />
+              <div className="flex-1">
+                <DatePicker value={endDate} onChange={setEndDate} disabled={!hasEndDate} />
+              </div>
+            </div>
+          </FormField>
+        </>
+      )}
 
       <FormField label={t('protocols.route')}>
         <Select value={route} onValueChange={(v) => setRoute(v as Route)}>
@@ -661,9 +811,9 @@ export function ProtocolForm({ protocolId, template, onDone, onCancel }: Protoco
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {ROUTES.map((r) => (
-              <SelectItem key={r} value={r}>
-                {t(`route.${r}`)}
+            {routeOptions.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
               </SelectItem>
             ))}
           </SelectContent>

@@ -8,7 +8,8 @@
     "save": "Guardar",
     "delete": "Eliminar",
     "edit": "Editar",
-    "back": "Atrás"
+    "back": "Atrás",
+    "noMatches": "Sin coincidencias"
   },
   "nav": {
     "home": "Inicio",
@@ -37,7 +38,23 @@
     "drawVolume": "Extraer (mL)",
     "drawSyringeUnits": "Extraer (unidades {{syringeType}})",
     "dosesRemaining": "Dosis restantes en el vial",
-    "lowVolumeWarning": "Este volumen es tan pequeño que puede ser difícil medirlo con precisión en esta jeringa."
+    "lowVolumeWarning": "Este volumen es tan pequeño que puede ser difícil medirlo con precisión en esta jeringa.",
+    "step1": "¿Qué vas a mezclar?",
+    "step2Powder": "¿Cuánto diluyente?",
+    "step2Solution": "¿Cuál es la concentración?",
+    "step3": "¿Qué dosis querés?",
+    "bacWaterToAdd": "Agua BAC a agregar:",
+    "bacWaterHelp": "El agua BAC es agua bacteriostática: agua estéril con un conservante. Es con lo que se mezcla el polvo.",
+    "quickFill": "Llenado rápido",
+    "saveTitle": "Guardar en un protocolo",
+    "saveBody": "Guardá esta mezcla en uno de tus protocolos activos para ver cuánto extraer.",
+    "saveCta": "Guardar en el protocolo",
+    "updateCta": "Actualizar mezcla guardada",
+    "saved": "Guardado en \"{{name}}\".",
+    "alreadySaved": "Ya guardada",
+    "noActiveProtocol": "Todavía no tenés un protocolo activo para {{compound}}.",
+    "createProtocolCta": "Crear un protocolo",
+    "forProtocol": "Mezcla para \"{{name}}\""
   },
   "protocols": {
     "new": "Nuevo",
@@ -78,13 +95,29 @@
     "deleteDialogTitle": "¿Eliminar este protocolo?",
     "deleteDialogDescription": "Se va a eliminar \"{{name}}\" y sus recordatorios. Las dosis que ya registraste quedan en tu historial.",
     "emptyCreateCta": "Crear un protocolo",
-    "emptyTemplatesCta": "Ver plantillas"
+    "emptyTemplatesCta": "Ver plantillas",
+    "customDays": "Elegí tus días",
+    "customDaysHint": "Tocá cualquier día en el calendario. No tienen que seguir un patrón.",
+    "customDaysCount_one": "{{count}} día seleccionado",
+    "customDaysCount_other": "{{count}} días seleccionados",
+    "customDaysRequired": "Elegí al menos un día para guardar.",
+    "savedTitle": "Protocolo guardado",
+    "savedBody": "Siguiente paso: mezclar tu vial. La calculadora te dice cuánta agua agregar y cuánto extraer para {{dose}}.",
+    "reconstituteNow": "Reconstituir ahora",
+    "notNow": "Ahora no",
+    "remindersTitle": "Recibí un recordatorio por cada dosis",
+    "remindersBody": "Activá las notificaciones y te avisamos cuando sea hora de una dosis.",
+    "mixSummary": "Mezcla: {{water}} mL de agua · extraer {{units}} unidades ({{ml}} mL) para {{dose}}",
+    "mixSummarySolution": "Lista para usar · extraer {{units}} unidades ({{ml}} mL) para {{dose}}",
+    "namePlaceholderHint": "ej. Mi mezcla de la mañana",
+    "savedBodySolution": "Siguiente paso: calcular cuánto extraer para {{dose}}. La calculadora lo hace con la concentración del frasco."
   },
   "schedule": {
     "daily": "Diario",
     "everyNDays": "Cada N días",
     "weekdays": "Días específicos",
-    "cycle": "Ciclo (activo/descanso)"
+    "cycle": "Ciclo (activo/descanso)",
+    "custom": "Días personalizados"
   },
   "weekday": {
     "sun": "Do",
@@ -178,7 +211,8 @@
     "enableNudgeTitle": "Activá las notificaciones",
     "enableNudgeBody": "Recibí un aviso cuando sea hora de tu próxima dosis.",
     "emptyTitle": "Estás al día",
-    "emptyBody": "No tenés nada pendiente en este momento."
+    "emptyBody": "No tenés nada pendiente en este momento.",
+    "doseDueBody": "Es hora de tu dosis de {{dose}} ({{time}})."
   },
   "settings": {
     "language": "Idioma",
@@ -198,8 +232,15 @@
       "granted": "Las notificaciones están activadas.",
       "denied": "Las notificaciones están bloqueadas. Activalas para peptidescr en los ajustes de tu dispositivo.",
       "notAsked": "Las notificaciones todavía no están activadas.",
-      "reliabilityNote": "Cada vez que abrís la aplicación, todo lo que venció mientras estaba cerrada aparece en Inicio con un toque para registrarlo — esa parte siempre funciona, con o sin notificaciones.",
-      "enable": "Activar notificaciones"
+      "reliabilityNote": "Los recordatorios llegan mientras peptidescr está abierta o corriendo en segundo plano. Si tu teléfono cerró la aplicación por completo, el recordatorio no puede llegar hasta que la abrás de nuevo — todo lo que venció mientras tanto aparece en Inicio con un toque para registrarlo.",
+      "enable": "Activar notificaciones",
+      "testCta": "Enviar una notificación de prueba",
+      "testTitle": "peptidescr",
+      "testBody": "Las notificaciones funcionan.",
+      "testSent": "Notificación de prueba enviada.",
+      "testFailed": "No se pudo mostrar una notificación. Revisá los ajustes de notificaciones de peptidescr en tu dispositivo.",
+      "reliabilityNotePush": "Los recordatorios llegan incluso con la aplicación cerrada. Todo lo que venció mientras tu teléfono estaba apagado o sin conexión aparece en Inicio con un toque para registrarlo.",
+      "pushNote": "Para entregar recordatorios con la aplicación cerrada, la dirección de notificaciones anónima de tu dispositivo y las horas de tus próximos recordatorios se envían a nuestro servidor. Los nombres de compuestos y las dosis nunca salen de tu dispositivo."
     },
     "install": {
       "title": "Instalación",
@@ -286,15 +327,33 @@
     "custom": "Protocolo personalizado",
     "customDescription": "Elegí tu propio compuesto, dosis y horario desde cero.",
     "items": {
-      "wolverine": { "name": "Wolverine" },
-      "jointSupport": { "name": "Soporte Articular" },
-      "weightLossBeginner": { "name": "Pérdida de Peso — Principiante" },
-      "sleepOptimization": { "name": "Optimización del Sueño" },
-      "skinRejuvenation": { "name": "Rejuvenecimiento de Piel" },
-      "recomposition": { "name": "Recomposición Corporal" },
-      "longevityBasics": { "name": "Longevidad — Básico" },
-      "ghBlast": { "name": "Impulso GH" },
-      "brainBoost": { "name": "Impulso Cognitivo" }
+      "wolverine": {
+        "name": "Wolverine"
+      },
+      "jointSupport": {
+        "name": "Soporte Articular"
+      },
+      "weightLossBeginner": {
+        "name": "Pérdida de Peso — Principiante"
+      },
+      "sleepOptimization": {
+        "name": "Optimización del Sueño"
+      },
+      "skinRejuvenation": {
+        "name": "Rejuvenecimiento de Piel"
+      },
+      "recomposition": {
+        "name": "Recomposición Corporal"
+      },
+      "longevityBasics": {
+        "name": "Longevidad — Básico"
+      },
+      "ghBlast": {
+        "name": "Impulso GH"
+      },
+      "brainBoost": {
+        "name": "Impulso Cognitivo"
+      }
     },
     "searchPlaceholder": "Buscar plantillas",
     "filterAll": "Todas",

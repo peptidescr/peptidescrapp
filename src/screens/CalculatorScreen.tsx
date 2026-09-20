@@ -1,25 +1,21 @@
-import { AlertTriangle, FlaskConical, Info, RotateCcw, X } from 'lucide-react'
+import { AlertTriangle, Check, FlaskConical, Info, RotateCcw, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Combobox } from '@/components/ui/combobox'
 import { Input } from '@/components/ui/input'
 import { AppHeader } from '../components/AppHeader'
 import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
+  compareAlphabetical,
   listDiluents,
   listSelectableCompounds,
   vialSizeUnit,
   type Compound,
 } from '../content/compounds'
+import { db, type Protocol, type SavedReconstitution } from '../lib/db'
 import {
   mixFromSolutionIU,
   mixFromSolutionMass,
@@ -39,28 +35,36 @@ import {
   type MassUnit,
   type SyringeType,
 } from '../lib/units'
+import { useLiveQuery } from '../lib/useLiveQuery'
 import { updateSettings, useSettings } from '../lib/useSettings'
 
 const SYRINGE_TYPES: SyringeType[] = ['U-100', 'U-50', 'U-40']
 
-function groupByCategory(compounds: Compound[]): Map<string, Compound[]> {
-  const map = new Map<string, Compound[]>()
-  for (const c of compounds) {
-    const list = map.get(c.category) ?? []
-    list.push(c)
-    map.set(c.category, list)
-  }
-  return map
+/** What the calculator hands to "save to protocol" — everything in a saved mix except when it was saved. */
+type MixSnapshot = Omit<SavedReconstitution, 'savedAt'>
+
+interface CalculatorScreenProps {
+  /**
+   * A protocol this session is mixing for — set when arriving from the
+   * "reconstitute next" offer after saving one. Prefills the compound, dose
+   * and any previously saved mix, and preselects it as the save target.
+   */
+  protocolId?: string
+  /** "Create a protocol" from the save section, for a compound with no active protocol yet. */
+  onCreateProtocol: (compoundId: string) => void
 }
 
-export function CalculatorScreen() {
+export function CalculatorScreen({ protocolId, onCreateProtocol }: CalculatorScreenProps) {
   const { t, i18n } = useTranslation()
   const locale = i18n.language as Locale
   const settings = useSettings()
 
   const selectable = useMemo(() => listSelectableCompounds(), [])
   const diluents = useMemo(() => listDiluents(), [])
-  const grouped = useMemo(() => groupByCategory(selectable), [selectable])
+  const compoundOptions = useMemo(
+    () => selectable.map((c) => ({ value: c.id, label: c.name, hint: c.category })),
+    [selectable],
+  )
 
   const [compoundId, setCompoundId] = useState(selectable[0]?.id ?? '')
   const compound = selectable.find((c) => c.id === compoundId) ?? selectable[0]
@@ -72,6 +76,26 @@ export function CalculatorScreen() {
   const [doseUnit, setDoseUnit] = useState<MassUnit>('mg')
   const [syringeType, setSyringeType] = useState<SyringeType>(settings?.syringeType ?? 'U-100')
   const [showExplainer, setShowExplainer] = useState(true)
+  const [showBacHelp, setShowBacHelp] = useState(false)
+  const [saveTargetId, setSaveTargetId] = useState<string | null>(protocolId ?? null)
+
+  // Arriving from a protocol: fill in what the protocol already knows so the
+  // only thing left to enter is how much diluent went in. Same
+  // set-state-during-render shape as ProtocolForm's load of an existing
+  // protocol — runs once, when the live query first resolves.
+  const linked = useLiveQuery(() => (protocolId ? db.protocols.get(protocolId) : undefined), [protocolId])
+  const [prefilled, setPrefilled] = useState(!protocolId)
+  if (linked && !prefilled) {
+    const linkedCompound = selectable.find((c) => c.id === linked.compoundId)
+    setCompoundId(linked.compoundId)
+    setVialSize(linked.reconstitution?.vialSize ?? linkedCompound?.vialSizes[0] ?? 0)
+    setDoseInput(String(linked.doseAmount).replace('.', ','))
+    if (linked.doseUnit !== 'IU') setDoseUnit(linked.doseUnit)
+    if (linked.reconstitution?.diluentMl !== undefined) {
+      setDiluentMl(String(linked.reconstitution.diluentMl).replace('.', ','))
+    }
+    setPrefilled(true)
+  }
 
   function handleReset() {
     setCompoundId(selectable[0]?.id ?? '')
@@ -79,10 +103,12 @@ export function CalculatorScreen() {
     setDiluentMl('')
     setConcentrationInput('')
     setDoseInput('')
+    setSaveTargetId(null)
   }
 
   function handleSelectCompound(id: string) {
     setCompoundId(id)
+    setSaveTargetId(null)
     const next = selectable.find((c) => c.id === id)
     if (next) {
       setVialSize(next.vialSizes[0] ?? 0)
@@ -170,6 +196,20 @@ export function CalculatorScreen() {
 
   const unit = vialSizeUnit(compound)
 
+  const snapshot: MixSnapshot | null =
+    result && doseValue !== null
+      ? {
+          vialSize,
+          vialUnit: unit,
+          diluentMl: isSolution ? undefined : (diluentValue ?? undefined),
+          syringeType,
+          drawVolumeMl: result.drawVolumeMl,
+          drawSyringeUnits: result.drawSyringeUnits,
+          doseAmount: doseValue,
+          doseUnit: isIU ? 'IU' : doseUnit,
+        }
+      : null
+
   return (
     <div className="flex flex-col gap-6 px-4 pb-6 pt-4">
       <AppHeader
@@ -185,6 +225,13 @@ export function CalculatorScreen() {
           </button>
         }
       />
+
+      {linked && (
+        <p className="-mt-2 flex items-center gap-2 rounded-2xl bg-accent px-4 py-3 text-sm font-medium text-foreground">
+          <FlaskConical className="size-4 shrink-0 text-primary" />
+          {t('calculator.forProtocol', { name: linked.name || compound.name })}
+        </p>
+      )}
 
       {showExplainer && (
         <div className="flex items-start gap-3 rounded-2xl border border-border bg-accent px-4 py-3 text-sm">
@@ -203,93 +250,103 @@ export function CalculatorScreen() {
         </div>
       )}
 
-      <Field label={t('calculator.compound')}>
-        <Select value={compoundId} onValueChange={handleSelectCompound}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {[...grouped.entries()].map(([category, compounds]) => (
-              <SelectGroup key={category}>
-                <SelectLabel>{category}</SelectLabel>
-                {compounds.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
+      <Step number={1} title={t('calculator.step1')}>
+        <Field label={t('calculator.compound')}>
+          <Combobox
+            value={compoundId}
+            onValueChange={handleSelectCompound}
+            options={compoundOptions}
+            emptyText={t('common.noMatches')}
+          />
+        </Field>
+
+        {isSolution ? (
+          <Field label={t('calculator.bottleVolume', { unit: 'mL' })}>
+            <ChipSelect options={compound.vialSizes} value={vialSize} onChange={setVialSize} suffix="mL" />
+          </Field>
+        ) : (
+          <Field label={t('calculator.vialSize', { unit })}>
+            <ChipSelect options={compound.vialSizes} value={vialSize} onChange={setVialSize} suffix={unit} />
+          </Field>
+        )}
+      </Step>
 
       {isSolution ? (
-        <>
-          <Field label={t('calculator.bottleVolume', { unit: 'mL' })}>
-            <ChipSelect
-              options={compound.vialSizes}
-              value={vialSize}
-              onChange={setVialSize}
-              suffix="mL"
-            />
-          </Field>
+        <Step number={2} title={t('calculator.step2Solution')}>
           <Field label={t('calculator.concentration', { unit: isIU ? 'IU/mL' : `${doseUnit}/mL` })}>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
               <NumberInput value={concentrationInput} onChange={setConcentrationInput} />
               {!isIU && <UnitToggle unit={doseUnit} onChange={setDoseUnit} />}
             </div>
           </Field>
-        </>
+        </Step>
       ) : (
-        <>
-          <Field label={t('calculator.vialSize', { unit })}>
-            <ChipSelect options={compound.vialSizes} value={vialSize} onChange={setVialSize} suffix={unit} />
-          </Field>
-          <Field label={t('calculator.diluentVolume')}>
-            <NumberInput value={diluentMl} onChange={setDiluentMl} suffix="mL" />
-            <div className="mt-2 flex flex-wrap gap-2">
-              {diluents.flatMap((d) =>
-                d.vialSizes.map((size) => (
-                  <button
-                    key={`${d.id}-${size}`}
-                    type="button"
-                    onClick={() => setDiluentMl(String(size).replace('.', ','))}
-                    className="min-h-11 rounded-full border border-border px-3 text-sm text-muted-foreground active:bg-accent"
-                  >
-                    {d.name} {size}mL
-                  </button>
-                )),
-              )}
-            </div>
-          </Field>
-        </>
+        <Step number={2} title={t('calculator.step2Powder')}>
+          <div className="flex flex-col gap-2">
+            {/* The dashed underline marks the term as explainable — tapping
+                it opens a one-line definition of BAC water, for anyone who
+                hasn't met the term before. */}
+            <button
+              type="button"
+              onClick={() => setShowBacHelp((open) => !open)}
+              aria-expanded={showBacHelp}
+              className="min-h-8 self-start text-base text-muted-foreground underline decoration-dashed decoration-muted-foreground/60 underline-offset-[6px]"
+            >
+              {t('calculator.bacWaterToAdd')}
+            </button>
+            {showBacHelp && <p className="text-sm text-muted-foreground">{t('calculator.bacWaterHelp')}</p>}
+            <NumberInput
+              value={diluentMl}
+              onChange={setDiluentMl}
+              suffix="mL"
+              ariaLabel={t('calculator.bacWaterToAdd')}
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm text-muted-foreground">{t('calculator.quickFill')}</span>
+            {diluents.flatMap((d) =>
+              d.vialSizes.map((size) => (
+                <button
+                  key={`${d.id}-${size}`}
+                  type="button"
+                  onClick={() => setDiluentMl(String(size).replace('.', ','))}
+                  className="min-h-11 rounded-full border border-border px-3 text-sm text-muted-foreground active:bg-accent"
+                >
+                  {d.name} {size}mL
+                </button>
+              )),
+            )}
+          </div>
+        </Step>
       )}
 
-      <Field label={t('calculator.desiredDose', { unit: isIU ? 'IU' : doseUnit })}>
-        <div className="flex gap-2">
-          <NumberInput value={doseInput} onChange={setDoseInput} />
-          {!isIU && <UnitToggle unit={doseUnit} onChange={setDoseUnit} />}
-        </div>
-      </Field>
+      <Step number={3} title={t('calculator.step3')}>
+        <Field label={t('calculator.desiredDose', { unit: isIU ? 'IU' : doseUnit })}>
+          <div className="flex items-center gap-2">
+            <NumberInput value={doseInput} onChange={setDoseInput} />
+            {!isIU && <UnitToggle unit={doseUnit} onChange={setDoseUnit} />}
+          </div>
+        </Field>
 
-      <Field label={t('calculator.syringeType')}>
-        <div className="flex gap-2">
-          {SYRINGE_TYPES.map((type) => (
-            <button
-              key={type}
-              type="button"
-              onClick={() => handleSyringeChange(type)}
-              className={`min-h-11 flex-1 rounded-full border text-sm font-medium transition-colors ${
-                syringeType === type
-                  ? 'border-primary bg-accent text-primary'
-                  : 'border-border text-muted-foreground'
-              }`}
-            >
-              {type}
-            </button>
-          ))}
-        </div>
-      </Field>
+        <Field label={t('calculator.syringeType')}>
+          <div className="flex gap-2">
+            {SYRINGE_TYPES.map((type) => (
+              <button
+                key={type}
+                type="button"
+                onClick={() => handleSyringeChange(type)}
+                className={`min-h-11 flex-1 rounded-full border text-sm font-medium transition-colors ${
+                  syringeType === type
+                    ? 'border-primary bg-accent text-primary'
+                    : 'border-border text-muted-foreground'
+                }`}
+              >
+                {type}
+              </button>
+            ))}
+          </div>
+        </Field>
+      </Step>
 
       <Card>
         <CardHeader>
@@ -344,7 +401,143 @@ export function CalculatorScreen() {
           </AnimatePresence>
         </CardContent>
       </Card>
+
+      {snapshot && (
+        <SaveToProtocol
+          compound={compound}
+          snapshot={snapshot}
+          targetId={saveTargetId}
+          onTargetChange={setSaveTargetId}
+          onCreateProtocol={() => onCreateProtocol(compound.id)}
+        />
+      )}
     </div>
+  )
+}
+
+/**
+ * Attaches the current result to one of the user's active protocols for this
+ * compound. Only protocols for the same compound are offered: a draw volume is
+ * meaningless against a different compound's protocol. With nothing to attach
+ * to, the way forward (create one) is offered rather than a dead end.
+ */
+function SaveToProtocol({
+  compound,
+  snapshot,
+  targetId,
+  onTargetChange,
+  onCreateProtocol,
+}: {
+  compound: Compound
+  snapshot: MixSnapshot
+  targetId: string | null
+  onTargetChange: (id: string) => void
+  onCreateProtocol: () => void
+}) {
+  const { t } = useTranslation()
+  const protocols = useLiveQuery(() => db.protocols.toArray(), [])
+  const [busy, setBusy] = useState(false)
+
+  const candidates = useMemo(
+    () =>
+      (protocols ?? [])
+        .filter((p) => p.isActive && p.compoundId === compound.id)
+        .sort((a, b) => compareAlphabetical(a.name || compound.name, b.name || compound.name)),
+    [protocols, compound],
+  )
+
+  if (protocols === undefined) return null
+
+  // Fall back to the only candidate so a single matching protocol is one tap.
+  const target: Protocol | undefined =
+    candidates.find((p) => p.id === targetId) ?? (candidates.length === 1 ? candidates[0] : undefined)
+  const saved = target?.reconstitution
+  const isCurrent =
+    saved !== undefined &&
+    saved.vialSize === snapshot.vialSize &&
+    saved.diluentMl === snapshot.diluentMl &&
+    saved.syringeType === snapshot.syringeType &&
+    saved.drawSyringeUnits === snapshot.drawSyringeUnits &&
+    saved.doseAmount === snapshot.doseAmount &&
+    saved.doseUnit === snapshot.doseUnit
+
+  async function handleSave() {
+    if (!target) return
+    setBusy(true)
+    try {
+      await db.protocols.update(target.id, { reconstitution: { ...snapshot, savedAt: new Date().toISOString() } })
+      toast.success(t('calculator.saved', { name: target.name || compound.name }))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t('calculator.saveTitle')}</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        {candidates.length === 0 ? (
+          <>
+            <p className="text-sm text-muted-foreground">{t('calculator.noActiveProtocol', { compound: compound.name })}</p>
+            <Button variant="secondary" onClick={onCreateProtocol}>
+              {t('calculator.createProtocolCta')}
+            </Button>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-muted-foreground">{t('calculator.saveBody')}</p>
+            {candidates.length > 1 && (
+              <div className="flex flex-wrap gap-2">
+                {candidates.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    aria-pressed={target?.id === p.id}
+                    onClick={() => onTargetChange(p.id)}
+                    className={`min-h-11 rounded-full border px-4 text-sm font-medium transition-colors ${
+                      target?.id === p.id
+                        ? 'border-primary bg-accent text-primary'
+                        : 'border-border text-muted-foreground'
+                    }`}
+                  >
+                    {p.name || compound.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            <Button onClick={() => void handleSave()} disabled={!target || busy || isCurrent}>
+              {isCurrent ? (
+                <>
+                  <Check className="size-4" />
+                  {t('calculator.alreadySaved')}
+                </>
+              ) : saved ? (
+                t('calculator.updateCta')
+              ) : (
+                t('calculator.saveCta')
+              )}
+            </Button>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+/** A numbered section of the form: a step badge and a plain-language question, then its fields. */
+function Step({ number, title, children }: { number: number; title: string; children: ReactNode }) {
+  return (
+    <section className="flex flex-col gap-4">
+      <div className="flex items-center gap-3">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent text-base font-semibold text-foreground">
+          {number}
+        </span>
+        <h2 className="text-xl font-semibold text-foreground">{title}</h2>
+      </div>
+      {children}
+    </section>
   )
 }
 
@@ -361,10 +554,12 @@ function NumberInput({
   value,
   onChange,
   suffix,
+  ariaLabel,
 }: {
   value: string
   onChange: (v: string) => void
   suffix?: string
+  ariaLabel?: string
 }) {
   return (
     <div className="relative flex-1">
@@ -374,9 +569,11 @@ function NumberInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="0"
+        aria-label={ariaLabel}
+        className={`min-h-14 rounded-2xl px-5 text-lg ${suffix ? 'pr-16' : ''}`}
       />
       {suffix && (
-        <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">
+        <span className="pointer-events-none absolute inset-y-0 right-5 flex items-center text-lg text-muted-foreground">
           {suffix}
         </span>
       )}

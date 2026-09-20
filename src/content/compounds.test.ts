@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { COMPOUNDS, listDiluents, listSelectableCompounds, vialSizeUnit } from './compounds'
+import {
+  COMPOUNDS,
+  compareAlphabetical,
+  listCategories,
+  listDiluents,
+  listSelectableCompounds,
+  vialSizeUnit,
+} from './compounds'
 
 describe('compound catalogue', () => {
   it('has unique ids', () => {
@@ -17,6 +24,18 @@ describe('compound catalogue', () => {
     const selectable = listSelectableCompounds()
     expect(selectable.some((c) => c.isDiluent)).toBe(false)
     expect(listDiluents().length).toBeGreaterThan(0)
+  })
+
+  it('lists selectable compounds and categories alphabetically', () => {
+    const names = listSelectableCompounds().map((c) => c.name)
+    expect(names).toEqual([...names].sort(compareAlphabetical))
+    expect(names[0]).toBe('5-amino-1mq')
+    const categories = listCategories()
+    expect(categories).toEqual([...categories].sort(compareAlphabetical))
+  })
+
+  it('sorts numbers inside names numerically and ignores case', () => {
+    expect(['TB-10', 'tb-4'].sort(compareAlphabetical)).toEqual(['tb-4', 'TB-10'])
   })
 
   it('derives the right vial size unit per compound kind', () => {

@@ -9,7 +9,7 @@ import { LEGAL_VERSION } from './content/legal'
 import { maybeCreateDailySnapshot } from './lib/backup'
 import { db, ensureCompoundsSeeded, ensureSettingsRow } from './lib/db'
 import { DEFAULT_LOCALE } from './i18n'
-import { scheduleUpcomingReminders } from './lib/notifications'
+import { scheduleUpcomingReminders, startReminderLoop } from './lib/notifications'
 import { applyTheme, resolveTheme, subscribeToSystemTheme, type ResolvedTheme } from './lib/theme'
 import { updateSettings, useSettings } from './lib/useSettings'
 import { HomeScreen } from './screens/HomeScreen'
@@ -25,6 +25,32 @@ function App() {
   const { t, i18n } = useTranslation()
   const [tab, setTab] = useState<Tab>('home')
   const settings = useSettings()
+
+  // One-shot navigation hand-offs between tabs. Each is consumed by the screen
+  // it opens (as its initial state) and cleared by the next ordinary tab
+  // change, so a stale one can never re-apply itself later.
+  const [calculatorProtocolId, setCalculatorProtocolId] = useState<string | undefined>()
+  const [newProtocolCompoundId, setNewProtocolCompoundId] = useState<string | undefined>()
+
+  function goToTab(next: Tab) {
+    setCalculatorProtocolId(undefined)
+    setNewProtocolCompoundId(undefined)
+    setTab(next)
+  }
+
+  /** "Next step: reconstitute" — open the calculator prefilled for a protocol. */
+  function openCalculatorFor(protocolId: string) {
+    setCalculatorProtocolId(protocolId)
+    setNewProtocolCompoundId(undefined)
+    setTab('calculator')
+  }
+
+  /** The calculator's "create a protocol" — open a new-protocol form for that compound. */
+  function openNewProtocolFor(compoundId: string) {
+    setCalculatorProtocolId(undefined)
+    setNewProtocolCompoundId(compoundId)
+    setTab('protocols')
+  }
 
   // Two separate questions used to be conflated into one comparison
   // (`legalAcceptedVersion !== LEGAL_VERSION`, treated as "needs onboarding"):
@@ -75,6 +101,16 @@ function App() {
     void maybeCreateDailySnapshot()
     void db.protocols.toArray().then((protocols) => scheduleUpcomingReminders(protocols))
   }, [])
+
+  // Dose reminders: checks on a timer and whenever the app comes back to the
+  // foreground, and fires a notification for anything that has just come due.
+  // Only runs once the gate is open — during onboarding nobody has a protocol
+  // and the permission prompt hasn't been reached yet.
+  const appOpen = gate === 'app'
+  useEffect(() => {
+    if (!appOpen) return
+    return startReminderLoop()
+  }, [appOpen])
 
   useEffect(() => {
     if (settings && settings.locale !== i18n.language) {
@@ -146,7 +182,14 @@ function App() {
   }
 
   if (gate === 'onboarding') {
-    return <OnboardingScreen onComplete={() => setGate('app')} />
+    return (
+      <OnboardingScreen
+        onComplete={(protocolId) => {
+          setGate('app')
+          if (protocolId) openCalculatorFor(protocolId)
+        }}
+      />
+    )
   }
 
   if (gate === 'legalReaccept') {
@@ -159,7 +202,7 @@ function App() {
       {tab !== 'settings' && (
         <div className="fixed right-4 top-[calc(env(safe-area-inset-top)+0.75rem)] z-30 flex items-center gap-2">
           <FloatingThemeToggleButton resolvedTheme={resolvedTheme} onToggle={() => void toggleTheme()} />
-          <FloatingSettingsButton onClick={() => setTab('settings')} />
+          <FloatingSettingsButton onClick={() => goToTab('settings')} />
         </div>
       )}
       <AnimatePresence mode="wait">
@@ -171,19 +214,23 @@ function App() {
         >
           {tab === 'home' && (
             <HomeScreen
-              onNavigateToSettings={() => setTab('settings')}
-              onNavigateToProtocols={() => setTab('protocols')}
-              onNavigateToHistory={() => setTab('history')}
-              onNavigateToCalculator={() => setTab('calculator')}
+              onNavigateToSettings={() => goToTab('settings')}
+              onNavigateToProtocols={() => goToTab('protocols')}
+              onNavigateToHistory={() => goToTab('history')}
+              onNavigateToCalculator={() => goToTab('calculator')}
             />
           )}
-          {tab === 'calculator' && <CalculatorScreen />}
-          {tab === 'protocols' && <ProtocolsScreen />}
+          {tab === 'calculator' && (
+            <CalculatorScreen protocolId={calculatorProtocolId} onCreateProtocol={openNewProtocolFor} />
+          )}
+          {tab === 'protocols' && (
+            <ProtocolsScreen onReconstitute={openCalculatorFor} initialCompoundId={newProtocolCompoundId} />
+          )}
           {tab === 'history' && <HistoryScreen />}
           {tab === 'settings' && <SettingsScreen />}
         </motion.div>
       </AnimatePresence>
-      <TabBar active={tab} onChange={setTab} labels={labels} navLabel={t('nav.ariaLabel')} />
+      <TabBar active={tab} onChange={goToTab} labels={labels} navLabel={t('nav.ariaLabel')} />
     </div>
   )
 }

@@ -30,6 +30,7 @@ export function contextOf(protocol: Protocol): ScheduleContext {
     startDate: protocol.startDate,
     endDate: protocol.endDate,
     reminderTimes: protocol.reminderTimes,
+    trackingStartsAt: protocol.trackingStartsAt,
   }
 }
 

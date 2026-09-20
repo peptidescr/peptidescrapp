@@ -245,3 +245,69 @@ describe('getNextOccurrence', () => {
     expect(getNextOccurrence(ctx, now)?.date).toBe('2026-01-05')
   })
 })
+
+describe('custom schedule', () => {
+  const ctx: ScheduleContext = {
+    schedule: { kind: 'custom', dates: ['2026-03-04', '2026-03-09', '2026-03-21'] },
+    startDate: '2026-03-04',
+    endDate: '2026-03-21',
+    reminderTimes: ['08:00'],
+  }
+
+  it('is scheduled only on the hand-picked days', () => {
+    expect(isScheduledDay(ctx, day(2026, 3, 4))).toBe(true)
+    expect(isScheduledDay(ctx, day(2026, 3, 5))).toBe(false)
+    expect(isScheduledDay(ctx, day(2026, 3, 9))).toBe(true)
+    expect(isScheduledDay(ctx, day(2026, 3, 21))).toBe(true)
+  })
+
+  it('produces one occurrence per picked day per reminder time', () => {
+    const occurrences = getOccurrencesInRange(ctx, day(2026, 3, 1), day(2026, 3, 31))
+    expect(occurrences.map((o) => o.date)).toEqual(['2026-03-04', '2026-03-09', '2026-03-21'])
+  })
+
+  it('finds the next picked day and returns null once they have all passed', () => {
+    expect(getNextOccurrence(ctx, day(2026, 3, 5))?.date).toBe('2026-03-09')
+    expect(getNextOccurrence(ctx, day(2026, 3, 22))).toBeNull()
+  })
+
+  it('rejects an empty date list', () => {
+    const empty: ScheduleContext = { ...ctx, schedule: { kind: 'custom', dates: [] } }
+    expect(() => getOccurrencesInRange(empty, day(2026, 3, 1), day(2026, 3, 31))).toThrow(RangeError)
+  })
+})
+
+describe('trackingStartsAt', () => {
+  const base: ScheduleContext = {
+    schedule: { kind: 'daily' },
+    startDate: '2026-01-05',
+    reminderTimes: ['08:00', '20:00'],
+  }
+
+  it('does not report a dose as due or missed when the protocol was saved after its reminder time', () => {
+    // Regression: saving a protocol at 15:00 with an 08:00 reminder started today
+    // used to show "1 missed" the moment it was saved.
+    const now = day(2026, 1, 5, 15, 0)
+    const ctx = { ...base, trackingStartsAt: now.toISOString() }
+    expect(getDueOccurrences(base, now, []).map((o) => o.time)).toEqual(['08:00'])
+    expect(getDueOccurrences(ctx, now, [])).toEqual([])
+    expect(getMissedOccurrences(ctx, day(2026, 1, 6, 7, 0), [])).toEqual([])
+    // ...while the same protocol without the cutoff does count the 08:00 as missed.
+    expect(getMissedOccurrences(base, day(2026, 1, 6, 7, 0), []).map((o) => o.time)).toEqual(['08:00'])
+  })
+
+  it('still schedules and reports later occurrences normally', () => {
+    const savedAt = day(2026, 1, 5, 15, 0)
+    const ctx = { ...base, trackingStartsAt: savedAt.toISOString() }
+    expect(getNextOccurrence(ctx, savedAt)?.time).toBe('20:00')
+    // Tomorrow's 08:00 is a real miss once enough time has passed.
+    expect(getMissedOccurrences(ctx, day(2026, 1, 6, 21, 0), []).map((o) => `${o.date} ${o.time}`)).toEqual([
+      '2026-01-05 20:00',
+      '2026-01-06 08:00',
+    ])
+  })
+
+  it('leaves protocols without the field untouched', () => {
+    expect(getOccurrencesInRange(base, day(2026, 1, 5), day(2026, 1, 5, 23, 59))).toHaveLength(2)
+  })
+})

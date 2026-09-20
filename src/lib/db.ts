@@ -18,6 +18,38 @@ export interface Protocol {
   endDate?: string // yyyy-MM-dd
   route: Route
   isActive: boolean
+  /**
+   * ISO datetime; see `ScheduleContext.trackingStartsAt`. Optional (and not
+   * indexed) so no Dexie version bump is needed — protocols saved before this
+   * existed simply have none and behave exactly as they did.
+   */
+  trackingStartsAt?: string
+  /** The last mixing-calculator result the user saved to this protocol. */
+  reconstitution?: SavedReconstitution
+}
+
+/**
+ * A mixing-calculator result saved onto a protocol, stored as the numbers the
+ * user actually acts on (how much water, where to draw) rather than the raw
+ * calculator inputs, so it can be shown back as-is without re-running the math.
+ */
+export interface SavedReconstitution {
+  vialSize: number
+  vialUnit: 'mg' | 'mcg' | 'IU' | 'mL'
+  /** Diluent added, in mL. Absent for ready-to-use solutions, which aren't reconstituted. */
+  diluentMl?: number
+  syringeType: SyringeType
+  /** Draw volume, in mL. */
+  drawVolumeMl: number
+  drawSyringeUnits: number
+  /**
+   * The dose this mix was worked out for. Kept because the calculator's
+   * dose isn't forced to equal the protocol's, and a draw volume shown without
+   * the dose it delivers would be easy to misread.
+   */
+  doseAmount: number
+  doseUnit: 'mg' | 'mcg' | 'IU'
+  savedAt: string // ISO datetime
 }
 
 /**

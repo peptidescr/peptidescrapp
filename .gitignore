@@ -24,3 +24,8 @@ dev-dist
 *.njsproj
 *.sln
 *.sw?
+
+# Secrets (VAPID private key etc.) — never commit; see .env.example
+.env
+.env.*
+!.env.example

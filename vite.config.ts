@@ -44,6 +44,9 @@ export default defineConfig({
         // App shell + local assets only — no network calls after load.
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
         navigateFallback: '/index.html',
+        // The push API endpoints must never be answered with the app shell.
+        navigateFallbackDenylist: [/^\/api\//],
+        importScripts: ['/sw-notifications.js'],
       },
       devOptions: {
         enabled: true,
@@ -53,6 +56,6 @@ export default defineConfig({
   ],
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'netlify/**/*.test.ts'],
   },
 })

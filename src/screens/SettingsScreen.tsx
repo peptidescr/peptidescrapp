@@ -42,8 +42,14 @@ import {
 } from '../lib/backup'
 import { formatDateTime } from '../lib/dates'
 import { db } from '../lib/db'
+import { isPushActive, isPushConfigured } from '../lib/push'
 import { useInstallState } from '../lib/install'
-import { getNotificationCapability, requestNotificationPermission } from '../lib/notifications'
+import {
+  canShowNotifications,
+  getNotificationCapability,
+  requestNotificationPermission,
+  sendTestNotification,
+} from '../lib/notifications'
 import { applyTheme, resolveTheme } from '../lib/theme'
 import type { Locale, ThemeMode } from '../lib/units'
 import { updateSettings, useSettings } from '../lib/useSettings'
@@ -198,6 +204,15 @@ function NotificationsSection() {
     setCapability(getNotificationCapability())
   }
 
+  // The one way to tell "notifications are broken on this device" from
+  // "no dose has come due yet" without waiting for a real reminder.
+  async function handleTest() {
+    if (await sendTestNotification()) toast.success(t('settings.notif.testSent'))
+    else toast.error(t('settings.notif.testFailed'))
+  }
+
+  const pushOn = isPushActive()
+
   let statusKey = 'settings.notif.notSupported'
   if (capability.supported) {
     if (capability.requiresInstallOnIOS) statusKey = 'settings.notif.needsInstallIOS'
@@ -209,9 +224,17 @@ function NotificationsSection() {
   return (
     <SectionCard title={t('settings.notifications')} icon={Bell}>
       <p className="text-sm text-muted-foreground">{t(statusKey)}</p>
-      <p className="text-sm text-muted-foreground">{t('settings.notif.reliabilityNote')}</p>
+      <p className="text-sm text-muted-foreground">
+        {t(pushOn ? 'settings.notif.reliabilityNotePush' : 'settings.notif.reliabilityNote')}
+      </p>
+      {isPushConfigured() && <p className="text-xs text-muted-foreground">{t('settings.notif.pushNote')}</p>}
       {capability.supported && !capability.requiresInstallOnIOS && capability.permission === 'default' && (
         <Button onClick={handleRequest}>{t('settings.notif.enable')}</Button>
+      )}
+      {canShowNotifications() && (
+        <Button variant="secondary" onClick={() => void handleTest()}>
+          {t('settings.notif.testCta')}
+        </Button>
       )}
     </SectionCard>
   )

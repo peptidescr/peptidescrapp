@@ -29,6 +29,8 @@ export type Schedule =
   | { kind: 'everyNDays'; n: number }
   | { kind: 'weekdays'; days: Weekday[] }
   | { kind: 'cycle'; daysOn: number; daysOff: number }
+  /** Hand-picked calendar days (yyyy-MM-dd), for irregular schedules no repeating pattern fits. */
+  | { kind: 'custom'; dates: string[] }
 
 /** The subset of a Protocol that scheduling needs — kept local to avoid a circular import with db.ts. */
 export interface ScheduleContext {
@@ -36,6 +38,14 @@ export interface ScheduleContext {
   startDate: string // yyyy-MM-dd
   endDate?: string // yyyy-MM-dd
   reminderTimes: string[] // "HH:mm", 24h, local time
+  /**
+   * ISO datetime. Occurrences scheduled before this are ignored entirely — not
+   * due, not missed, not counted. Set when a protocol is created, its schedule
+   * is edited, or it is resumed, so doses that "came due" before the app knew
+   * about them (a 08:00 reminder on a protocol saved at 15:00; the weeks a
+   * protocol spent paused) don't show up as missed the instant it's saved.
+   */
+  trackingStartsAt?: string
 }
 
 export interface Occurrence {
@@ -77,6 +87,11 @@ function validateSchedule(schedule: Schedule): void {
         throw new RangeError('cycle.daysOff must be a non-negative integer')
       }
       return
+    case 'custom':
+      if (schedule.dates.length === 0) {
+        throw new RangeError('custom.dates must not be empty')
+      }
+      return
   }
 }
 
@@ -108,12 +123,16 @@ export function isScheduledDay(ctx: Pick<ScheduleContext, 'schedule' | 'startDat
       if (period === 0) return false
       return (offset % period) < ctx.schedule.daysOn
     }
+    case 'custom':
+      return ctx.schedule.dates.includes(toIsoDate(day))
   }
 }
 
 /** Every occurrence (day + reminder time) the schedule produces within [from, to], chronological order. */
-export function getOccurrencesInRange(ctx: ScheduleContext, from: Date, to: Date): Occurrence[] {
+export function getOccurrencesInRange(ctx: ScheduleContext, rangeFrom: Date, to: Date): Occurrence[] {
   validateSchedule(ctx.schedule)
+  const trackingStart = ctx.trackingStartsAt ? new Date(ctx.trackingStartsAt) : undefined
+  const from = trackingStart && trackingStart > rangeFrom ? trackingStart : rangeFrom
   if (ctx.reminderTimes.length === 0 || from > to) return []
 
   const occurrences: Occurrence[] = []

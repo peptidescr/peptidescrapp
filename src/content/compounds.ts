@@ -168,24 +168,26 @@ export function getCompoundById(id: string): Compound | undefined {
   return COMPOUNDS.find((c) => c.id === id)
 }
 
-/** Compounds selectable in the UI's compound picker — excludes diluents. */
+/**
+ * The app's ordering rule for anything a person picks from: alphabetical,
+ * ignoring case, with digits compared as numbers ("TB-4" before "TB-10").
+ * Every dropdown goes through this (or `sortLabels` below) rather than
+ * relying on the order things happen to be declared in.
+ */
+export function compareAlphabetical(a: string, b: string): number {
+  return a.localeCompare(b, 'en', { sensitivity: 'base', numeric: true })
+}
+
+/** Compounds selectable in the UI's compound picker — excludes diluents. Alphabetical by name. */
 export function listSelectableCompounds(): Compound[] {
-  return COMPOUNDS.filter((c) => !c.isDiluent)
+  return COMPOUNDS.filter((c) => !c.isDiluent).sort((a, b) => compareAlphabetical(a.name, b.name))
 }
 
 export function listDiluents(): Compound[] {
-  return COMPOUNDS.filter((c) => c.isDiluent)
+  return COMPOUNDS.filter((c) => c.isDiluent).sort((a, b) => compareAlphabetical(a.name, b.name))
 }
 
-/** Category names in catalogue order, for grouping the compound picker. */
+/** Category names, alphabetical. */
 export function listCategories(): string[] {
-  const seen = new Set<string>()
-  const categories: string[] = []
-  for (const compound of listSelectableCompounds()) {
-    if (!seen.has(compound.category)) {
-      seen.add(compound.category)
-      categories.push(compound.category)
-    }
-  }
-  return categories
+  return [...new Set(listSelectableCompounds().map((c) => c.category))].sort(compareAlphabetical)
 }

@@ -8,7 +8,8 @@
     "save": "Save",
     "delete": "Delete",
     "edit": "Edit",
-    "back": "Back"
+    "back": "Back",
+    "noMatches": "No matches"
   },
   "nav": {
     "home": "Home",
@@ -37,7 +38,23 @@
     "drawVolume": "Draw (mL)",
     "drawSyringeUnits": "Draw ({{syringeType}} units)",
     "dosesRemaining": "Doses left in vial",
-    "lowVolumeWarning": "This draw is small enough that it may be hard to measure precisely on this syringe."
+    "lowVolumeWarning": "This draw is small enough that it may be hard to measure precisely on this syringe.",
+    "step1": "What are you mixing?",
+    "step2Powder": "How much diluent?",
+    "step2Solution": "What's the concentration?",
+    "step3": "What dose do you want?",
+    "bacWaterToAdd": "BAC water to add:",
+    "bacWaterHelp": "BAC water is bacteriostatic water: sterile water with a preservative. It is what the powder gets mixed into.",
+    "quickFill": "Quick fill",
+    "saveTitle": "Save to a protocol",
+    "saveBody": "Attach this mix to one of your active protocols so you can see how much to draw.",
+    "saveCta": "Save to protocol",
+    "updateCta": "Update saved mix",
+    "saved": "Saved to \"{{name}}\".",
+    "alreadySaved": "Already saved",
+    "noActiveProtocol": "You don't have an active protocol for {{compound}} yet.",
+    "createProtocolCta": "Create a protocol",
+    "forProtocol": "Mixing for \"{{name}}\""
   },
   "protocols": {
     "new": "New",
@@ -78,13 +95,29 @@
     "deleteDialogTitle": "Delete this protocol?",
     "deleteDialogDescription": "\"{{name}}\" and its reminders will be removed. Doses you've already logged stay in your history.",
     "emptyCreateCta": "Create a protocol",
-    "emptyTemplatesCta": "Browse templates"
+    "emptyTemplatesCta": "Browse templates",
+    "customDays": "Pick your days",
+    "customDaysHint": "Tap any days on the calendar. They don't have to follow a pattern.",
+    "customDaysCount_one": "{{count}} day selected",
+    "customDaysCount_other": "{{count}} days selected",
+    "customDaysRequired": "Pick at least one day to save.",
+    "savedTitle": "Protocol saved",
+    "savedBody": "Next step: mix your vial. The calculator works out how much water to add and where to draw for {{dose}}.",
+    "reconstituteNow": "Reconstitute now",
+    "notNow": "Not now",
+    "remindersTitle": "Get a reminder for each dose",
+    "remindersBody": "Turn on notifications and we'll alert you when a dose is due.",
+    "mixSummary": "Mix: {{water}} mL water · draw {{units}} units ({{ml}} mL) for {{dose}}",
+    "mixSummarySolution": "Ready to use · draw {{units}} units ({{ml}} mL) for {{dose}}",
+    "namePlaceholderHint": "e.g. Morning stack",
+    "savedBodySolution": "Next step: work out how much to draw for {{dose}}. The calculator does it from the concentration on the bottle."
   },
   "schedule": {
     "daily": "Daily",
     "everyNDays": "Every N days",
     "weekdays": "Specific weekdays",
-    "cycle": "Cycle (on/off)"
+    "cycle": "Cycle (on/off)",
+    "custom": "Custom days"
   },
   "weekday": {
     "sun": "Su",
@@ -178,7 +211,8 @@
     "enableNudgeTitle": "Turn on notifications",
     "enableNudgeBody": "Get an alert when your next dose is due.",
     "emptyTitle": "You're all caught up",
-    "emptyBody": "Nothing needs your attention right now."
+    "emptyBody": "Nothing needs your attention right now.",
+    "doseDueBody": "Time for your {{dose}} dose ({{time}})."
   },
   "settings": {
     "language": "Language",
@@ -198,8 +232,15 @@
       "granted": "Notifications are enabled.",
       "denied": "Notifications are blocked. Enable them for peptidescr in your device settings to turn them back on.",
       "notAsked": "Notifications aren't enabled yet.",
-      "reliabilityNote": "Whenever you open the app, anything that came due while it was closed shows up on Home with one tap to log it — that's the part that always works, with or without notifications.",
-      "enable": "Enable notifications"
+      "reliabilityNote": "Reminders are delivered while peptidescr is open or running in the background. If your phone has fully closed the app, a reminder can't arrive until you open it again — anything that came due then shows up on Home with one tap to log it.",
+      "enable": "Enable notifications",
+      "testCta": "Send a test notification",
+      "testTitle": "peptidescr",
+      "testBody": "Notifications are working.",
+      "testSent": "Test notification sent.",
+      "testFailed": "Couldn't show a notification. Check your device's notification settings for peptidescr.",
+      "reliabilityNotePush": "Reminders arrive even when the app is closed. Anything that came due while your phone was off or offline shows up on Home with one tap to log it.",
+      "pushNote": "To deliver reminders while the app is closed, your device's anonymous push address and the times of your upcoming reminders are sent to our server. Compound names and doses never leave your device."
     },
     "install": {
       "title": "Install",
@@ -286,15 +327,33 @@
     "custom": "Custom protocol",
     "customDescription": "Pick your own compound, dose, and schedule from scratch.",
     "items": {
-      "wolverine": { "name": "Wolverine" },
-      "jointSupport": { "name": "Joint Support" },
-      "weightLossBeginner": { "name": "Weight Loss Beginner" },
-      "sleepOptimization": { "name": "Sleep Optimization" },
-      "skinRejuvenation": { "name": "Skin Rejuvenation" },
-      "recomposition": { "name": "Recomposition" },
-      "longevityBasics": { "name": "Longevity Basics" },
-      "ghBlast": { "name": "GH Blast" },
-      "brainBoost": { "name": "Brain Boost" }
+      "wolverine": {
+        "name": "Wolverine"
+      },
+      "jointSupport": {
+        "name": "Joint Support"
+      },
+      "weightLossBeginner": {
+        "name": "Weight Loss Beginner"
+      },
+      "sleepOptimization": {
+        "name": "Sleep Optimization"
+      },
+      "skinRejuvenation": {
+        "name": "Skin Rejuvenation"
+      },
+      "recomposition": {
+        "name": "Recomposition"
+      },
+      "longevityBasics": {
+        "name": "Longevity Basics"
+      },
+      "ghBlast": {
+        "name": "GH Blast"
+      },
+      "brainBoost": {
+        "name": "Brain Boost"
+      }
     },
     "searchPlaceholder": "Search templates",
     "filterAll": "All",

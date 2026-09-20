@@ -1,5 +1,6 @@
 import { getCompoundById } from '../content/compounds'
 import { db, type DoseLog, type DoseStatus, type Protocol } from './db'
+import { requestPushSync } from './push'
 import { microgramsFromMass, milliIUFromIU, type MassUnit } from './units'
 
 /** Shared by Home's catch-up/quick-log and History's manual entry. */
@@ -24,4 +25,6 @@ export async function logProtocolDose(
     updatedAt: now,
   }
   await db.doseLogs.put(doseLog)
+  // A dose logged ahead of time must not still be pushed at its scheduled moment.
+  requestPushSync()
 }

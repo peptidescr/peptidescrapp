@@ -1033,3 +1033,92 @@ formatted too. This is genuinely working, not assumed.
 - Legal copy is a placeholder per the brief — do not use in production until your lawyer
   signs off on wording that reconciles "research use only" with an app that logs personal
   injections.
+
+## Client feedback round (September 2026)
+
+- **Type-to-filter everywhere.** `src/components/ui/combobox.tsx` replaces the Radix `Select`
+  in the protocol form, calculator, and the time picker; the date picker is now a typeable
+  dd/MM/yyyy input with the calendar behind an icon. Name is free text with suggestions
+  (template + compound names). Filtering is accent/case-insensitive and never reorders.
+- **Alphabetical.** `compareAlphabetical` in `content/compounds.ts` is the one ordering rule
+  (case-insensitive, numeric-aware). Compounds, categories, template list, schedule kinds
+  and routes all go through it. The calculator's compound list is now one flat alphabetical
+  list (category shown as a hint) instead of grouped by category — grouping and a strict A–Z
+  order can't both hold.
+- **Custom schedule** (`Schedule.kind === 'custom'`, `dates: yyyy-MM-dd[]`). Picked on an
+  inline multi-select month calendar. Saved with `startDate`/`endDate` = first/last picked
+  day, so "ongoing"/"next dose" logic needs no special case. Past days can't be newly picked.
+- **False "missed" after saving.** `Protocol.trackingStartsAt` (ISO, optional, unindexed —
+  no Dexie bump) makes `getOccurrencesInRange` ignore anything scheduled before it. Set on
+  create, when the schedule/times/dates change, and on resume from pause (paused days were
+  never "missed"). Editing name/dose/route leaves it alone so an unrelated edit can't erase
+  a real missed dose.
+- **Calculator → protocol.** `Protocol.reconstitution` stores the saved mix (water added,
+  draw mL/units, and the dose it was worked out for). Only active protocols for the same
+  compound are offered; with none, a "create a protocol" shortcut opens the form with the
+  compound preselected. Shown on the protocol card.
+- **Reconstitute next.** Saving a *new* protocol shows `ProtocolSavedPrompt` (also in
+  onboarding); "Reconstitute now" opens the calculator prefilled from the protocol. The same
+  screen offers to turn on notifications if permission hasn't been asked.
+- **Notifications.** Root cause of "not working": the only scheduling path was Chromium
+  Notification Triggers, which essentially no shipping browser supports — so nothing was
+  ever shown on iOS, Android or desktop. Now `startReminderLoop()` (App.tsx) checks every 30s
+  and on return-to-foreground, and shows a notification through the service worker
+  registration for any unlogged dose that came due in the last 90 min (de-duplicated via
+  localStorage). Notification taps focus/open the app (`public/sw-notifications.js`, pulled in
+  via `workbox.importScripts`). Settings has a "send test notification" button.
+  That loop only works while the app is open/alive — see "Closed-app reminders" below for
+  the part that works with the app closed.
+- Pre-existing, untouched: `react-hooks/set-state-in-effect` lint error in App.tsx's theme
+  effect (`setResolvedTheme`).
+
+## Closed-app reminders (Web Push) — the one server-side piece
+
+A closed PWA can't run a timer, so something off the device has to wake it. There is no way
+around a server for this on the web; what we control is what the server knows.
+
+**Design: anonymous, and blind to what the doses are.**
+- No accounts. The device asks its browser vendor's push service (FCM / Mozilla / Apple) for
+  an anonymous subscription and uploads it, with a list of **future timestamps + an opaque
+  tag** ("<protocolId>|<ISO time>"), to `POST /api/push/schedule`.
+- The server never receives compound names, doses or protocol names. A scheduled function
+  (`push-send`, every minute) pushes `{ "tag": ... }` when a timestamp comes due.
+- The service worker (`public/sw-notifications.js`) receives it and rebuilds the visible text
+  from the phone's own IndexedDB (name, dose, language). Verified: server data contains none
+  of those strings (`pushSchedule.test.ts` asserts it).
+- Device → server data: push endpoint + keys, up to 500 timestamps (45 days ahead). The
+  device re-uploads on every app open, after saving/pausing/deleting a protocol, and after
+  logging a dose (so a dose taken early isn't pushed). If the app isn't opened for 45 days,
+  reminders stop.
+- Code: `src/lib/push.ts` (client), `src/lib/pushSchedule.ts` (what gets uploaded),
+  `netlify/lib/*` (validation + handlers, pure and tested), `netlify/functions/*` (thin
+  Netlify wrappers over Netlify Blobs).
+- The upload endpoint only accepts real push-service hosts (allowlist in `pushLogic.ts`);
+  without that, the function would POST to any URL a caller supplied.
+- When push is active the on-open fallback loop stands down (`isPushActive`) so a dose isn't
+  announced twice; if the upload fails it takes over again.
+- Off unless `VITE_VAPID_PUBLIC_KEY` is set at build time; the app then behaves as before.
+
+**Deploy (Netlify) — one-time:**
+1. `npx web-push generate-vapid-keys`
+2. Site environment variables: `VITE_VAPID_PUBLIC_KEY` (the public key — needed at *build*
+   time), `VAPID_PUBLIC_KEY` (same value), `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
+   (e.g. `mailto:someone@peptidescostarica.net`). Keep the private key secret; if it changes,
+   existing subscriptions stop working until each device re-opens the app.
+3. Deploy. Functions in `netlify/functions` and the every-minute schedule are picked up
+   automatically. Scheduled functions only run on published (production) deploys.
+
+**Verified locally, not on Netlify:** real Chrome subscribed through Google's push service; the
+real `netlify/lib` handlers (in-memory store instead of Blobs) stored the schedule; a real push
+was delivered and produced the notification with the app open *and* with the page closed, in
+Spanish. Not verified: Netlify Blobs / scheduled-function behaviour, iOS, Android, Firefox.
+Test on a real iPhone (installed to Home Screen, iOS 16.4+) and Android before promising it.
+
+**Known limits:** iOS delivery is best-effort and needs the app installed; a phone in
+low-power/"force stopped" state may delay or drop pushes; the sender runs at most once a minute,
+so a reminder can be up to ~1 min late; the sender scans every stored device each run, fine for
+hundreds of devices — move to a keyed index if it ever needs to be thousands.
+
+**Privacy wording:** Settings now discloses this. `legal.ts` is still placeholder text and must
+be updated by the client's lawyer to match ("data stays on your device" is no longer
+literally true for the push address and reminder times).
