@@ -1,6 +1,6 @@
 import { AlertTriangle, FlaskConical, Info, RotateCcw, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -95,13 +95,8 @@ export function CalculatorScreen() {
     void updateSettings({ syringeType: type })
   }
 
-  if (!compound) {
-    return null
-  }
-
-  const isSolution = compound.form === 'solution'
-  const isIU = compound.defaultUnit === 'IU'
-  const unit = vialSizeUnit(compound)
+  const isSolution = compound?.form === 'solution'
+  const isIU = compound?.defaultUnit === 'IU'
 
   const diluentValue = parseDecimal(diluentMl)
   const concentrationValue = parseDecimal(concentrationInput)
@@ -110,43 +105,70 @@ export function CalculatorScreen() {
   let result: MixResult | null = null
   let error: string | null = null
 
-  try {
-    if (isSolution) {
-      if (concentrationValue !== null && doseValue !== null) {
-        const totalVolumeUl = microlitersFromMl(vialSize)
+  // Guarded by `compound` rather than relying on the early return below,
+  // because that return happens AFTER this — and after the hook further
+  // down, which must run on every render (Rules of Hooks) regardless of
+  // whether a compound is resolved yet.
+  if (compound) {
+    try {
+      if (isSolution) {
+        if (concentrationValue !== null && doseValue !== null) {
+          const totalVolumeUl = microlitersFromMl(vialSize)
+          result = isIU
+            ? mixFromSolutionIU({
+                concentrationMilliIUPerMl: concentrationValue * 1000,
+                totalVolumeUl,
+                desiredDoseMilliIU: milliIUFromIU(doseValue),
+                syringeType,
+              })
+            : mixFromSolutionMass({
+                concentrationMcgPerMl: microgramsFromMass(concentrationValue, doseUnit),
+                totalVolumeUl,
+                desiredDoseMcg: microgramsFromMass(doseValue, doseUnit),
+                syringeType,
+              })
+        }
+      } else if (diluentValue !== null && diluentValue > 0 && doseValue !== null) {
+        const diluentVolumeUl = microlitersFromMl(diluentValue)
         result = isIU
-          ? mixFromSolutionIU({
-              concentrationMilliIUPerMl: concentrationValue * 1000,
-              totalVolumeUl,
+          ? mixFromVialIU({
+              vialAmountMilliIU: milliIUFromIU(vialSize),
+              diluentVolumeUl,
               desiredDoseMilliIU: milliIUFromIU(doseValue),
               syringeType,
             })
-          : mixFromSolutionMass({
-              concentrationMcgPerMl: microgramsFromMass(concentrationValue, doseUnit),
-              totalVolumeUl,
+          : mixFromVialMass({
+              vialAmountMcg: microgramsFromMass(vialSize, compound.defaultUnit === 'mcg' ? 'mcg' : 'mg'),
+              diluentVolumeUl,
               desiredDoseMcg: microgramsFromMass(doseValue, doseUnit),
               syringeType,
             })
       }
-    } else if (diluentValue !== null && diluentValue > 0 && doseValue !== null) {
-      const diluentVolumeUl = microlitersFromMl(diluentValue)
-      result = isIU
-        ? mixFromVialIU({
-            vialAmountMilliIU: milliIUFromIU(vialSize),
-            diluentVolumeUl,
-            desiredDoseMilliIU: milliIUFromIU(doseValue),
-            syringeType,
-          })
-        : mixFromVialMass({
-            vialAmountMcg: microgramsFromMass(vialSize, compound.defaultUnit === 'mcg' ? 'mcg' : 'mg'),
-            diluentVolumeUl,
-            desiredDoseMcg: microgramsFromMass(doseValue, doseUnit),
-            syringeType,
-          })
+    } catch {
+      error = t('calculator.invalidInput')
     }
-  } catch {
-    error = t('calculator.invalidInput')
   }
+
+  // Home's get-started checklist marks "try the calculator" done from this
+  // flag, because using a calculator otherwise leaves no trace anywhere else
+  // in the data (see the doc comment on Settings.hasUsedCalculator) — this is
+  // the one place that has to actually set it. `hasResult` rather than
+  // `result` itself in the dependency array: `result` is a fresh object every
+  // render, which would fire this on every keystroke instead of once on the
+  // null→non-null transition. Guarded so it's a single write per install, not
+  // a write on every render once already true.
+  const hasResult = result !== null
+  useEffect(() => {
+    if (hasResult && !settings?.hasUsedCalculator) {
+      void updateSettings({ hasUsedCalculator: true })
+    }
+  }, [hasResult, settings?.hasUsedCalculator])
+
+  if (!compound) {
+    return null
+  }
+
+  const unit = vialSizeUnit(compound)
 
   return (
     <div className="flex flex-col gap-6 px-4 pb-6 pt-4">

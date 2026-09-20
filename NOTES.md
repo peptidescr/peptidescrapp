@@ -2,6 +2,35 @@
 
 Running log of decisions and things the client needs to weigh in on. Newest at top.
 
+## 2026-09-19 — Two bug fixes: calculator checklist never checking off, onboarding language not switching live
+
+Two small, unrelated fixes requested alongside the light-mode/settings-IA/nav plan work.
+
+**Home's "Try the mixing calculator" checklist item never checked off.**
+`Settings.hasUsedCalculator` already had a read side — `computeGetStartedSteps` in
+`homeData.ts` uses it to mark that checklist row done — but no write side existed
+anywhere in the codebase; nothing ever set it to `true`. Fixed in
+`CalculatorScreen.tsx`: a `useEffect` now sets `hasUsedCalculator: true` the first time a
+valid mix result is produced (guarded so it only writes once, not on every keystroke or
+render). Adding the effect required restructuring the component slightly, because the
+existing `if (!compound) return null` early return sat *before* where the new hook needed
+to go — hooks must run unconditionally on every render, so the `result`/`error`
+computation is now guarded by `if (compound) { ... }` instead of relying on the early
+return, and the return itself moved below the new `useEffect`. Verified live via
+headless-Chromium/CDP: seeded a protocol directly into IndexedDB, opened Calculator,
+confirmed `settings.hasUsedCalculator` flips `undefined → true` in IndexedDB the moment a
+result renders, and Home's checklist count increased accordingly on the next screen.
+
+**Onboarding's language-selection step stayed in Spanish even after tapping English.**
+`LanguageStep` (`OnboardingScreen.tsx`) persisted the new locale via `updateSettings` but
+deferred the actual `i18n.changeLanguage()` call to the step's Continue button handler,
+so the step's own heading, option labels, and Continue button stayed in the
+just-abandoned language until the user had already moved past it. Fixed: `handleSelect`
+now calls `i18n.changeLanguage()` immediately on tap, same as `updateSettings`. Verified
+live: tapping "English" now visibly flips the step's own `h1` from "Elegí tu idioma" to
+"Choose your language" and the Continue button label updates in the same tap, before
+advancing.
+
 ## 2026-09-19 — Finish and commit the onboarding rebuild (Part 4 of the light-mode/settings-IA/nav plan)
 
 This closes out work a previous session left written but uncommitted: the onboarding

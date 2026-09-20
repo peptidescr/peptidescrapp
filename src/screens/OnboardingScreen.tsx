@@ -121,10 +121,15 @@ function LanguageStep({ onNext }: { onNext: () => void }) {
   const { t, i18n } = useTranslation()
   const [selected, setSelected] = useState<Locale>((i18n.language === 'en' ? 'en' : 'es-CR') as Locale)
 
-  async function handleNext() {
-    await updateSettings({ locale: selected })
-    await i18n.changeLanguage(selected)
-    onNext()
+  // Switch immediately on tap, not deferred to Continue — matches Settings'
+  // own LanguageSection, which already does this correctly. Deferring it
+  // meant picking "English" only changed which card was highlighted; the
+  // screen's own title/button stayed in Spanish until you left the step,
+  // which reads as "it didn't actually switch."
+  async function handleSelect(l: Locale) {
+    setSelected(l)
+    await updateSettings({ locale: l })
+    await i18n.changeLanguage(l)
   }
 
   return (
@@ -136,11 +141,11 @@ function LanguageStep({ onNext }: { onNext: () => void }) {
             key={l}
             label={l === 'es-CR' ? t('settings.spanish') : t('settings.english')}
             selected={selected === l}
-            onSelect={() => setSelected(l)}
+            onSelect={() => void handleSelect(l)}
           />
         ))}
       </div>
-      <Button onClick={handleNext} className="mt-4 w-full">
+      <Button onClick={onNext} className="mt-4 w-full">
         {t('onboarding.continue')}
       </Button>
     </StepShell>
