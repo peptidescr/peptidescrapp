@@ -1,75 +1,72 @@
 /*
  * Brand tokens — the single file to edit when swapping the palette.
  *
- * This is a permanently-dark theme, by explicit request: a premium dark UI,
- * structured after PeptIQ's actual app (true-black page, a lighter neutral
- * card surface, one bold accent used consistently for CTAs/active
- * states/highlights) — but with THEIR gold swapped for the client's own
- * blue, sourced from peptidescostarica.net, and their brand/logo swapped for
- * the client's real ones. Only the *structure* is adapted, mapped onto our
- * own sourced brand colour. See NOTES.md.
+ * Everything here is derived from the client's own logo (public/brand),
+ * sampled pixel-for-pixel rather than eyeballed:
+ *   navy     #102c76  — the logo field's edges
+ *   royal    #2852a6  — the field's centre glow
+ *   sky      #43b1fe → #a8dffd — the three-node molecule glyph
+ *   flag red #c62429  — the "COSTA RICA" band (kept for brand art only; it is
+ *                       never used as UI state colour, so it can't be mistaken
+ *                       for an error)
  *
- * The three neutrals below were re-sampled directly from PeptIQ's shipped
- * web app (app.peptiq.io) rather than eyeballed: page #000000, card #171717,
- * border #262626. Those are Tailwind's own neutral-950/900/800, which is no
- * coincidence — their app is React Native Web styled with NativeWind, so
- * their palette *is* the Tailwind neutral scale. Matching it exactly is what
- * makes the surfaces read as "the same class of app" at a glance.
+ * Dark is the default theme. Its surfaces are the logo's navy taken almost to
+ * black (not a neutral grey), so the app reads as the same brand as the icon
+ * on the home screen; the accent is the glyph's own sky blue. Because sky blue
+ * is light, filled controls carry a deep-navy label (--brand-primary-fg)
+ * rather than white — white on this blue is ~2.9:1, well under the 4.5:1
+ * that body-size text needs.
  *
- * --brand-primary/-dk are the client's own two blues (their site's Astra
- * theme globals --ast-global-color-0/-1: #046bd2 / #045cb4, lightened here
- * for contrast against a true-black background) — -dk is additionally the
- * exact navy sampled from the client's own favicon/app-icon mark (a 3-circle
- * molecular-chain glyph), reused as the pressed-state shade. --brand-warn is
- * intentionally NOT sourced from the brand — it's a deliberately
- * non-alarming amber for measurement-accuracy notices (see units.ts).
+ * Light mode keeps the values sourced from peptidescostarica.net's own theme
+ * (its Astra globals --ast-global-color-0/-1: #046bd2 / #045cb4).
  *
- * Light mode (2026-09-19): the block below revives exactly the values
- * documented here, now active behind `:root[data-theme='light']`. See the
- * light-mode NOTES.md entry for the mechanism (why `--brand-*`, not
- * `--color-*`) and the values kept:
- *   primary #046bd2 / primary-dk #092771 / primary-lt #e6f0fb
- *   ink #1e293b / muted #64748b / surface #ffffff / surface-2 #f0f5fa
- *   border #d1d5db / warn #b0672a / warn-lt #fbf1e7
- *   destructive #dc2626 / destructive-foreground #ffffff
+ * --brand-warn is intentionally NOT sourced from the brand — it's a
+ * deliberately non-alarming amber for measurement-accuracy notices (see
+ * units.ts).
  */
 :root {
-  --brand-primary: #4d9bf0;
-  --brand-primary-dk: #2f6fc4;
-  --brand-primary-lt: #15294a;
-  --brand-ink: #f2f4f7;
-  --brand-muted: #97a1af;
-  --brand-surface: #171717;
-  --brand-surface-2: #000000;
-  --brand-border: #262626;
+  --brand-primary: #52b7ff;
+  --brand-primary-dk: #2f93e6;
+  --brand-primary-lt: #0f2557;
+  --brand-primary-fg: #04143a;
+  --brand-ink: #eef3ff;
+  --brand-muted: #8f9dc0;
+  --brand-surface: #0d1530;
+  --brand-surface-2: #060b1a;
+  --brand-border: #1b2650;
   --brand-warn: #e0954b;
-  --brand-warn-lt: #3a2a1a;
+  --brand-warn-lt: #2f2418;
   /* Standard destructive-action red (delete, wipe+import) — a UI safety
      convention, not a brand colour, and deliberately distinct from
      --brand-warn's non-alarming amber (which is about measurement accuracy,
      never framed as danger — see units.ts). */
   --destructive: #f87171;
-  --destructive-foreground: #171717;
+  --destructive-foreground: #1f0a0a;
   /* Missed/overdue dose cards read as "lit" via this glow — reads correctly
-     only on a true-black page, so the light block below replaces it with a
+     only on a near-black page, so the light block below replaces it with a
      ring + tint instead of tuning the same shadow shape. See DoseCard.tsx. */
-  --destructive-glow: 0 0 24px -8px var(--destructive);
+  --destructive-glow: 0 0 24px -10px var(--destructive);
 
-  /* PeptIQ's primary CTA is a white pill with black text rather than an
-     accent-filled button — it's the single loudest thing on their screen and
-     the reason their onboarding reads as premium. Kept as its own pair so
-     the accent-filled Button variant stays untouched. */
+  /* The Home hero and any other "brand art" surface: the logo's own field.
+     Fixed (not themed) so the card looks like the logo in both modes. */
+  --brand-hero:
+    radial-gradient(90% 120% at 90% -10%, rgb(44 92 181 / 0.9) 0%, rgb(44 92 181 / 0) 62%),
+    linear-gradient(165deg, #123079 0%, #0a1c52 100%);
+
   --brand-contrast: #ffffff;
   --brand-contrast-foreground: #000000;
 
   --radius: 0.75rem;
 
-  /* Fraunces for display, Instrument Sans for everything else — the same
-     pairing PeptIQ ships (confirmed from their stylesheet). Faces are
-     self-hosted; see styles/fonts.css for why. The system stack stays as the
-     fallback so the app is still legible if a font file ever fails to load. */
+  /* Montserrat is the face the logo's PEPTIDES / COSTA RICA lettering is set
+     in, so headlines and figures carry the brand's own voice. Instrument Sans
+     stays for body copy and UI chrome — it is narrower and quieter, so the
+     two are clearly distinct. Faces are self-hosted; see styles/fonts.css for
+     why. The system stack stays as the fallback so the app is still legible
+     if a font file ever fails to load. */
   --font-display:
-    'Fraunces', ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
+    'Montserrat', 'Instrument Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    Helvetica, Arial, sans-serif;
 
   --font-sans:
     'Instrument Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
@@ -82,30 +79,31 @@
  * compete with a media query. Overriding at the --brand-* / --destructive*
  * layer (not --color-*) is deliberate: src/index.css's `@theme` block is
  * NOT `@theme inline`, so every --color-* semantic token is late-bound as
- * var(--brand-*) and re-resolves automatically. It also catches the 5 call
+ * var(--brand-*) and re-resolves automatically. It also catches the call
  * sites that read --brand-* names directly (bg-brand-warn-lt/text-brand-warn
  * in HomeScreen/NotificationPanel/CalculatorScreen, and
  * active:bg-brand-primary-dk in button-variants.ts) for free.
  *
  * Only properties that actually need a different light value are listed —
- * --brand-contrast/-foreground, --radius and the font stacks aren't
- * redefined here and simply cascade down from the dark :root block above.
+ * --brand-hero, --brand-contrast/-foreground, --radius and the font stacks
+ * aren't redefined here and simply cascade down from the dark :root block.
  */
 :root[data-theme='light'] {
   --brand-primary: #046bd2;
-  --brand-primary-dk: #092771;
+  --brand-primary-dk: #045cb4;
   --brand-primary-lt: #e6f0fb;
-  --brand-ink: #1e293b;
-  --brand-muted: #64748b;
+  --brand-primary-fg: #ffffff;
+  --brand-ink: #0f1d3f;
+  --brand-muted: #566789;
   --brand-surface: #ffffff;
   --brand-surface-2: #f0f5fa;
-  --brand-border: #d1d5db;
-  --brand-warn: #b0672a;
+  --brand-border: #d6deec;
+  --brand-warn: #a95f22;
   --brand-warn-lt: #fbf1e7;
 
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  /* A glow only reads as "lit" on a black page — on light it was a muddy
+  /* A glow only reads as "lit" on a dark page — on light it was a muddy
      smudge, so this is a crisp ring plus a soft tinted drop shadow instead,
      not a tuned version of the same shadow shape. */
   --destructive-glow:

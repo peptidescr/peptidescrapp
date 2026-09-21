@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, FlaskConical, Info, RotateCcw, X } from 'lucide-react'
+import { AlertTriangle, Check, CircleHelp, FlaskConical, Info, RotateCcw, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Combobox } from '@/components/ui/combobox'
 import { Input } from '@/components/ui/input'
+import { Segmented } from '@/components/ui/segmented'
 import { AppHeader } from '../components/AppHeader'
 import {
   compareAlphabetical,
@@ -211,7 +212,7 @@ export function CalculatorScreen({ protocolId, onCreateProtocol }: CalculatorScr
       : null
 
   return (
-    <div className="flex flex-col gap-6 px-4 pb-6 pt-4">
+    <div className="flex flex-col gap-6 px-4 pb-6 pt-2">
       <AppHeader
         title={t('calculator.title')}
         action={
@@ -234,7 +235,7 @@ export function CalculatorScreen({ protocolId, onCreateProtocol }: CalculatorScr
       )}
 
       {showExplainer && (
-        <div className="flex items-start gap-3 rounded-2xl border border-border bg-accent px-4 py-3 text-sm">
+        <div className="flex items-start gap-3 rounded-2xl bg-accent px-4 py-3 text-sm">
           <Info className="mt-0.5 size-4 shrink-0 text-primary" />
           <p className="flex-1 text-foreground">
             {isSolution ? t('calculator.explainerSolution') : t('calculator.explainerPowder')}
@@ -243,7 +244,7 @@ export function CalculatorScreen({ protocolId, onCreateProtocol }: CalculatorScr
             type="button"
             onClick={() => setShowExplainer(false)}
             aria-label={t('common.cancel')}
-            className="text-muted-foreground"
+            className="-mr-2 -mt-1.5 flex size-11 shrink-0 items-center justify-center rounded-full text-muted-foreground"
           >
             <X className="size-4" />
           </button>
@@ -283,17 +284,20 @@ export function CalculatorScreen({ protocolId, onCreateProtocol }: CalculatorScr
       ) : (
         <Step number={2} title={t('calculator.step2Powder')}>
           <div className="flex flex-col gap-2">
-            {/* The dashed underline marks the term as explainable — tapping
-                it opens a one-line definition of BAC water, for anyone who
-                hasn't met the term before. */}
-            <button
-              type="button"
-              onClick={() => setShowBacHelp((open) => !open)}
-              aria-expanded={showBacHelp}
-              className="min-h-8 self-start text-base text-muted-foreground underline decoration-dashed decoration-muted-foreground/60 underline-offset-[6px]"
-            >
-              {t('calculator.bacWaterToAdd')}
-            </button>
+            {/* Tapping the help icon opens a one-line definition of BAC water,
+                for anyone who hasn't met the term before. */}
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-medium text-foreground">{t('calculator.bacWaterToAdd')}</span>
+              <button
+                type="button"
+                onClick={() => setShowBacHelp((open) => !open)}
+                aria-expanded={showBacHelp}
+                aria-label={t('calculator.bacWaterHelpLabel')}
+                className="-my-2 -mr-2 flex size-11 items-center justify-center rounded-full text-muted-foreground"
+              >
+                <CircleHelp className="size-[18px]" />
+              </button>
+            </div>
             {showBacHelp && <p className="text-sm text-muted-foreground">{t('calculator.bacWaterHelp')}</p>}
             <NumberInput
               value={diluentMl}
@@ -329,45 +333,49 @@ export function CalculatorScreen({ protocolId, onCreateProtocol }: CalculatorScr
         </Field>
 
         <Field label={t('calculator.syringeType')}>
-          <div className="flex gap-2">
-            {SYRINGE_TYPES.map((type) => (
-              <button
-                key={type}
-                type="button"
-                onClick={() => handleSyringeChange(type)}
-                className={`min-h-11 flex-1 rounded-full border text-sm font-medium transition-colors ${
-                  syringeType === type
-                    ? 'border-primary bg-accent text-primary'
-                    : 'border-border text-muted-foreground'
-                }`}
-              >
-                {type}
-              </button>
-            ))}
-          </div>
+          <Segmented
+            ariaLabel={t('calculator.syringeType')}
+            value={syringeType}
+            onChange={handleSyringeChange}
+            options={SYRINGE_TYPES.map((type) => ({ value: type, label: type }))}
+          />
         </Field>
       </Step>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FlaskConical className="size-4" />
-            {t('calculator.resultTitle')}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          {!error && !result && <p className="text-sm text-muted-foreground">{t('calculator.awaitingInput')}</p>}
-          <AnimatePresence mode="wait">
-            {result && (
-              <motion.div
-                key={`${result.drawVolumeUl}-${result.concentrationPerMl}`}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.15 }}
-                className="flex flex-col gap-3"
-              >
-                <ResultRow
+      {/* The payoff of the whole screen, so it gets the same brand surface as
+          Home's hero and the two numbers you actually act on are set large. */}
+      <section
+        aria-live="polite"
+        className="rounded-3xl p-5 text-white ring-1 ring-white/10"
+        style={{ background: 'var(--brand-hero)' }}
+      >
+        <h2 className="flex items-center gap-2 text-sm font-medium text-white/75">
+          <FlaskConical className="size-4" />
+          {t('calculator.resultTitle')}
+        </h2>
+        {error && <p className="mt-3 text-sm text-red-200">{error}</p>}
+        {!error && !result && <p className="mt-3 text-sm text-white/70">{t('calculator.awaitingInput')}</p>}
+        <AnimatePresence mode="wait">
+          {result && (
+            <motion.div
+              key={`${result.drawVolumeUl}-${result.concentrationPerMl}`}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.15 }}
+              className="mt-4 flex flex-col gap-5"
+            >
+              {/* items-end: when one label wraps (narrow phone, Spanish) the two
+                  numbers still share a baseline instead of stepping. */}
+              <div className="grid grid-cols-2 items-end gap-4">
+                <BigResult label={t('calculator.drawVolume')} value={formatVolumeMl(result.drawVolumeUl, locale)} />
+                <BigResult
+                  // U+2011 keeps "U-100" in one piece if the label has to wrap.
+                  label={t('calculator.drawSyringeUnits', { syringeType: syringeType.replace('-', '‑') })}
+                  value={formatSyringeUnits(result.drawSyringeUnits, locale)}
+                />
+              </div>
+              <dl className="flex flex-col divide-y divide-white/15 border-t border-white/15 text-sm">
+                <DetailRow
                   label={t('calculator.concentrationResult')}
                   value={
                     isIU
@@ -379,28 +387,18 @@ export function CalculatorScreen({ protocolId, onCreateProtocol }: CalculatorScr
                         )} ${doseUnit}/mL`
                   }
                 />
-                <ResultRow
-                  label={t('calculator.drawVolume')}
-                  value={`${formatVolumeMl(result.drawVolumeUl, locale)} mL`}
-                  emphasis
-                />
-                <ResultRow
-                  label={t('calculator.drawSyringeUnits', { syringeType })}
-                  value={formatSyringeUnits(result.drawSyringeUnits, locale)}
-                  emphasis
-                />
-                <ResultRow label={t('calculator.dosesRemaining')} value={String(result.dosesRemaining)} />
-                {result.lowVolumeWarning && (
-                  <p className="flex items-start gap-2 rounded-2xl bg-brand-warn-lt px-3 py-2 text-sm text-brand-warn">
-                    <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-                    {t('calculator.lowVolumeWarning')}
-                  </p>
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </CardContent>
-      </Card>
+                <DetailRow label={t('calculator.dosesRemaining')} value={String(result.dosesRemaining)} />
+              </dl>
+              {result.lowVolumeWarning && (
+                <p className="flex items-start gap-2 rounded-2xl bg-black/25 px-3 py-2 text-sm text-amber-200">
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                  {t('calculator.lowVolumeWarning')}
+                </p>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </section>
 
       {snapshot && (
         <SaveToProtocol
@@ -531,10 +529,10 @@ function Step({ number, title, children }: { number: number; title: string; chil
   return (
     <section className="flex flex-col gap-4">
       <div className="flex items-center gap-3">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent text-base font-semibold text-foreground">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent font-display text-sm font-bold text-primary">
           {number}
         </span>
-        <h2 className="text-xl font-semibold text-foreground">{title}</h2>
+        <h2 className="font-display text-lg font-bold leading-tight text-foreground">{title}</h2>
       </div>
       {children}
     </section>
@@ -583,20 +581,16 @@ function NumberInput({
 
 function UnitToggle({ unit, onChange }: { unit: MassUnit; onChange: (u: MassUnit) => void }) {
   return (
-    <div className="flex overflow-hidden rounded-full border border-border">
-      {(['mg', 'mcg'] as const).map((u) => (
-        <button
-          key={u}
-          type="button"
-          onClick={() => onChange(u)}
-          className={`min-h-11 px-3 text-sm font-medium transition-colors ${
-            unit === u ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground'
-          }`}
-        >
-          {u}
-        </button>
-      ))}
-    </div>
+    <Segmented
+      ariaLabel="mg / mcg"
+      className="w-36 shrink-0"
+      value={unit}
+      onChange={onChange}
+      options={[
+        { value: 'mg', label: 'mg' },
+        { value: 'mcg', label: 'mcg' },
+      ]}
+    />
   )
 }
 
@@ -629,13 +623,21 @@ function ChipSelect({
   )
 }
 
-function ResultRow({ label, value, emphasis }: { label: string; value: string; emphasis?: boolean }) {
+/** One of the two numbers the screen exists to produce, on the brand surface. */
+function BigResult({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-baseline justify-between">
-      <span className="text-sm text-muted-foreground">{label}</span>
-      <span className={emphasis ? 'text-lg font-semibold text-primary' : 'text-base text-foreground'}>
-        {value}
-      </span>
+    <div className="min-w-0">
+      <p className="text-xs font-medium leading-tight text-white/70">{label}</p>
+      <p className="mt-1.5 truncate font-display text-[2.5rem] font-bold leading-none tabular-nums">{value}</p>
+    </div>
+  )
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 py-2.5">
+      <dt className="text-white/70">{label}</dt>
+      <dd className="font-semibold tabular-nums">{value}</dd>
     </div>
   )
 }

@@ -1,23 +1,11 @@
 import { isSameDay } from 'date-fns'
-import {
-  AlertTriangle,
-  Bell,
-  Calculator as CalculatorIcon,
-  Check,
-  ClipboardList,
-  Clock3,
-  Flame,
-  History as HistoryIcon,
-  Plus,
-  Syringe,
-  X,
-} from 'lucide-react'
+import { AlertTriangle, Bell, Check, ChevronRight, ClipboardList, Clock3, Flame, Plus, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Progress } from '@/components/ui/progress'
-import { DoseCardBody, DueCard } from '../components/DoseCard'
+import { DoseCard, DueCard } from '../components/DoseCard'
 import { EmptyState } from '../components/EmptyState'
 import { NotificationPanel } from '../components/NotificationPanel'
 import { getCompoundById } from '../content/compounds'
@@ -89,11 +77,6 @@ export function HomeScreen({
 
   const activeProtocols = useMemo(() => (protocols ?? []).filter((p) => p.isActive), [protocols])
 
-  const dosesTodayCount = useMemo(
-    () => (doseLogs ?? []).filter((log) => isSameDay(new Date(log.administeredAt), now)).length,
-    [doseLogs, now],
-  )
-
   const overallStreak = useMemo(
     () => computeStreakDays(now, (doseLogs ?? []).map((log) => new Date(log.administeredAt))),
     [doseLogs, now],
@@ -139,15 +122,15 @@ export function HomeScreen({
   const notificationCount = dueItems.length + (showBackupNudge ? 1 : 0) + notifNudgeCount
 
   return (
-    <div className="flex flex-col gap-6 px-4 pb-6 pt-4">
+    <div className="flex flex-col gap-7 px-4 pb-6 pt-2">
       <HeroHeader
         now={now}
-        activeCount={activeProtocols.length}
-        dosesTodayCount={dosesTodayCount}
         notificationCount={notificationCount}
         todayProgress={todayProgress}
         todayStatus={todayStatus}
+        streakDays={overallStreak}
         onOpenNotifications={() => setNotificationsOpen(true)}
+        onOpenHistory={onNavigateToHistory}
       />
 
       <NotificationPanel
@@ -160,35 +143,6 @@ export function HomeScreen({
         onNavigateToSettings={onNavigateToSettings}
         onNavigateToProtocols={onNavigateToProtocols}
       />
-
-      <QuickActions
-        onNavigateToProtocols={onNavigateToProtocols}
-        onNavigateToHistory={onNavigateToHistory}
-        onNavigateToCalculator={onNavigateToCalculator}
-      />
-
-      {showGetStarted && (
-        <GetStartedChecklist
-          steps={getStartedSteps}
-          onNavigateToProtocols={onNavigateToProtocols}
-          onNavigateToSettings={onNavigateToSettings}
-          onNavigateToCalculator={onNavigateToCalculator}
-          onDismiss={() => void updateSettings({ getStartedDismissedAt: new Date().toISOString() })}
-        />
-      )}
-
-      {overallStreak > 0 && <StreakCard days={overallStreak} onViewHistory={onNavigateToHistory} />}
-
-      {showBackupNudge && (
-        <button
-          type="button"
-          onClick={onNavigateToSettings}
-          className="flex min-h-11 items-start gap-2 rounded-2xl border border-brand-warn bg-brand-warn-lt px-4 py-3 text-left text-sm text-brand-warn"
-        >
-          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-          {t('home.backupNudge')}
-        </button>
-      )}
 
       {dueItems.length > 0 && (
         <section className="flex flex-col gap-3">
@@ -203,33 +157,76 @@ export function HomeScreen({
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ duration: 0.18 }}
               >
-                <DueCard item={item} doseLogs={doseLogs ?? []} now={now} onNavigateToProtocols={onNavigateToProtocols} />
+                <DueCard item={item} now={now} onNavigateToProtocols={onNavigateToProtocols} />
               </motion.div>
             ))}
           </AnimatePresence>
         </section>
       )}
 
-      <section className="flex flex-col gap-3">
-        <SectionTitle>{t('home.nextUpTitle')}</SectionTitle>
-        {upcoming.length > 0 ? (
-          <UpNextCarousel
-            items={upcoming}
-            doseLogs={doseLogs ?? []}
-            now={now}
-            onNavigateToProtocols={onNavigateToProtocols}
-          />
-        ) : (
-          <EmptyState icon={Clock3} title={t('home.noUpcomingTitle')} body={t('home.noUpcomingBody')} />
-        )}
-      </section>
+      {protocols !== undefined && activeProtocols.length === 0 ? (
+        <EmptyState
+          icon={ClipboardList}
+          title={t('home.noProtocolsTitle')}
+          body={t('home.noProtocolsBody')}
+          action={
+            <Button onClick={onNavigateToProtocols} className="mt-1">
+              <Plus />
+              {t('home.quickNewProtocol')}
+            </Button>
+          }
+        />
+      ) : (
+        <section className="flex flex-col gap-3">
+          <SectionTitle>{t('home.nextUpTitle')}</SectionTitle>
+          {upcoming.length > 0 ? (
+            upcoming.map(({ protocol, occurrence }) => (
+              <NextUpCard
+                key={`${protocol.id}-${occurrence.scheduledAt.toISOString()}`}
+                protocol={protocol}
+                occurrence={occurrence}
+                now={now}
+                onNavigateToProtocols={onNavigateToProtocols}
+              />
+            ))
+          ) : (
+            <EmptyState icon={Clock3} title={t('home.noUpcomingTitle')} body={t('home.noUpcomingBody')} />
+          )}
+        </section>
+      )}
+
+      {showGetStarted && (
+        <GetStartedChecklist
+          steps={getStartedSteps}
+          onNavigateToProtocols={onNavigateToProtocols}
+          onNavigateToSettings={onNavigateToSettings}
+          onNavigateToCalculator={onNavigateToCalculator}
+          onDismiss={() => void updateSettings({ getStartedDismissedAt: new Date().toISOString() })}
+        />
+      )}
+
+      {showBackupNudge && (
+        <button
+          type="button"
+          onClick={onNavigateToSettings}
+          className="flex min-h-11 items-start gap-2 rounded-2xl border border-brand-warn/60 bg-brand-warn-lt px-4 py-3 text-left text-sm text-brand-warn"
+        >
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+          {t('home.backupNudge')}
+        </button>
+      )}
 
       {recentActivity.length > 0 && (
         <section className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-2">
             <SectionTitle>{t('home.recentActivityTitle')}</SectionTitle>
-            <button type="button" onClick={onNavigateToHistory} className="min-h-11 text-xs text-primary">
-              {t('home.recentActivitySeeAll')} →
+            <button
+              type="button"
+              onClick={onNavigateToHistory}
+              className="-mr-2 flex min-h-11 items-center gap-0.5 rounded-full pl-3 pr-2 text-sm font-medium text-primary"
+            >
+              {t('home.recentActivitySeeAll')}
+              <ChevronRight className="size-4" />
             </button>
           </div>
           <Card className="divide-y divide-border">
@@ -239,185 +236,190 @@ export function HomeScreen({
           </Card>
         </section>
       )}
-
-      <section className="flex flex-col gap-3">
-        <SectionTitle>{t('home.activeProtocolsTitle')}</SectionTitle>
-        {activeProtocols.length === 0 ? (
-          <EmptyState
-            icon={ClipboardList}
-            title={t('home.noProtocolsTitle')}
-            body={t('home.noProtocolsBody')}
-          />
-        ) : (
-          activeProtocols.map((protocol) => <ActiveProtocolRow key={protocol.id} protocol={protocol} />)
-        )}
-      </section>
     </div>
   )
 }
 
 function SectionTitle({ children }: { children: ReactNode }) {
+  return <h2 className="text-sm font-semibold text-muted-foreground">{children}</h2>
+}
+
+/**
+ * The molecule glyph from the logo — three nodes on a rising chain — drawn as
+ * a faint watermark so the hero reads as the brand's own surface without
+ * adding a single element the user has to parse. Decorative only.
+ */
+function GlyphWatermark() {
   return (
-    <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{children}</h2>
+    <svg
+      aria-hidden
+      viewBox="110 55 470 250"
+      className="pointer-events-none absolute -right-24 -top-12 w-64 fill-white opacity-[0.05]"
+    >
+      <path d="M215 200 L300 245 L345 230 L440 165 L455 130 L400 150 L320 205 L250 175 Z" />
+      <circle cx="172" cy="180" r="57" />
+      <circle cx="325" cy="240" r="58" />
+      <circle cx="485" cy="140" r="75" />
+    </svg>
   )
 }
 
 /**
- * The app's one branded moment on Home — small logo + name, the greeting with
- * a notification shortcut alongside it, then today's state: a one-line status,
- * a progress bar, and the at-a-glance stat row.
+ * Today at a glance, as the logo's own molecule: one node per dose due today,
+ * joined by a chain that lights up sky-blue as each one is logged. It replaces
+ * a progress bar plus a pair of stat tiles — the count, the remainder and the
+ * pace are all readable from the shape alone.
  *
- * The status line and the bar are computed together in a single pass
- * (computeTodayProgress) precisely so they can't contradict each other — a bar
+ * Capped at 8 nodes so a very busy day still fits a phone; past that the chain
+ * shows the same proportion instead of one node per dose.
+ */
+function DoseChain({ completed, total, label }: { completed: number; total: number; label: string }) {
+  const MAX_NODES = 8
+  const nodes = Math.min(total, MAX_NODES)
+  const filled = total > MAX_NODES ? Math.round((completed / total) * nodes) : Math.min(completed, nodes)
+
+  return (
+    <div
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={total}
+      aria-valuenow={completed}
+      aria-label={label}
+      className="flex items-center"
+    >
+      {Array.from({ length: nodes }, (_, i) => {
+        const lit = i < filled
+        return (
+          <Fragment key={i}>
+            {/* Links have a capped length so a short day reads as a small
+                molecule, not a slider track stretched across the card. */}
+            {i > 0 && (
+              <span
+                className={`h-0.5 max-w-9 flex-1 rounded-full transition-colors ${lit ? 'bg-sky-300' : 'bg-white/25'}`}
+              />
+            )}
+            <span
+              className={`size-4 shrink-0 rounded-full transition-all ${
+                lit ? 'bg-sky-300 shadow-[0_0_14px_rgb(125_211_252/0.75)]' : 'border-2 border-white/40'
+              }`}
+            />
+          </Fragment>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
+ * The app's one branded moment on Home — a card in the logo's own navy and
+ * royal blue, with today's state told three ways that agree by construction:
+ * a sentence, the dose chain, and a count. Colours are fixed brand art (white
+ * on blue) rather than theme tokens, so the card looks the same in light and
+ * dark, like the logo itself.
+ *
+ * The sentence and the chain are computed together in a single pass
+ * (computeTodayProgress) precisely so they can't contradict each other — a chain
  * reading 2/3 under a line saying "all caught up" is the kind of small
  * inconsistency that makes people stop trusting the numbers.
  */
 function HeroHeader({
   now,
-  activeCount,
-  dosesTodayCount,
   notificationCount,
   todayProgress,
   todayStatus,
+  streakDays,
   onOpenNotifications,
+  onOpenHistory,
 }: {
   now: Date
-  activeCount: number
-  dosesTodayCount: number
   notificationCount: number
   todayProgress: { completed: number; total: number }
   todayStatus: TodayStatus
+  streakDays: number
   onOpenNotifications: () => void
+  onOpenHistory: () => void
 }) {
   const { t } = useTranslation()
   const badgeText = notificationCount > 9 ? '9+' : String(notificationCount)
 
+  // The dot carries the state's colour; the sentence stays white for contrast on the blue card.
   let statusText: string
-  let statusClass = 'text-muted-foreground'
+  let dotClass = 'bg-white/50'
   switch (todayStatus.kind) {
     case 'none':
       statusText = t('home.statusNone')
       break
     case 'allDone':
       statusText = t('home.statusAllDone')
-      statusClass = 'text-primary'
+      dotClass = 'bg-emerald-300'
       break
     case 'overdue':
       statusText = t('home.statusOverdue', { count: todayStatus.count })
-      statusClass = 'text-destructive'
+      dotClass = 'bg-amber-300'
       break
     case 'upcoming':
       statusText = t('home.statusUpcoming', { time: formatTime(todayStatus.at) })
+      dotClass = 'bg-sky-300'
       break
   }
 
-  return (
-    <Card className="p-4">
-      <div className="flex items-center gap-2">
-        <img src="/brand/icon-192.png" alt="" className="size-6 rounded-lg" />
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">peptidescr</span>
-      </div>
+  const progressLabel = t('home.todayProgress', {
+    completed: todayProgress.completed,
+    total: todayProgress.total,
+  })
 
-      <div className="mt-4 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{formatDate(now)}</p>
-          <h1 className="font-display text-3xl font-semibold tracking-tight text-foreground">{t(greetingKey(now))}</h1>
-        </div>
+  return (
+    <div
+      className="relative overflow-hidden rounded-3xl p-5 pb-4 text-white ring-1 ring-white/10"
+      style={{ background: 'var(--brand-hero)' }}
+    >
+      <GlyphWatermark />
+
+      <div className="relative flex items-center justify-between gap-3">
+        <p className="text-sm font-medium text-white/70">{formatDate(now)}</p>
         <button
           type="button"
           onClick={onOpenNotifications}
           aria-label={t('settings.notifications')}
-          className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-accent text-foreground"
+          className="relative -mr-1.5 -mt-1.5 flex size-11 shrink-0 items-center justify-center rounded-full text-white/90 transition-colors active:bg-white/15"
         >
-          <Bell className="size-4" />
+          <Bell className="size-5" />
           {notificationCount > 0 && (
-            <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-warn px-1 text-[10px] font-semibold leading-none text-primary-foreground">
+            <span className="absolute right-0.5 top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-amber-400 px-1 text-[10px] font-bold leading-none text-[#1c1400] ring-2 ring-[#10286f]">
               {badgeText}
             </span>
           )}
         </button>
       </div>
 
-      <p className={`mt-2 text-sm font-medium ${statusClass}`}>{statusText}</p>
+      <h1 className="relative -mt-1 font-display text-[1.75rem] font-bold leading-tight">{t(greetingKey(now))}</h1>
+
+      <p className="relative mt-2 flex items-center gap-2 text-[15px] font-medium text-white/90">
+        <span className={`size-2 shrink-0 rounded-full ${dotClass}`} aria-hidden />
+        <span className="min-w-0">{statusText}</span>
+      </p>
 
       {todayProgress.total > 0 && (
-        <div className="mt-3 flex flex-col gap-1.5">
-          <Progress
-            value={todayProgress.completed}
-            max={todayProgress.total}
-            label={t('home.todayProgress', {
-              completed: todayProgress.completed,
-              total: todayProgress.total,
-            })}
-          />
-          <p className="text-xs text-muted-foreground">
-            {t('home.todayProgress', {
-              completed: todayProgress.completed,
-              total: todayProgress.total,
-            })}
-          </p>
+        <div className="relative mt-6">
+          <DoseChain completed={todayProgress.completed} total={todayProgress.total} label={progressLabel} />
         </div>
       )}
 
-      <div className="mt-4 flex gap-4 border-t border-border pt-4">
-        <div className="flex flex-1 items-center gap-2.5">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent">
-            <ClipboardList className="size-4 text-primary" />
-          </span>
-          <div>
-            <p className="text-lg font-semibold leading-tight text-foreground">{activeCount}</p>
-            <p className="text-xs leading-tight text-muted-foreground">{t('home.statActiveProtocols')}</p>
-          </div>
+      {(todayProgress.total > 0 || streakDays > 0) && (
+        <div className="relative mt-3 flex flex-wrap items-center justify-between gap-x-3 text-xs font-medium text-white/75">
+          <span className="whitespace-nowrap">{todayProgress.total > 0 ? progressLabel : ''}</span>
+          {streakDays > 0 && (
+            <button
+              type="button"
+              onClick={onOpenHistory}
+              className="-mb-2 -mr-2 ml-auto flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-full px-2 active:bg-white/10"
+            >
+              <Flame className="size-3.5 text-amber-300" />
+              {t('home.streakTitle', { count: streakDays })}
+            </button>
+          )}
         </div>
-        <div className="flex flex-1 items-center gap-2.5">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent">
-            <Syringe className="size-4 text-primary" />
-          </span>
-          <div>
-            <p className="text-lg font-semibold leading-tight text-foreground">{dosesTodayCount}</p>
-            <p className="text-xs leading-tight text-muted-foreground">{t('home.statDosesToday')}</p>
-          </div>
-        </div>
-      </div>
-    </Card>
-  )
-}
-
-/**
- * PeptIQ keeps a row of one-tap shortcuts on Home. Ours are pure navigation —
- * deliberately not a "log a dose" button, because logging outside a schedule
- * has no form to open yet; the due cards above already cover logging what's
- * actually scheduled.
- */
-function QuickActions({
-  onNavigateToProtocols,
-  onNavigateToHistory,
-  onNavigateToCalculator,
-}: {
-  onNavigateToProtocols: () => void
-  onNavigateToHistory: () => void
-  onNavigateToCalculator: () => void
-}) {
-  const { t } = useTranslation()
-  const actions = [
-    { icon: Plus, label: t('home.quickNewProtocol'), onClick: onNavigateToProtocols },
-    { icon: CalculatorIcon, label: t('home.quickCalculator'), onClick: onNavigateToCalculator },
-    { icon: HistoryIcon, label: t('home.quickHistory'), onClick: onNavigateToHistory },
-  ]
-
-  return (
-    <div className="flex gap-2">
-      {actions.map(({ icon: Icon, label, onClick }) => (
-        <button
-          key={label}
-          type="button"
-          onClick={onClick}
-          className="flex min-h-11 flex-1 flex-col items-center justify-center gap-1.5 rounded-2xl border border-border bg-card px-2 py-3 text-center"
-        >
-          <Icon className="size-5 text-primary" />
-          <span className="text-xs font-medium leading-tight text-foreground">{label}</span>
-        </button>
-      ))}
+      )}
     </div>
   )
 }
@@ -451,10 +453,10 @@ function GetStartedChecklist({
   }
 
   return (
-    <Card className="flex flex-col gap-3 p-4">
+    <Card className="flex flex-col gap-2 p-4">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="font-display text-lg font-semibold text-foreground">{t('home.getStartedTitle')}</p>
+          <p className="font-display text-base font-bold text-foreground">{t('home.getStartedTitle')}</p>
           <p className="text-sm text-muted-foreground">
             {t('home.getStartedProgress', { done: doneCount, total: steps.length })}
           </p>
@@ -463,13 +465,13 @@ function GetStartedChecklist({
           type="button"
           onClick={onDismiss}
           aria-label={t('home.getStartedDismiss')}
-          className="-mr-1 -mt-1 flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground"
+          className="-mr-2 -mt-2 flex size-11 shrink-0 items-center justify-center rounded-full text-muted-foreground"
         >
           <X className="size-4" />
         </button>
       </div>
 
-      <ul className="flex flex-col gap-1">
+      <ul className="flex flex-col">
         {steps.map((step) => (
           <li key={step.id}>
             <button
@@ -496,96 +498,17 @@ function GetStartedChecklist({
   )
 }
 
-/**
- * A horizontally snapping row of upcoming doses when there's more than one,
- * matching PeptIQ's swipeable "Up Next". A single upcoming dose renders as a
- * plain card — a carousel of one is just a card with a pointless dot under it.
- */
-function UpNextCarousel({
-  items,
-  doseLogs,
-  now,
-  onNavigateToProtocols,
-}: {
-  items: { protocol: Protocol; occurrence: Occurrence }[]
-  doseLogs: DoseLog[]
-  now: Date
-  onNavigateToProtocols: () => void
-}) {
-  const scrollerRef = useRef<HTMLDivElement>(null)
-  const [activeIndex, setActiveIndex] = useState(0)
-
-  if (items.length === 1) {
-    const only = items[0]!
-    return (
-      <NextUpCard
-        protocol={only.protocol}
-        occurrence={only.occurrence}
-        doseLogs={doseLogs}
-        now={now}
-        onNavigateToProtocols={onNavigateToProtocols}
-      />
-    )
-  }
-
-  function handleScroll() {
-    const el = scrollerRef.current
-    if (!el) return
-    // Card width plus the gap; rounding gives the nearest settled slide even
-    // mid-momentum, which is what the dots should reflect.
-    const slide = el.clientWidth
-    setActiveIndex(Math.round(el.scrollLeft / (slide || 1)))
-  }
-
-  return (
-    <div className="flex flex-col gap-2">
-      <div
-        ref={scrollerRef}
-        onScroll={handleScroll}
-        className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
-        {items.map(({ protocol, occurrence }) => (
-          <div
-            key={`${protocol.id}-${occurrence.scheduledAt.toISOString()}`}
-            className="w-[calc(100vw-2rem)] shrink-0 snap-center sm:w-full"
-          >
-            <NextUpCard
-              protocol={protocol}
-              occurrence={occurrence}
-              doseLogs={doseLogs}
-              now={now}
-              onNavigateToProtocols={onNavigateToProtocols}
-            />
-          </div>
-        ))}
-      </div>
-      <div className="flex justify-center gap-1.5" aria-hidden>
-        {items.map((item, i) => (
-          <span
-            key={`${item.protocol.id}-dot`}
-            className={`h-1.5 rounded-full transition-all ${
-              i === activeIndex ? 'w-4 bg-primary' : 'w-1.5 bg-border'
-            }`}
-          />
-        ))}
-      </div>
-    </div>
-  )
-}
-
 /** One row of the Home "recent activity" peek — the full record lives in History. */
 function RecentActivityRow({ log, onOpen }: { log: DoseLog; onOpen: () => void }) {
   const { t } = useTranslation()
   const compound = getCompoundById(log.compoundId)
   const administeredAt = new Date(log.administeredAt)
+  const taken = log.status === 'taken'
 
   return (
-    <button type="button" onClick={onOpen} className="flex min-h-11 w-full items-center gap-3 p-3 text-left">
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent">
-        <Syringe className="size-4 text-primary" />
-      </span>
+    <button type="button" onClick={onOpen} className="flex min-h-14 w-full items-center gap-3 px-4 py-3 text-left">
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-sm font-medium text-foreground">
+        <span className="truncate text-sm font-semibold text-foreground">
           {compound?.name ?? t('history.unknownCompound')}
         </span>
         <span className="text-xs text-muted-foreground">
@@ -593,50 +516,23 @@ function RecentActivityRow({ log, onOpen }: { log: DoseLog; onOpen: () => void }
         </span>
       </span>
       <span
-        className={`shrink-0 text-xs font-medium ${
-          log.status === 'taken' ? 'text-primary' : 'text-muted-foreground'
-        }`}
+        className={`flex shrink-0 items-center gap-1 text-xs font-medium ${taken ? 'text-primary' : 'text-muted-foreground'}`}
       >
+        {taken && <Check className="size-3.5" />}
         {t(`history.status.${log.status}`)}
       </span>
     </button>
   )
 }
 
-/**
- * PeptIQ-style streak card, in our own blue rather than their gold — a
- * deliberate deviation from the earlier "no streak language" design pass
- * (see NOTES.md), added at the client's direct request. Kept factual
- * ("you've logged N days in a row") rather than motivational framing, to
- * stay on the right side of a record-keeping app that must never nudge
- * someone toward a dose.
- */
-function StreakCard({ days, onViewHistory }: { days: number; onViewHistory: () => void }) {
-  const { t } = useTranslation()
-  return (
-    <Card className="flex flex-col gap-1 border-primary/30 bg-accent p-4">
-      <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-        <Flame className="size-4 text-brand-warn" />
-        {t('home.streakTitle', { count: days })}
-      </p>
-      <p className="text-sm text-muted-foreground">{t('home.streakBody', { count: days })}</p>
-      <button type="button" onClick={onViewHistory} className="mt-1 min-h-11 self-start text-sm font-medium text-primary">
-        {t('home.streakCta')} →
-      </button>
-    </Card>
-  )
-}
-
 function NextUpCard({
   protocol,
   occurrence,
-  doseLogs,
   now,
   onNavigateToProtocols,
 }: {
   protocol: Protocol
   occurrence: Occurrence
-  doseLogs: DoseLog[]
   now: Date
   onNavigateToProtocols: () => void
 }) {
@@ -653,31 +549,14 @@ function NextUpCard({
   const dayWord = canLogToday ? t('home.today') : formatDate(occurrence.scheduledAt)
 
   return (
-    <Card className="flex flex-col gap-3 border-l-4 border-l-primary p-4">
-      <DoseCardBody
-        statusLabel={`${t('home.upcomingLabel')} · ${dayWord} · ${formatCountdown(now, occurrence.scheduledAt, t)}`}
-        statusClassName="text-primary"
-        time={occurrence.scheduledAt}
-        protocol={protocol}
-        compoundName={compound?.name}
-        doseLogs={doseLogs}
-        now={now}
-        showActions={canLogToday}
-        onNavigateToProtocols={onNavigateToProtocols}
-      />
-    </Card>
-  )
-}
-
-function ActiveProtocolRow({ protocol }: { protocol: Protocol }) {
-  const { t } = useTranslation()
-  const compound = getCompoundById(protocol.compoundId)
-  return (
-    <Card className="p-4">
-      <p className="font-medium text-foreground">{protocol.name || compound?.name}</p>
-      <p className="text-sm text-muted-foreground">
-        {compound?.name} · {protocol.doseAmount} {protocol.doseUnit} · {t(`schedule.${protocol.schedule.kind}`)}
-      </p>
-    </Card>
+    <DoseCard
+      tone="upcoming"
+      statusLabel={`${dayWord} · ${formatCountdown(now, occurrence.scheduledAt, t)}`}
+      time={occurrence.scheduledAt}
+      protocol={protocol}
+      compoundName={compound?.name}
+      showActions={canLogToday}
+      onNavigateToProtocols={onNavigateToProtocols}
+    />
   )
 }

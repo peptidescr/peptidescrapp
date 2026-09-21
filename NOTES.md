@@ -2,6 +2,71 @@
 
 Running log of decisions and things the client needs to weigh in on. Newest at top.
 
+## 2026-09-20 — Design pass: logo-derived palette, Montserrat, one app bar, Home and cards restructured
+
+Brief: make every screen sleeker, more minimal, and properly on brand. Audited all screens in
+both themes at 390px before changing anything. What was wrong: the app was neutral black + a
+generic light blue while the brand is deep royal blue; headlines were Fraunces (a serif inherited
+from the PeptIQ reference — the logo's own lettering is a heavy geometric sans); white text on the
+light-blue button was 2.9:1 contrast; every screen spent a 64px band on floating buttons plus a
+logo icon plus a title; Home opened with a hero, three quick-action tiles, a checklist and a streak
+card *before* the dose you have to act on (~2,350px tall); dose cards, protocol cards and history
+rows were all heavily nested/boxed; tracked-caps labels and `→` suffixes everywhere.
+
+**Palette (`tokens.css`)** — sampled pixel-for-pixel from `logo-full.png`: navy `#102c76`, royal
+`#2852a6`, glyph sky `#43b1fe→#a8dffd`, flag red `#c62429`. Dark surfaces are that navy taken
+almost to black (`#060b1a` page / `#0d1530` card / `#1b2650` border), accent is the glyph's sky
+blue. Filled controls now carry a deep-navy label (`--brand-primary-fg`, new) instead of white:
+~8:1 vs 2.9:1. Light mode keeps the client site's `#046bd2`. The flag red is deliberately *not* a UI
+colour, so it can't be read as an error. `--brand-hero` is the logo's own field as a gradient,
+used on the Home hero and the calculator result. `theme-color`/manifest updated to `#060b1a`.
+
+**Type** — Montserrat (the logo's face; 38 KB variable, self-hosted, precached) replaces Fraunces
+for display; Instrument Sans stays for body. Net −90 KB of fonts. **Reverses the earlier PeptIQ-derived
+serif choice** — to undo, restore the two `fraunces-*.woff2` files from git and the `--font-display`
+token.
+
+**Shell** — `AppBar` (new) replaces `FloatingSettingsButton` + `FloatingThemeToggleButton`: logo mark
+left, theme + settings right, once, on every screen. Settings is still pinned to the top as the
+client asked; it just no longer floats over content or forces a blank band. `AppHeader` lost its
+per-screen logo icon; sub-view titles wrap instead of truncating (fixes the "Start from a template or
+go cu…" title).
+
+**Home** — order is now hero → catch up → next up → checklist → backup nudge → recent. The hero is
+the one memorable element: logo-field gradient, faint molecule watermark, and a **dose chain** (one
+node per dose today, lit as each is logged) replacing the progress bar and two stat tiles. Streak
+moved into the hero footer. Dose cards (`DoseCard`, replacing `DoseCardBody`) are status + time,
+name + dose, Taken/Skipped — tone (missed/due/upcoming) is the only thing that changes their look.
+**Removed, all restorable from git:** quick-action tiles (duplicated the tab bar), "Active
+protocols" list (duplicated the Protocols tab), separate streak card, per-card stats row and "view
+protocol →" link (the name row is now the link), and the Next-up swipe carousel (now a plain
+stack — a hidden second card is worse than a longer list). Several of these were PeptIQ-parity
+items requested earlier; flagging since it reverses those requests.
+
+**Other screens** — Protocols: pills/nested tile → one meta line + footer row; paused/missed badges
+only when true; "∞ Ongoing" pill dropped. History: day-grouped, one card per day, hairline rows
+(new `history.yesterday`). Settings: headings above cards, Language + Appearance merged into one
+Preferences card, reordered preferences → reminders → data → about. Calculator: the result is now
+the brand surface with the two draw numbers set large; dashed-underline label → help icon.
+Onboarding: primary action pinned to the bottom of every step, logo hero on step 1, back-chevron
+slot reserved so the progress bar stops shifting, the lone sparkle replaced by a compound → dose →
+schedule diagram; identical sparkle icons on templates removed. New `ui/segmented.tsx` replaces five
+hand-rolled toggles. 15 orphaned i18n keys removed (parity 270/270).
+
+**Verified** — `tsc -b` clean; 155/155 tests; `npm run build` OK (Montserrat in the 21-entry
+precache); live headless-Chrome pass over every screen and flow at 390px and 320px, English and
+Spanish, dark and light, zero horizontal overflow. Two real 320px/Spanish defects caught that way
+and fixed (hero footer wrapping; "U-/100" breaking mid-token in the calculator result).
+`eslint src` **ran to completion in ~5s here** (the 2026-09-19 entry says it hung) and reports one
+error, `App.tsx:143 react-hooks/set-state-in-effect` — it is in the committed HEAD too, from the
+light-mode work, and untouched by this pass. One pre-existing React dev warning ("function components
+cannot be given refs", `ui/dialog.tsx` `DialogOverlay`) fires when any Dialog opens.
+
+**Not done / for the owner:** History's `doseLabel` formats by the *compound's* default unit, so a
+250 mcg BPC-157 protocol logs as "0.25 mg" in History while Protocols says "250 mcg" — a real
+inconsistency, not a design issue, left alone. The PWA splash colour is still baked at install
+(`#060b1a`). `HANDOVER.md` still describes the floating buttons, PeptIQ card layout and Fraunces.
+
 ## 2026-09-19 — Part 1 of the light-mode/settings-IA/nav plan: light mode + a quick theme toggle
 
 Scope was deliberately narrow: Part 1 only (`~/.claude/plans/golden-roaming-hickey.md`) — the

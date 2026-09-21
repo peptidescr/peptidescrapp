@@ -117,7 +117,6 @@ export function NotificationPanel({
             <DueCard
               key={`${item.protocol.id}-${item.occurrence.scheduledAt.toISOString()}`}
               item={item}
-              doseLogs={doseLogs}
               now={now}
               onNavigateToProtocols={goToProtocols}
             />

@@ -1,7 +1,7 @@
-import { PenLine, Search, Sparkles } from 'lucide-react'
-import { motion } from 'motion/react'
+import { ChevronRight, PenLine, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { compareAlphabetical, getCompoundById } from '../content/compounds'
 import { PROTOCOL_TEMPLATES, type ProtocolTemplate } from '../content/protocolTemplates'
@@ -53,11 +53,11 @@ export function TemplatePicker({ onSelectTemplate, onSelectCustom }: TemplatePic
       <button
         type="button"
         onClick={onSelectCustom}
-        className="flex min-h-11 items-start gap-3 rounded-2xl border-2 border-dashed border-primary px-4 py-4 text-left"
+        className="flex min-h-11 items-start gap-3 rounded-2xl bg-accent px-4 py-4 text-left"
       >
         <PenLine className="mt-0.5 size-5 shrink-0 text-primary" />
         <div>
-          <p className="font-medium text-primary">{t('templates.custom')}</p>
+          <p className="font-semibold text-primary">{t('templates.custom')}</p>
           <p className="text-sm text-muted-foreground">{t('templates.customDescription')}</p>
         </div>
       </button>
@@ -82,31 +82,32 @@ export function TemplatePicker({ onSelectTemplate, onSelectCustom }: TemplatePic
 
       <p className="text-xs text-muted-foreground">{t('templates.resultCount', { count: results.length })}</p>
 
-      <div className="flex flex-col gap-3">
-        {results.map((template, index) => {
-          const compound = getCompoundById(template.compoundId)
-          return (
-            <motion.button
-              key={template.id}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.15, delay: Math.min(index, 6) * 0.03 }}
-              type="button"
-              onClick={() => onSelectTemplate(template)}
-              className="flex min-h-11 items-start gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-left shadow-sm"
-            >
-              <Sparkles className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
-              <div className="min-w-0">
-                <p className="font-medium text-foreground">{t(template.nameKey)}</p>
-                <p className="text-sm text-muted-foreground">
-                  {compound?.name} · {formatDecimal(template.doseAmount, locale, 2)} {template.doseUnit} ·{' '}
-                  {t(`schedule.${template.schedule.kind}`)}
-                </p>
-              </div>
-            </motion.button>
-          )
-        })}
+      {results.length > 0 && (
+        <Card className="divide-y divide-border overflow-hidden">
+          {results.map((template) => {
+            const compound = getCompoundById(template.compoundId)
+            return (
+              <button
+                key={template.id}
+                type="button"
+                onClick={() => onSelectTemplate(template)}
+                className="flex min-h-14 w-full items-center gap-3 px-4 py-3 text-left"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-foreground">{t(template.nameKey)}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {compound?.name} · {formatDecimal(template.doseAmount, locale, 2)} {template.doseUnit} ·{' '}
+                    {t(`schedule.${template.schedule.kind}`)}
+                  </p>
+                </div>
+                <ChevronRight aria-hidden className="size-5 shrink-0 text-muted-foreground" />
+              </button>
+            )
+          })}
+        </Card>
+      )}
 
+      <div className="flex flex-col gap-3">
         {results.length === 0 && (
           <p className="rounded-2xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
             {t('templates.noResults')}

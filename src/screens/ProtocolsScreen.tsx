@@ -35,6 +35,7 @@ import { Card } from '@/components/ui/card'
 import { Combobox } from '@/components/ui/combobox'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Segmented } from '@/components/ui/segmented'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { EmptyState } from '../components/EmptyState'
@@ -92,7 +93,7 @@ export function ProtocolsScreen({ onReconstitute, initialCompoundId }: Protocols
 
   if (mode.kind === 'picker') {
     return (
-      <div className="flex flex-col gap-6 px-4 pb-6 pt-4">
+      <div className="flex flex-col gap-6 px-4 pb-6 pt-2">
         <AppHeader title={t('templates.pickerTitle')} onBack={() => setMode({ kind: 'list' })} />
         <TemplatePicker
           onSelectTemplate={(template) => setMode({ kind: 'form', template })}
@@ -119,7 +120,7 @@ export function ProtocolsScreen({ onReconstitute, initialCompoundId }: Protocols
   const pausedProtocols = all.filter((p) => !p.isActive)
 
   return (
-    <div className="flex flex-col gap-6 px-4 pb-6 pt-4">
+    <div className="flex flex-col gap-6 px-4 pb-6 pt-2">
       <AppHeader
         title={t('nav.protocols')}
         action={
@@ -136,20 +137,14 @@ export function ProtocolsScreen({ onReconstitute, initialCompoundId }: Protocols
         </p>
       )}
 
-      <div className="flex overflow-hidden rounded-full border border-border">
-        {(['mine', 'templates'] as const).map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            onClick={() => setListTab(tab)}
-            className={`min-h-11 flex-1 text-sm font-medium transition-colors ${
-              listTab === tab ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground'
-            }`}
-          >
-            {tab === 'mine' ? t('protocols.tabMine') : t('protocols.tabTemplates')}
-          </button>
-        ))}
-      </div>
+      <Segmented
+        value={listTab}
+        onChange={setListTab}
+        options={[
+          { value: 'mine', label: t('protocols.tabMine') },
+          { value: 'templates', label: t('protocols.tabTemplates') },
+        ]}
+      />
 
       {listTab === 'templates' ? (
         <TemplatePicker
@@ -184,7 +179,7 @@ export function ProtocolsScreen({ onReconstitute, initialCompoundId }: Protocols
           ]).map(({ key, items }) =>
             items.length === 0 ? null : (
               <section key={key} className="flex flex-col gap-3">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                <h2 className="text-sm font-semibold text-muted-foreground">
                   {key === 'active'
                     ? t('protocols.sectionActive')
                     : t('protocols.sectionPaused', { count: items.length })}
@@ -257,11 +252,11 @@ function ProtocolRow({
   }
 
   return (
-    <Card className={protocol.isActive ? undefined : 'bg-muted opacity-70 shadow-none'}>
+    <Card className={protocol.isActive ? undefined : 'bg-muted opacity-70'}>
       <div className="flex items-start justify-between gap-2 p-4 pb-0">
         <button type="button" onClick={onEdit} className="min-h-11 flex-1 text-left">
-          <p className="font-medium text-foreground">{protocol.name || compound?.name}</p>
-          <p className="text-sm text-muted-foreground">{compound?.name}</p>
+          <p className="text-base font-semibold leading-tight text-foreground">{protocol.name || compound?.name}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">{compound?.name}</p>
         </button>
 
         <Popover open={menuOpen} onOpenChange={setMenuOpen}>
@@ -301,12 +296,13 @@ function ProtocolRow({
         </Popover>
       </div>
 
-      <div className="flex flex-wrap gap-1.5 px-4 pt-2">
-        <Badge>{t(`schedule.${protocol.schedule.kind}`)}</Badge>
-        <Badge variant="outline">
-          {protocol.doseAmount} {protocol.doseUnit}
-        </Badge>
-        {stats.isPerpetual && <Badge variant="outline">∞ {t('protocols.perpetual')}</Badge>}
+      {/* What it is, in one line. Badges are reserved for the exceptions — a
+          paused or overdue protocol — so they still mean something when they
+          appear; "ongoing" is the default and no longer needs saying. */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-4 pt-1 text-sm text-foreground">
+        <span>
+          {t(`schedule.${protocol.schedule.kind}`)} · {protocol.doseAmount} {protocol.doseUnit}
+        </span>
         {!protocol.isActive && <Badge variant="outline">{t('protocols.pausedBadge')}</Badge>}
         {stats.missedCount > 0 && (
           <Badge variant="destructive">{t('protocols.missedCount', { count: stats.missedCount })}</Badge>
@@ -331,26 +327,32 @@ function ProtocolRow({
         </p>
       )}
 
-      {stats.nextOccurrence && (
-        <button
-          type="button"
-          onClick={onEdit}
-          className="mx-4 mt-3 flex min-h-11 items-center justify-between gap-2 rounded-2xl bg-accent px-3 py-2 text-left"
-        >
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              {t('protocols.nextDose')}
-            </p>
-            <p className="text-sm font-medium text-primary">{formatDateTime(stats.nextOccurrence.scheduledAt)}</p>
-          </div>
-          <ChevronRight className="size-4 shrink-0 text-primary" />
-        </button>
-      )}
-
-      <p className="px-4 py-3 text-xs text-muted-foreground">
-        {t('protocols.loggedCount', { count: stats.loggedCount })}
-        {stats.upcomingCount > 0 && ` · ${t('protocols.upcomingCount', { count: stats.upcomingCount })}`}
-      </p>
+      {/* Footer: when it's next due, and how much is on record. One hairline
+          instead of a nested tinted tile. */}
+      <div className="mt-3 border-t border-border">
+        {stats.nextOccurrence ? (
+          <button
+            type="button"
+            onClick={onEdit}
+            className="flex min-h-14 w-full items-center justify-between gap-3 px-4 text-left"
+          >
+            <span className="min-w-0">
+              <span className="block text-xs text-muted-foreground">{t('protocols.nextDose')}</span>
+              <span className="block text-sm font-semibold text-foreground">
+                {formatDateTime(stats.nextOccurrence.scheduledAt)}
+              </span>
+            </span>
+            <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+              {t('protocols.loggedCount', { count: stats.loggedCount })}
+              <ChevronRight className="size-4" />
+            </span>
+          </button>
+        ) : (
+          <p className="flex min-h-12 items-center px-4 text-xs text-muted-foreground">
+            {t('protocols.loggedCount', { count: stats.loggedCount })}
+          </p>
+        )}
+      </div>
 
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>
@@ -601,7 +603,7 @@ export function ProtocolForm({
   const today = startOfToday()
 
   return (
-    <div className="flex flex-col gap-5 px-4 pb-6 pt-4">
+    <div className="flex flex-col gap-5 px-4 pb-6 pt-2">
       <AppHeader
         title={protocolId ? t('protocols.editTitle') : t('protocols.newTitle')}
         onBack={onCancel ?? onDone}
@@ -643,20 +645,16 @@ export function ProtocolForm({
           {compound?.defaultUnit === 'IU' ? (
             <span className="flex min-h-11 items-center px-3 text-muted-foreground">IU</span>
           ) : (
-            <div className="flex overflow-hidden rounded-full border border-border">
-              {(['mg', 'mcg'] as const).map((u) => (
-                <button
-                  key={u}
-                  type="button"
-                  onClick={() => setDoseUnit(u)}
-                  className={`min-h-11 px-3 text-sm font-medium transition-colors ${
-                    doseUnit === u ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground'
-                  }`}
-                >
-                  {u}
-                </button>
-              ))}
-            </div>
+            <Segmented
+              ariaLabel="mg / mcg"
+              className="w-36 shrink-0"
+              value={doseUnit}
+              onChange={setDoseUnit}
+              options={[
+                { value: 'mg', label: 'mg' },
+                { value: 'mcg', label: 'mcg' },
+              ]}
+            />
           )}
         </div>
       </FormField>

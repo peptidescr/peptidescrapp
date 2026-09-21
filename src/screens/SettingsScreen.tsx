@@ -1,17 +1,4 @@
-import {
-  Bell,
-  Compass,
-  Database,
-  Globe,
-  type LucideIcon,
-  Mail,
-  MessageCircle,
-  Phone,
-  Save,
-  Scale,
-  Smartphone,
-  SunMoon,
-} from 'lucide-react'
+import { Mail, MessageCircle, Phone } from 'lucide-react'
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -26,7 +13,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
+import { Segmented } from '@/components/ui/segmented'
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { AppHeader } from '../components/AppHeader'
 import { HowItWorksList } from '../components/HowItWorksList'
@@ -58,85 +46,55 @@ export function SettingsScreen() {
   const { t } = useTranslation()
 
   return (
-    <div className="flex flex-col gap-6 px-4 pb-6 pt-4">
+    <div className="flex flex-col gap-6 px-4 pb-6 pt-2">
       <AppHeader title={t('nav.settings')} />
-      <LanguageSection />
-      <AppearanceSection />
-      <HowItWorksSection />
+      <PreferencesSection />
       <NotificationsSection />
       <InstallSection />
       <StorageSection />
       <BackupSection />
+      <HowItWorksSection />
       <LegalSection />
       <ContactSection />
     </div>
   )
 }
 
-function SectionCard({
-  title,
-  icon: Icon,
-  children,
-}: {
-  title: string
-  icon: LucideIcon
-  children: ReactNode
-}) {
+/**
+ * A titled group. The heading sits above the card, in sentence case, instead
+ * of inside it in tracked capitals with an icon — the card is the content, the
+ * heading just names it.
+ */
+function SectionCard({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Icon className="size-4" />
-          {title}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
-  )
-}
-
-function LanguageSection() {
-  const { t, i18n } = useTranslation()
-  const settings = useSettings()
-  const locale = (settings?.locale ?? i18n.language) as Locale
-
-  async function setLocale(next: Locale) {
-    await updateSettings({ locale: next })
-    await i18n.changeLanguage(next)
-  }
-
-  return (
-    <SectionCard title={t('settings.language')} icon={Globe}>
-      <div className="flex gap-2">
-        {(['es-CR', 'en'] as const).map((l) => (
-          <button
-            key={l}
-            type="button"
-            onClick={() => setLocale(l)}
-            className={`min-h-11 flex-1 rounded-full border text-sm font-medium transition-colors ${
-              locale === l ? 'border-primary bg-accent text-primary' : 'border-border text-muted-foreground'
-            }`}
-          >
-            {l === 'es-CR' ? t('settings.spanish') : t('settings.english')}
-          </button>
-        ))}
-      </div>
-    </SectionCard>
+    <section className="flex flex-col gap-2">
+      <h2 className="text-sm font-semibold text-muted-foreground">{title}</h2>
+      <Card>
+        <CardContent>{children}</CardContent>
+      </Card>
+    </section>
   )
 }
 
 const THEME_MODES = ['light', 'dark', 'system'] as const
 
 /**
- * Same hand-rolled segmented-control shape as LanguageSection (persist via
- * updateSettings, then apply the side effect) — three options instead of
- * two. 'system' with no stored preference is the default, matching
+ * Language and appearance are both "how do I want the app to look and read",
+ * so they share one card as two labelled rows rather than two cards of their
+ * own. Each control persists via updateSettings, then applies its side effect.
+ * 'system' with no stored preference is the theme default, matching
  * `settings?.theme ?? 'system'` everywhere else this is read.
  */
-function AppearanceSection() {
-  const { t } = useTranslation()
+function PreferencesSection() {
+  const { t, i18n } = useTranslation()
   const settings = useSettings()
+  const locale = (settings?.locale ?? i18n.language) as Locale
   const theme: ThemeMode = settings?.theme ?? 'system'
+
+  async function setLocale(next: Locale) {
+    await updateSettings({ locale: next })
+    await i18n.changeLanguage(next)
+  }
 
   async function setTheme(next: ThemeMode) {
     await updateSettings({ theme: next })
@@ -144,22 +102,31 @@ function AppearanceSection() {
   }
 
   return (
-    <SectionCard title={t('settings.appearance.title')} icon={SunMoon}>
-      <div className="flex gap-2">
-        {THEME_MODES.map((mode) => (
-          <button
-            key={mode}
-            type="button"
-            onClick={() => setTheme(mode)}
-            className={`min-h-11 flex-1 rounded-full border text-sm font-medium transition-colors ${
-              theme === mode ? 'border-primary bg-accent text-primary' : 'border-border text-muted-foreground'
-            }`}
-          >
-            {t(`settings.appearance.${mode}`)}
-          </button>
-        ))}
-      </div>
-    </SectionCard>
+    <Card>
+      <CardContent className="gap-5">
+        <div className="flex flex-col gap-2">
+          <p className="text-sm font-medium text-foreground">{t('settings.language')}</p>
+          <Segmented
+            ariaLabel={t('settings.language')}
+            value={locale}
+            onChange={(next) => void setLocale(next)}
+            options={[
+              { value: 'es-CR', label: t('settings.spanish') },
+              { value: 'en', label: t('settings.english') },
+            ]}
+          />
+        </div>
+        <div className="flex flex-col gap-2">
+          <p className="text-sm font-medium text-foreground">{t('settings.appearance.title')}</p>
+          <Segmented
+            ariaLabel={t('settings.appearance.title')}
+            value={theme}
+            onChange={(next) => void setTheme(next)}
+            options={THEME_MODES.map((mode) => ({ value: mode, label: t(`settings.appearance.${mode}`) }))}
+          />
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -174,7 +141,7 @@ function HowItWorksSection() {
 
   return (
     <>
-      <SectionCard title={t('onboarding.howItWorks.title')} icon={Compass}>
+      <SectionCard title={t('onboarding.howItWorks.title')}>
         <p className="text-sm text-muted-foreground">{t('settings.howItWorks.body')}</p>
         <Button variant="secondary" onClick={() => setOpen(true)}>
           {t('settings.howItWorks.cta')}
@@ -222,7 +189,7 @@ function NotificationsSection() {
   }
 
   return (
-    <SectionCard title={t('settings.notifications')} icon={Bell}>
+    <SectionCard title={t('settings.notifications')}>
       <p className="text-sm text-muted-foreground">{t(statusKey)}</p>
       <p className="text-sm text-muted-foreground">
         {t(pushOn ? 'settings.notif.reliabilityNotePush' : 'settings.notif.reliabilityNote')}
@@ -245,7 +212,7 @@ function InstallSection() {
   const install = useInstallState()
 
   return (
-    <SectionCard title={t('settings.install.title')} icon={Smartphone}>
+    <SectionCard title={t('settings.install.title')}>
       {install.isStandalone ? (
         <p className="text-sm text-muted-foreground">{t('settings.install.installed')}</p>
       ) : install.canPromptInstall ? (
@@ -286,7 +253,7 @@ function StorageSection() {
   const protectedFromCleanup = install.isStandalone || persisted === true
 
   return (
-    <SectionCard title={t('settings.storage.title')} icon={Database}>
+    <SectionCard title={t('settings.storage.title')}>
       <p className="text-sm text-muted-foreground">
         {protectedFromCleanup ? t('settings.storage.persisted') : t('settings.storage.notPersisted')}
       </p>
@@ -349,16 +316,21 @@ function BackupSection() {
   }
 
   return (
-    <SectionCard title={t('settings.backup.title')} icon={Save}>
+    <SectionCard title={t('settings.backup.title')}>
       <p className="text-sm text-muted-foreground">
         {settings?.lastBackupAt
           ? t('settings.backup.lastBackup', { date: formatDateTime(new Date(settings.lastBackupAt)) })
           : t('settings.backup.never')}
       </p>
       <Button onClick={handleExportJson}>{t('settings.backup.shareJson')}</Button>
-      <Button variant="secondary" onClick={handleExportCsv}>
-        {t('settings.backup.exportCsv')}
-      </Button>
+      <div className="grid grid-cols-2 gap-2">
+        <Button variant="secondary" onClick={handleExportCsv}>
+          {t('settings.backup.exportCsv')}
+        </Button>
+        <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
+          {t('settings.backup.import')}
+        </Button>
+      </div>
       <input
         ref={fileInputRef}
         type="file"
@@ -366,9 +338,6 @@ function BackupSection() {
         className="hidden"
         onChange={(e) => void handleFileSelected(e)}
       />
-      <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
-        {t('settings.backup.import')}
-      </Button>
 
       <AlertDialog open={pendingImport !== null} onOpenChange={(open) => !open && setPendingImport(null)}>
         <AlertDialogContent>
@@ -394,7 +363,7 @@ function LegalSection() {
   const [expanded, setExpanded] = useState(false)
 
   return (
-    <SectionCard title={t('settings.legal.title')} icon={Scale}>
+    <SectionCard title={t('settings.legal.title')}>
       <p className="text-sm text-muted-foreground">
         {settings?.legalAcceptedAt
           ? t('settings.legal.accepted', {
@@ -425,7 +394,7 @@ function LegalSection() {
 function ContactSection() {
   const { t } = useTranslation()
   return (
-    <SectionCard title={t('settings.contact.title')} icon={Phone}>
+    <SectionCard title={t('settings.contact.title')}>
       <img src="/brand/logo-full.png" alt="Peptides Costa Rica" className="h-12 w-auto self-start" />
       <p className="text-sm text-muted-foreground">Jacó · San José, Costa Rica</p>
       <a href="https://peptidescostarica.net" className="text-sm text-primary" target="_blank" rel="noreferrer">

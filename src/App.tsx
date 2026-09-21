@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AnimatePresence, motion } from 'motion/react'
-import { FloatingSettingsButton } from './components/FloatingSettingsButton'
-import { FloatingThemeToggleButton } from './components/FloatingThemeToggleButton'
+import { APP_BAR_HEIGHT, AppBar } from './components/AppBar'
 import { TabBar, type Tab } from './components/TabBar'
 import { Toaster } from './components/ui/sonner'
 import { LEGAL_VERSION } from './content/legal'
@@ -197,14 +196,17 @@ function App() {
   }
 
   return (
-    <div className="min-h-dvh bg-background pb-20 pt-[calc(env(safe-area-inset-top)+4rem)]">
+    <div
+      className="min-h-dvh bg-background pb-20"
+      style={{ paddingTop: `calc(env(safe-area-inset-top) + ${APP_BAR_HEIGHT})` }}
+    >
       <Toaster />
-      {tab !== 'settings' && (
-        <div className="fixed right-4 top-[calc(env(safe-area-inset-top)+0.75rem)] z-30 flex items-center gap-2">
-          <FloatingThemeToggleButton resolvedTheme={resolvedTheme} onToggle={() => void toggleTheme()} />
-          <FloatingSettingsButton onClick={() => goToTab('settings')} />
-        </div>
-      )}
+      <AppBar
+        showActions={tab !== 'settings'}
+        resolvedTheme={resolvedTheme}
+        onToggleTheme={() => void toggleTheme()}
+        onOpenSettings={() => goToTab('settings')}
+      />
       <AnimatePresence mode="wait">
         <motion.div
           key={tab}

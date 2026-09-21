@@ -12,8 +12,13 @@ import { useTranslation } from 'react-i18next'
  * used to drop the branding entirely).
  *
  * Two modes, chosen by whether `onBack` is passed:
- *   - top level  → brand icon + title, optional action on the right
+ *   - top level  → title, optional action on the right
  *   - sub-view   → back chevron + title, optional action on the right
+ *
+ * The brand mark is not repeated here — AppBar carries it once, above every
+ * screen. Titles wrap onto a second line rather than truncating: a title such
+ * as "Start from a template or go custom" is a sentence, and cutting it to
+ * "…go cu…" reads as a bug.
  *
  * The sub-view title is left-aligned next to an icon-only back chevron
  * rather than centred. Centring was the original intent, but it cannot hold:
@@ -49,18 +54,15 @@ export function AppHeader({
         >
           <ChevronLeft className="size-6" />
         </button>
-        <h1 className="min-w-0 flex-1 truncate font-display text-xl font-semibold text-foreground">{title}</h1>
+        <h1 className="min-w-0 flex-1 font-display text-lg font-bold leading-snug text-foreground">{title}</h1>
         {action}
       </div>
     )
   }
 
   return (
-    <div className="flex items-center justify-between gap-2">
-      <div className="flex min-w-0 items-center gap-2">
-        <img src="/brand/icon-192.png" alt="" className="size-6 shrink-0 rounded-lg" />
-        <h1 className="truncate font-display text-xl font-semibold text-foreground">{title}</h1>
-      </div>
+    <div className="flex min-h-11 items-center justify-between gap-2">
+      <h1 className="min-w-0 font-display text-2xl font-bold leading-tight text-foreground">{title}</h1>
       {action}
     </div>
   )

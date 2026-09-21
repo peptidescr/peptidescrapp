@@ -1,6 +1,6 @@
-import { Bell, ChevronLeft, ShieldCheck, Smartphone, Sparkles } from 'lucide-react'
+import { Bell, CalendarClock, ChevronLeft, FlaskConical, ShieldCheck, Smartphone, Syringe } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useEffect, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AppHeader } from '../components/AppHeader'
 import { HowItWorksList } from '../components/HowItWorksList'
@@ -45,16 +45,21 @@ export function OnboardingScreen({ onComplete }: { onComplete: (calculatorProtoc
     <div className="flex min-h-dvh flex-col bg-background px-4 pb-8 pt-[calc(env(safe-area-inset-top)+1.5rem)]">
       {showChrome && (
         <div className="mb-6 flex items-center gap-3">
-          {step > 1 && (
-            <button
-              type="button"
-              onClick={goBack}
-              aria-label={t('common.back')}
-              className="-ml-2 flex size-11 shrink-0 items-center justify-center rounded-full text-primary"
-            >
-              <ChevronLeft className="size-6" />
-            </button>
-          )}
+          {/* Always rendered, invisible on step 1: the progress bar then
+              keeps the same width and position on every step instead of
+              jumping when the back button appears. */}
+          <button
+            type="button"
+            onClick={goBack}
+            aria-label={t('common.back')}
+            aria-hidden={step === 1}
+            tabIndex={step === 1 ? -1 : 0}
+            className={`-ml-2 flex size-11 shrink-0 items-center justify-center rounded-full text-primary ${
+              step === 1 ? 'invisible' : ''
+            }`}
+          >
+            <ChevronLeft className="size-6" />
+          </button>
           <Progress
             value={step}
             max={TOTAL_STEPS}
@@ -63,9 +68,10 @@ export function OnboardingScreen({ onComplete }: { onComplete: (calculatorProtoc
           />
         </div>
       )}
-      <div className="relative flex-1 overflow-hidden">
+      <div className="relative flex flex-1 flex-col overflow-hidden">
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
+            className="flex flex-1 flex-col"
             key={step}
             initial={{ opacity: 0, x: 24 }}
             animate={{ opacity: 1, x: 0 }}
@@ -108,12 +114,36 @@ export function LegalGate({ onAccept }: { onAccept: () => void }) {
   )
 }
 
-function StepShell({ title, body, children }: { title: string; body?: string; children: ReactNode }) {
+/**
+ * One wizard step: a hero (optional), a title, a short body, the content, and
+ * a `footer` pinned to the bottom of the screen. Pinning the primary action
+ * means it sits in the same place on every step — under the thumb — instead of
+ * floating wherever the content happened to end.
+ */
+function StepShell({
+  title,
+  body,
+  hero,
+  footer,
+  centered = false,
+  children,
+}: {
+  title: string
+  body?: string
+  hero?: ReactNode
+  footer?: ReactNode
+  centered?: boolean
+  children?: ReactNode
+}) {
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="font-display text-2xl font-semibold text-foreground">{title}</h1>
-      {body && <p className="text-sm text-muted-foreground">{body}</p>}
-      {children}
+    <div className="flex flex-1 flex-col">
+      <div className={`flex flex-1 flex-col gap-4 ${centered ? 'items-center text-center' : ''}`}>
+        {hero}
+        <h1 className="font-display text-2xl font-bold leading-tight text-foreground">{title}</h1>
+        {body && <p className="text-sm text-muted-foreground">{body}</p>}
+        {children}
+      </div>
+      {footer && <div className="mt-auto flex flex-col gap-2 pt-8">{footer}</div>}
     </div>
   )
 }
@@ -134,9 +164,19 @@ function LanguageStep({ onNext }: { onNext: () => void }) {
   }
 
   return (
-    <StepShell title={t('onboarding.language.title')}>
-      <img src="/brand/logo-full.png" alt="Peptides Costa Rica" className="mx-auto h-16 w-auto" />
-      <div className="flex flex-col gap-2">
+    <StepShell
+      centered
+      title={t('onboarding.language.title')}
+      hero={
+        <img
+          src="/brand/logo-full.png"
+          alt="Peptides Costa Rica"
+          className="mt-2 h-40 w-auto rounded-[2rem] shadow-[0_24px_64px_-24px_rgb(44_92_181/0.9)]"
+        />
+      }
+      footer={<Button onClick={onNext}>{t('onboarding.continue')}</Button>}
+    >
+      <div className="flex w-full flex-col gap-2 text-left">
         {(['es-CR', 'en'] as const).map((l) => (
           <OptionCard
             key={l}
@@ -146,9 +186,6 @@ function LanguageStep({ onNext }: { onNext: () => void }) {
           />
         ))}
       </div>
-      <Button onClick={onNext} className="mt-4 w-full">
-        {t('onboarding.continue')}
-      </Button>
     </StepShell>
   )
 }
@@ -163,17 +200,15 @@ function LanguageStep({ onNext }: { onNext: () => void }) {
 function HowItWorksStep({ onNext }: { onNext: () => void }) {
   const { t } = useTranslation()
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col items-center gap-3 text-center">
-        <img src="/brand/icon-192.png" alt="" className="size-12 rounded-2xl" />
-        <h1 className="font-display text-2xl font-semibold text-foreground">{t('onboarding.howItWorks.title')}</h1>
-        <p className="text-sm text-muted-foreground">{t('onboarding.howItWorks.subtitle')}</p>
+    <StepShell
+      title={t('onboarding.howItWorks.title')}
+      body={t('onboarding.howItWorks.subtitle')}
+      footer={<Button onClick={onNext}>{t('onboarding.continue')}</Button>}
+    >
+      <div className="mt-2">
+        <HowItWorksList />
       </div>
-      <HowItWorksList />
-      <Button onClick={onNext} className="mt-2 w-full">
-        {t('onboarding.continue')}
-      </Button>
-    </div>
+    </StepShell>
   )
 }
 
@@ -187,17 +222,23 @@ function DisclaimerStep({ locale, onAccept }: { locale: Locale; onAccept: () => 
   }
 
   return (
-    <StepShell title={legal.disclaimerTitle}>
-      <div className="flex max-h-[50vh] flex-col gap-3 overflow-y-auto rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">
+    <StepShell
+      title={legal.disclaimerTitle}
+      footer={
+        <>
+          <p className="text-center text-xs text-muted-foreground">{t('onboarding.disclaimer.mustAccept')}</p>
+          <Button onClick={handleAccept}>
+            <ShieldCheck />
+            {legal.acceptCta}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex max-h-[55vh] flex-col gap-3 overflow-y-auto rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">
         <p>{legal.disclaimerBody}</p>
         <p className="font-medium text-foreground">{legal.termsTitle}</p>
         <p>{legal.termsBody}</p>
       </div>
-      <p className="text-xs text-muted-foreground">{t('onboarding.disclaimer.mustAccept')}</p>
-      <Button onClick={handleAccept} className="mt-2 w-full">
-        <ShieldCheck className="size-4" />
-        {legal.acceptCta}
-      </Button>
     </StepShell>
   )
 }
@@ -207,7 +248,11 @@ function InstallStep({ onNext }: { onNext: () => void }) {
   const install = useInstallState()
 
   return (
-    <StepShell title={t('onboarding.install.title')} body={t('onboarding.install.body')}>
+    <StepShell
+      title={t('onboarding.install.title')}
+      body={t('onboarding.install.body')}
+      footer={<Button onClick={onNext}>{t('onboarding.continue')}</Button>}
+    >
       <div className="flex items-start gap-3 rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">
         <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent">
           <Smartphone className="size-4 text-primary" />
@@ -227,9 +272,6 @@ function InstallStep({ onNext }: { onNext: () => void }) {
           {t('settings.install.cta')}
         </Button>
       )}
-      <Button onClick={onNext} className="mt-2 w-full">
-        {t('onboarding.continue')}
-      </Button>
     </StepShell>
   )
 }
@@ -252,7 +294,11 @@ function NotificationStep({ onNext }: { onNext: () => void }) {
   }
 
   return (
-    <StepShell title={t('onboarding.notifications.title')} body={t('onboarding.notifications.body')}>
+    <StepShell
+      title={t('onboarding.notifications.title')}
+      body={t('onboarding.notifications.body')}
+      footer={<Button onClick={onNext}>{t('onboarding.continue')}</Button>}
+    >
       <div className="flex items-start gap-3 rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">
         <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent">
           <Bell className="size-4 text-primary" />
@@ -264,10 +310,39 @@ function NotificationStep({ onNext }: { onNext: () => void }) {
           {t('settings.notif.enable')}
         </Button>
       )}
-      <Button onClick={onNext} className="mt-2 w-full">
-        {t('onboarding.continue')}
-      </Button>
     </StepShell>
+  )
+}
+
+/**
+ * "A protocol is a compound, a dose, and a schedule" — drawn as the logo's own
+ * three linked nodes, so the sentence above it is something you can see rather
+ * than only read. The labels reuse the protocol form's own field names, so what
+ * the diagram calls each part is exactly what the form will ask for next.
+ */
+function ProtocolAnatomy() {
+  const { t } = useTranslation()
+  const parts = [
+    { icon: FlaskConical, label: t('protocols.compound') },
+    { icon: Syringe, label: t('protocols.doseAmount') },
+    { icon: CalendarClock, label: t('protocols.schedule') },
+  ]
+  return (
+    <div className="flex flex-1 items-center justify-center pb-16" aria-hidden>
+      <div className="flex items-start">
+        {parts.map(({ icon: Icon, label }, i) => (
+          <Fragment key={label}>
+            {i > 0 && <span className="mt-[23px] h-0.5 w-5 shrink-0 rounded-full bg-border" />}
+            <div className="flex w-20 flex-col items-center gap-2 text-center">
+              <span className="flex size-12 items-center justify-center rounded-full bg-accent text-primary">
+                <Icon className="size-5" />
+              </span>
+              <span className="text-xs font-medium leading-tight text-muted-foreground">{label}</span>
+            </div>
+          </Fragment>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -319,16 +394,19 @@ function FirstProtocolStep({
   }
 
   return (
-    <StepShell title={t('onboarding.firstProtocol.title')} body={t('onboarding.firstProtocol.body')}>
-      <div className="flex justify-center py-2">
-        <Sparkles className="size-10 text-primary" />
-      </div>
-      <Button onClick={() => setMode('picker')} className="w-full">
-        {t('onboarding.firstProtocol.cta')}
-      </Button>
-      <button type="button" onClick={onSkip} className="min-h-11 self-center text-sm text-muted-foreground">
-        {t('onboarding.firstProtocol.skip')}
-      </button>
+    <StepShell
+      title={t('onboarding.firstProtocol.title')}
+      body={t('onboarding.firstProtocol.body')}
+      footer={
+        <>
+          <Button onClick={() => setMode('picker')}>{t('onboarding.firstProtocol.cta')}</Button>
+          <button type="button" onClick={onSkip} className="min-h-11 self-center text-sm text-muted-foreground">
+            {t('onboarding.firstProtocol.skip')}
+          </button>
+        </>
+      }
+    >
+      <ProtocolAnatomy />
     </StepShell>
   )
 }

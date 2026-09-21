@@ -11,10 +11,10 @@ interface TabBarProps {
   navLabel: string
 }
 
-// Settings isn't rendered here at all — it's a fixed floating button pinned
-// to the top of the screen instead (FloatingSettingsButton.tsx), per the
-// client's explicit request. `Tab` keeps 'settings' as a valid app screen;
-// this bar just doesn't offer a way to reach it.
+// Settings isn't rendered here at all — it lives in the top app bar
+// (AppBar.tsx), per the client's explicit request to keep it pinned to the top
+// of the screen. `Tab` keeps 'settings' as a valid app screen; this bar just
+// doesn't offer a way to reach it.
 const TABS: Tab[] = ['home', 'calculator', 'protocols', 'history']
 
 const ICONS: Record<Tab, ComponentType<{ className?: string }>> = {
@@ -29,7 +29,7 @@ const ICONS: Record<Tab, ComponentType<{ className?: string }>> = {
 export function TabBar({ active, onChange, labels, navLabel }: TabBarProps) {
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-10 flex gap-1 border-t border-border bg-card px-1 pb-[env(safe-area-inset-bottom)]"
+      className="fixed inset-x-0 bottom-0 z-10 flex gap-1 border-t border-border/70 bg-background/85 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl"
       aria-label={navLabel}
     >
       {TABS.map((tab) => {
@@ -53,7 +53,7 @@ export function TabBar({ active, onChange, labels, navLabel }: TabBarProps) {
               />
             )}
             <Icon className="size-5" />
-            <span className="text-center text-[11px] leading-tight tracking-tight break-words">{labels[tab]}</span>
+            <span className="text-center text-[11px] leading-tight break-words">{labels[tab]}</span>
           </button>
         )
       })}

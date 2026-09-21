@@ -1,5 +1,5 @@
-import { History as HistoryIcon, Search, Trash2 } from 'lucide-react'
-import { AnimatePresence, motion } from 'motion/react'
+import { isToday, isYesterday } from 'date-fns'
+import { Check, History as HistoryIcon, Search, Trash2 } from 'lucide-react'
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -17,11 +17,13 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Segmented } from '@/components/ui/segmented'
 import { EmptyState } from '../components/EmptyState'
 import { AppHeader } from '../components/AppHeader'
 import { getCompoundById } from '../content/compounds'
-import { formatDateTime, formatTime, toIsoDate } from '../lib/dates'
+import { formatDate, formatTime, toIsoDate } from '../lib/dates'
 import { db, type DoseLog, type DoseStatus } from '../lib/db'
 import { useLiveQuery } from '../lib/useLiveQuery'
 import {
@@ -47,6 +49,13 @@ function doseLabel(log: DoseLog, locale: Locale): string {
     return `${formatDecimal(amount, locale, unit === 'mcg' ? 0 : 3)} ${unit}`
   }
   return '—'
+}
+
+/** "Today" / "Yesterday" for the last two days, the plain date after that. */
+function dayHeading(date: Date, t: (key: string) => string): string {
+  if (isToday(date)) return t('home.today')
+  if (isYesterday(date)) return t('history.yesterday')
+  return formatDate(date)
 }
 
 type StatusFilter = 'all' | DoseStatus
@@ -75,6 +84,20 @@ export function HistoryScreen() {
     })
   }, [sorted, search, statusFilter])
 
+  // `filtered` is already newest-first, so consecutive entries on the same
+  // calendar day are adjacent and a single pass is enough.
+  const groups = useMemo(() => {
+    const out: { key: string; date: Date; logs: DoseLog[] }[] = []
+    for (const log of filtered) {
+      const date = new Date(log.administeredAt)
+      const key = toIsoDate(date)
+      const last = out[out.length - 1]
+      if (last && last.key === key) last.logs.push(log)
+      else out.push({ key, date, logs: [log] })
+    }
+    return out
+  }, [filtered])
+
   if (editingId) {
     const log = (logs ?? []).find((l) => l.id === editingId)
     if (log) {
@@ -83,7 +106,7 @@ export function HistoryScreen() {
   }
 
   return (
-    <div className="flex flex-col gap-6 px-4 pb-6 pt-4">
+    <div className="flex flex-col gap-6 px-4 pb-6 pt-2">
       <AppHeader title={t('nav.history')} />
 
       <div className="relative">
@@ -116,40 +139,44 @@ export function HistoryScreen() {
         <EmptyState icon={HistoryIcon} title={t('history.emptyTitle')} body={t('history.emptyBody')} />
       )}
 
-      <div className="flex flex-col gap-2">
-        <AnimatePresence initial={false}>
-          {filtered.map((log) => {
-            const compound = getCompoundById(log.compoundId)
-            return (
-              <motion.button
-                key={log.id}
-                layout
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.15 }}
-                type="button"
-                onClick={() => setEditingId(log.id)}
-                className="min-h-11 rounded-2xl border border-border bg-card p-4 text-left shadow-sm"
-              >
-                <div className="flex items-center justify-between">
-                  <p className="font-medium text-foreground">{compound?.name ?? t('history.unknownCompound')}</p>
+      {/* One card per day, one hairline-divided row per entry: the day is said
+          once in the heading instead of being repeated inside every row. */}
+      {groups.map((group) => (
+        <section key={group.key} className="flex flex-col gap-2">
+          <h2 className="text-sm font-semibold text-muted-foreground">{dayHeading(group.date, t)}</h2>
+          <Card className="divide-y divide-border">
+            {group.logs.map((log) => {
+              const compound = getCompoundById(log.compoundId)
+              const taken = log.status === 'taken'
+              return (
+                <button
+                  key={log.id}
+                  type="button"
+                  onClick={() => setEditingId(log.id)}
+                  className="flex min-h-14 w-full items-center gap-3 px-4 py-3 text-left"
+                >
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-sm font-semibold text-foreground">
+                      {compound?.name ?? t('history.unknownCompound')}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatTime(new Date(log.administeredAt))} · {doseLabel(log, locale)}
+                    </span>
+                  </span>
                   <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                      log.status === 'taken' ? 'bg-accent text-primary' : 'bg-muted text-muted-foreground'
+                    className={`flex shrink-0 items-center gap-1 text-xs font-medium ${
+                      taken ? 'text-primary' : 'text-muted-foreground'
                     }`}
                   >
+                    {taken && <Check className="size-3.5" />}
                     {t(`history.status.${log.status}`)}
                   </span>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  {formatDateTime(new Date(log.administeredAt))} · {doseLabel(log, locale)}
-                </p>
-              </motion.button>
-            )
-          })}
-        </AnimatePresence>
-      </div>
+                </button>
+              )
+            })}
+          </Card>
+        </section>
+      ))}
     </div>
   )
 }
@@ -202,7 +229,7 @@ function HistoryEditForm({ log, onDone }: { log: DoseLog; onDone: () => void }) 
   }
 
   return (
-    <div className="flex flex-col gap-5 px-4 pb-6 pt-4">
+    <div className="flex flex-col gap-5 px-4 pb-6 pt-2">
       <AppHeader title={compound?.name ?? t('history.unknownCompound')} onBack={onDone} />
 
       <FormField label={t('history.date')}>
@@ -225,20 +252,16 @@ function HistoryEditForm({ log, onDone }: { log: DoseLog; onDone: () => void }) 
           {isIU ? (
             <span className="flex min-h-11 items-center px-3 text-muted-foreground">IU</span>
           ) : (
-            <div className="flex overflow-hidden rounded-full border border-border">
-              {(['mg', 'mcg'] as const).map((u) => (
-                <button
-                  key={u}
-                  type="button"
-                  onClick={() => setUnit(u)}
-                  className={`min-h-11 px-3 text-sm font-medium transition-colors ${
-                    unit === u ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground'
-                  }`}
-                >
-                  {u}
-                </button>
-              ))}
-            </div>
+            <Segmented
+              ariaLabel="mg / mcg"
+              className="w-36 shrink-0"
+              value={unit}
+              onChange={setUnit}
+              options={[
+                { value: 'mg', label: 'mg' },
+                { value: 'mcg', label: 'mcg' },
+              ]}
+            />
           )}
         </div>
       </FormField>
