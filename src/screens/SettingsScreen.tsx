@@ -395,7 +395,7 @@ function ContactSection() {
   const { t } = useTranslation()
   return (
     <SectionCard title={t('settings.contact.title')}>
-      <img src="/brand/logo-full.png" alt="Peptides Costa Rica" className="h-12 w-auto self-start" />
+      <img src="/brand/logo-full.png" alt="Peptides Costa Rica" className="h-16 w-auto self-start rounded-xl" />
       <p className="text-sm text-muted-foreground">Jacó · San José, Costa Rica</p>
       <a href="https://peptidescostarica.net" className="text-sm text-primary" target="_blank" rel="noreferrer">
         peptidescostarica.net

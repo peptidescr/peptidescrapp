@@ -30,10 +30,11 @@ export default defineConfig({
         background_color: '#060b1a',
         theme_color: '#060b1a',
         icons: [
-          { src: '/brand/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/brand/icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: '/brand/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/brand/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          // Same logo with extra margin, so Android's circular/squircle mask can't clip it.
           {
-            src: '/brand/icon-512.png',
+            src: '/brand/icon-maskable-512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable',

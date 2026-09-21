@@ -13,12 +13,15 @@ export function Progress({
   max = 100,
   className,
   label,
+  variant = 'default',
 }: {
   value: number
   max?: number
   className?: string
   /** Accessible name — required, since a bare bar tells a screen reader nothing. */
   label: string
+  /** 'onBrand' is for use on the blue Home hero: white fill on a translucent white track. */
+  variant?: 'default' | 'onBrand'
 }) {
   const safeMax = max <= 0 ? 1 : max
   const pct = Math.min(100, Math.max(0, (value / safeMax) * 100))
@@ -30,10 +33,17 @@ export function Progress({
       aria-valuemin={0}
       aria-valuemax={safeMax}
       aria-label={label}
-      className={cn('h-1.5 w-full overflow-hidden rounded-full bg-border', className)}
+      className={cn(
+        'w-full overflow-hidden rounded-full',
+        variant === 'onBrand' ? 'h-2 bg-white/20' : 'h-1.5 bg-border',
+        className,
+      )}
     >
       <div
-        className="h-full rounded-full bg-primary transition-[width] duration-300 ease-out"
+        className={cn(
+          'h-full rounded-full transition-[width] duration-300 ease-out',
+          variant === 'onBrand' ? 'bg-white' : 'bg-primary',
+        )}
         style={{ width: `${pct}%` }}
       />
     </div>

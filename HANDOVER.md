@@ -141,10 +141,11 @@ enough.
 3. **Four category guesses.** HGH, HCG, and the four named blends didn't have categories
    in the original compound table — I assigned best-guess ones (`NOTES.md` and inline in
    `src/content/compounds.ts` have the specifics). One-line changes once confirmed.
-4. **Logo/icon.** Using the client's real logo (pulled from their site) and a redrawn
-   version of their actual favicon mark — not your original vector file, so worth a look.
-   If the client has the real source (AI/SVG/EPS), send it and it drops straight into
-   `public/brand/` under the same filenames.
+4. **Logo/icon.** Every logo and icon is generated from the client's supplied
+   `public/brand/peptidescrlogo.jpeg` (raster, solid blue background, no transparency).
+   Square icons are a centred crop of it; the Android home-screen icon is a separate padded
+   version so the mask can't clip it. If the client has a vector/transparent original,
+   send it and the PNGs can be regenerated at full quality.
 5. **Logging-streak counter**, new on Home ("Racha de N días"). This reverses an earlier,
    deliberate design restraint (no streak/gamification language, to keep this strictly a
    record-keeping tool and stay clear of anything that could read as encouraging a dose)

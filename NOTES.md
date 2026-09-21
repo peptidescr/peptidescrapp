@@ -1187,3 +1187,15 @@ hundreds of devices — move to a keyed index if it ever needs to be thousands.
 **Privacy wording:** Settings now discloses this. `legal.ts` is still placeholder text and must
 be updated by the client's lawyer to match ("data stays on your device" is no longer
 literally true for the push address and reminder times).
+
+## Logo replacement (September 2026)
+
+All logos/icons now come from `public/brand/peptidescrlogo.jpeg` (1319x1108 JPEG, opaque
+blue-gradient background — converting to PNG can't add transparency). Generated with
+System.Drawing, high-quality bicubic: `icon-512`/`icon-192`/`apple-touch-icon` (180)/`favicon-32`
+are the largest centred square of the source (whole logo kept); `icon-maskable-512` draws the
+whole logo at 75% on the source's own gradient so Android's ~80% safe-zone mask can't clip the
+bars; `logo-full.png` is the uncropped logo at 660px wide. The old `icon.svg` atom mark is
+removed. The JPEG stays in place as the source of truth. The tiny 24px header mark is the
+whole logo shrunk, so its text is not legible at that size — use a tighter crop of just the
+molecule mark there if the client wants it crisper.
