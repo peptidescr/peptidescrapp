@@ -33,7 +33,7 @@ import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Card } from '@/components/ui/card'
 import { Combobox } from '@/components/ui/combobox'
-import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Segmented } from '@/components/ui/segmented'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -50,6 +50,13 @@ import { computeProtocolStats } from '../lib/homeData'
 import { scheduleUpcomingReminders } from '../lib/notifications'
 import { alphabeticalOptions } from '../lib/options'
 import { requestPushSync } from '../lib/push'
+import {
+  MAX_DAY_COUNT,
+  MAX_NAME_LENGTH,
+  parseBoundedInteger,
+  parsePositiveAmount,
+  sanitizeText,
+} from '../lib/sanitize'
 import type { Schedule, Weekday } from '../lib/schedule'
 import { useLiveQuery } from '../lib/useLiveQuery'
 import { formatDecimal, type Locale, type MassUnit } from '../lib/units'
@@ -504,31 +511,44 @@ export function ProtocolForm({
 
   const compound = compounds.find((c) => c.id === compoundId)
 
+  // Parsed, range-checked values. Save stays disabled until each field that
+  // applies is valid — bad input is refused, never quietly turned into a default.
+  const doseValue = parsePositiveAmount(doseAmount)
+  const everyNValue = parseBoundedInteger(everyN, 1, MAX_DAY_COUNT)
+  const daysOnValue = parseBoundedInteger(daysOn, 1, MAX_DAY_COUNT)
+  const daysOffValue = parseBoundedInteger(daysOff, 0, MAX_DAY_COUNT)
+
   function scheduleFromForm(): Schedule {
     switch (scheduleKind) {
       case 'daily':
         return { kind: 'daily' }
       case 'everyNDays':
-        return { kind: 'everyNDays', n: Math.max(1, Number(everyN) || 1) }
+        return { kind: 'everyNDays', n: everyNValue ?? 1 }
       case 'weekdays':
         return { kind: 'weekdays', days: weekdays.length ? weekdays : [1] }
       case 'cycle':
-        return {
-          kind: 'cycle',
-          daysOn: Math.max(1, Number(daysOn) || 1),
-          daysOff: Math.max(0, Number(daysOff) || 0),
-        }
+        return { kind: 'cycle', daysOn: daysOnValue ?? 1, daysOff: daysOffValue ?? 0 }
       case 'custom':
         return { kind: 'custom', dates: [...customDates].sort() }
     }
   }
 
   const needsCustomDays = scheduleKind === 'custom' && customDates.length === 0
+  const scheduleFieldsValid =
+    scheduleKind === 'everyNDays'
+      ? everyNValue !== null
+      : scheduleKind === 'cycle'
+        ? daysOnValue !== null && daysOffValue !== null
+        : true
   const canSave =
-    compound !== undefined && doseAmount.trim() !== '' && reminderTimes.length > 0 && !needsCustomDays
+    compound !== undefined &&
+    doseValue !== null &&
+    reminderTimes.length > 0 &&
+    !needsCustomDays &&
+    scheduleFieldsValid
 
   async function handleSave() {
-    if (!compound) return
+    if (!compound || doseValue === null) return
     const schedule = scheduleFromForm()
     // A hand-picked schedule has no meaningful start/end of its own — its
     // first and last picked days are the start and end, which also keeps
@@ -549,9 +569,9 @@ export function ProtocolForm({
 
     const protocol: Protocol = {
       id: protocolId ?? crypto.randomUUID(),
-      name: name.trim(),
+      name: sanitizeText(name).trim(),
       compoundId: compound.id,
-      doseAmount: Number(doseAmount.replace(',', '.')) || 0,
+      doseAmount: doseValue,
       doseUnit: doseUnit,
       schedule,
       reminderTimes,
@@ -625,9 +645,10 @@ export function ProtocolForm({
       <FormField label={t('protocols.name')}>
         <Combobox
           value={name}
-          onValueChange={setName}
+          onValueChange={(v) => setName(sanitizeText(v))}
           options={nameOptions}
           allowCustom
+          maxLength={MAX_NAME_LENGTH}
           placeholder={compound?.name}
           emptyText={t('common.noMatches')}
         />
@@ -635,11 +656,11 @@ export function ProtocolForm({
 
       <FormField label={t('protocols.doseAmount')}>
         <div className="flex gap-2">
-          <Input
-            type="text"
-            inputMode="decimal"
+          <NumericInput
+            kind="decimal"
             value={doseAmount}
-            onChange={(e) => setDoseAmount(e.target.value)}
+            onValueChange={setDoseAmount}
+            aria-invalid={doseAmount !== '' && doseValue === null}
             className="min-h-11 flex-1 rounded-full border border-input bg-card px-4 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           {compound?.defaultUnit === 'IU' ? (
@@ -676,12 +697,8 @@ export function ProtocolForm({
 
       {scheduleKind === 'everyNDays' && (
         <FormField label={t('protocols.everyNDays')}>
-          <Input
-            type="number"
-            min={1}
-            value={everyN}
-            onChange={(e) => setEveryN(e.target.value)}
-          />
+          <NumericInput kind="integer" value={everyN} onValueChange={setEveryN} aria-invalid={everyNValue === null} />
+          {everyNValue === null && <FieldError>{t('protocols.invalidDays', { max: MAX_DAY_COUNT })}</FieldError>}
         </FormField>
       )}
 
@@ -709,20 +726,10 @@ export function ProtocolForm({
       {scheduleKind === 'cycle' && (
         <div className="flex gap-3">
           <FormField label={t('protocols.daysOn')}>
-            <Input
-              type="number"
-              min={1}
-              value={daysOn}
-              onChange={(e) => setDaysOn(e.target.value)}
-            />
+            <NumericInput kind="integer" value={daysOn} onValueChange={setDaysOn} aria-invalid={daysOnValue === null} />
           </FormField>
           <FormField label={t('protocols.daysOff')}>
-            <Input
-              type="number"
-              min={0}
-              value={daysOff}
-              onChange={(e) => setDaysOff(e.target.value)}
-            />
+            <NumericInput kind="integer" value={daysOff} onValueChange={setDaysOff} aria-invalid={daysOffValue === null} />
           </FormField>
         </div>
       )}
@@ -822,6 +829,14 @@ export function ProtocolForm({
         {t('common.save')}
       </Button>
     </div>
+  )
+}
+
+function FieldError({ children }: { children: ReactNode }) {
+  return (
+    <span role="alert" className="text-sm text-destructive">
+      {children}
+    </span>
   )
 }
 

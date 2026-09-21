@@ -19,6 +19,8 @@ interface ComboboxProps {
   emptyText?: string
   /** Accept text that isn't one of the options: a free-text field with suggestions, like a name. */
   allowCustom?: boolean
+  /** Caps how much can be typed into the field. */
+  maxLength?: number
   className?: string
   'aria-label'?: string
 }
@@ -27,7 +29,7 @@ interface ComboboxProps {
 function normalize(text: string): string {
   return text
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036F]/g, '')
     .toLowerCase()
     .trim()
 }
@@ -51,6 +53,7 @@ export function Combobox({
   placeholder,
   emptyText,
   allowCustom = false,
+  maxLength,
   className,
   'aria-label': ariaLabel,
 }: ComboboxProps) {
@@ -150,6 +153,7 @@ export function Combobox({
             aria-autocomplete="list"
             aria-label={ariaLabel}
             autoComplete="off"
+            maxLength={maxLength}
             autoCapitalize="off"
             spellCheck={false}
             value={displayText}

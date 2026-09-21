@@ -52,10 +52,12 @@ function readRecord(db, store, key) {
   })
 }
 
+// 12-hour clock with AM/PM, matching formatClock in src/lib/dates.ts.
 function formatTime(iso) {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return ''
-  return String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0')
+  const hours = date.getHours()
+  return (hours % 12 === 0 ? 12 : hours % 12) + ':' + String(date.getMinutes()).padStart(2, '0') + ' ' + (hours < 12 ? 'AM' : 'PM')
 }
 
 async function buildReminder(tag) {

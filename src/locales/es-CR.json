@@ -109,7 +109,8 @@
     "mixSummary": "Mezcla: {{water}} mL de agua · extraer {{units}} unidades ({{ml}} mL) para {{dose}}",
     "mixSummarySolution": "Lista para usar · extraer {{units}} unidades ({{ml}} mL) para {{dose}}",
     "namePlaceholderHint": "ej. Mi mezcla de la mañana",
-    "savedBodySolution": "Siguiente paso: calcular cuánto extraer para {{dose}}. La calculadora lo hace con la concentración del frasco."
+    "savedBodySolution": "Siguiente paso: calcular cuánto extraer para {{dose}}. La calculadora lo hace con la concentración del frasco.",
+    "invalidDays": "Ingresá un número entero de días, hasta {{max}}."
   },
   "schedule": {
     "daily": "Diario",

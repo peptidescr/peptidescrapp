@@ -20,7 +20,7 @@ deployed — deploy is the next and last step (see below).
 - Dose maths engine (`src/lib/units.ts`) — 39 tests
 - Mixing calculator (`src/lib/reconstitution.ts` + Calculator screen) — 15 tests
 - Schedules: daily / every N days / specific weekdays / cycling (`src/lib/schedule.ts`) — 23 tests
-- Full Spanish + English, 24h time, dd/MM/yyyy, comma decimals (es-CR default)
+- Full Spanish + English, 12-hour time with AM/PM, dd/MM/yyyy, comma decimals (es-CR default)
 - Dose reminders: on-open catch-up (the reliable mechanism) + best-effort Chromium
   Notification Triggers + honest per-platform capability messaging
 - One-tap logging (Taken/Skipped) from Home

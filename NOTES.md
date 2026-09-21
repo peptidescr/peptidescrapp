@@ -1199,3 +1199,38 @@ bars; `logo-full.png` is the uncropped logo at 660px wide. The old `icon.svg` at
 removed. The JPEG stays in place as the source of truth. The tiny 24px header mark is the
 whole logo shrunk, so its text is not legible at that size — use a tighter crop of just the
 molecule mark there if the client wants it crisper.
+
+## 12-hour time, numeric-only fields, input sanitizing (September 2026)
+
+- **12-hour clock with AM/PM** everywhere it is shown (`formatTime`, `formatDateTime`,
+  `formatClock` in `lib/dates.ts`; the notification text, both in `notifications.ts` and in
+  the service worker's own copy). This reverses the original brief's 24h rule at the client's
+  request. **Storage is unchanged and still 24h** ("HH:mm" reminder times, ISO timestamps), so
+  no schedule maths or existing data changed; 12-hour is display/entry only. `toHHmm` is the way
+  from a Date back to the stored form (History's edit form uses it — passing `formatTime`'s
+  output to the picker would now be a bug). `TimePicker` is three plain lists (hour 1-12,
+  minute, AM/PM); a test round-trips every minute of the day.
+- **Numeric-only fields** use `NumericInput` (`components/ui/numeric-input.tsx`): dose amounts,
+  the calculator's three numbers, and every-N / days-on / days-off. It strips anything that isn't
+  a digit (plus one `.` or `,` for decimals) as it is typed *or pasted*. Deliberately
+  `type="text"` + `inputMode`, not `type="number"`, which accepts "e"/"+"/"-", reports "" for
+  a half-typed "1.", and ignores the decimal comma.
+- **Values are validated, not coerced.** Save is disabled until the dose is > 0 and <= 100 000
+  and day counts are whole numbers within bounds (1-365; days-off 0-365). Before this,
+  garbage silently became `0` (a saved 0 mg protocol). Caps are `lib/sanitize.ts` constants.
+- **Free text** (protocol name <= 60, history notes <= 1000) has control characters and invisible
+  / direction-override characters (U+202E etc., which let text display as something else)
+  removed, and is length-capped, both as typed and again at save.
+- **Backup import is validated** (`lib/backupValidation.ts`, run *before* the "replace my data"
+  dialog and again inside `importBackupPayload`). Every record is rebuilt from an allow-list;
+  unknown keys dropped; types, ranges, dates and schedules checked; any invalid record rejects
+  the whole file. Previously any JSON was stored as-is, so a malformed schedule could throw on
+  every render and brick the app. Files over 20 MB are refused.
+- **CSV export** prefixes text cells starting with = + - @ so a note can't run as a spreadsheet
+  formula (CSV injection).
+- Not a concern here and deliberately unchanged: HTML escaping (React escapes all rendered text;
+  there is no `dangerouslySetInnerHTML`) and SQL (no SQL — IndexedDB). The push endpoint already
+  validates its input (`netlify/lib/pushLogic.ts`).
+- Pasting a number with thousands separators ("1,234.56") is read with the first separator as the
+  decimal point ("1,23456"); the alternative guesses wrong the other way. Nobody types doses that
+  way, and it is bounded by the cap either way.

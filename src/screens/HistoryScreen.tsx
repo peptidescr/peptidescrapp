@@ -23,7 +23,9 @@ import { Segmented } from '@/components/ui/segmented'
 import { EmptyState } from '../components/EmptyState'
 import { AppHeader } from '../components/AppHeader'
 import { getCompoundById } from '../content/compounds'
-import { formatDate, formatTime, toIsoDate } from '../lib/dates'
+import { formatDate, formatTime, toHHmm, toIsoDate } from '../lib/dates'
+import { MAX_NOTES_LENGTH, parsePositiveAmount, sanitizeMultiline } from '../lib/sanitize'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { db, type DoseLog, type DoseStatus } from '../lib/db'
 import { useLiveQuery } from '../lib/useLiveQuery'
 import {
@@ -194,22 +196,25 @@ function HistoryEditForm({ log, onDone }: { log: DoseLog; onDone: () => void }) 
 
   const administered = new Date(log.administeredAt)
   const [date, setDate] = useState(toIsoDate(administered))
-  const [time, setTime] = useState(formatTime(administered))
+  // The picker's value is the stored 24h form; formatTime would be the 12h display string.
+  const [time, setTime] = useState(toHHmm(administered))
   const [amount, setAmount] = useState(String(initialAmount).replace('.', ','))
   const [unit, setUnit] = useState<MassUnit>(initialUnit)
   const [status, setStatus] = useState<DoseStatus>(log.status)
   const [notes, setNotes] = useState(log.notes ?? '')
 
+  const numericAmount = parsePositiveAmount(amount)
+
   async function handleSave() {
     const [hours, minutes] = time.split(':').map(Number)
     const administeredAt = new Date(date)
     administeredAt.setHours(hours ?? 0, minutes ?? 0, 0, 0)
-    const numericAmount = Number(amount.replace(',', '.')) || 0
+    if (numericAmount === null) return
 
     const patch: Partial<DoseLog> = {
       administeredAt: administeredAt.toISOString(),
       status,
-      notes: notes.trim() || undefined,
+      notes: sanitizeMultiline(notes).trim() || undefined,
       updatedAt: new Date().toISOString(),
     }
     if (isIU) {
@@ -242,11 +247,11 @@ function HistoryEditForm({ log, onDone }: { log: DoseLog; onDone: () => void }) 
 
       <FormField label={t('history.doseAmount')}>
         <div className="flex gap-2">
-          <Input
-            type="text"
-            inputMode="decimal"
+          <NumericInput
+            kind="decimal"
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            onValueChange={setAmount}
+            aria-invalid={numericAmount === null}
             className="min-h-11 flex-1 rounded-full border border-input bg-card px-4 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           {isIU ? (
@@ -286,13 +291,16 @@ function HistoryEditForm({ log, onDone }: { log: DoseLog; onDone: () => void }) 
       <FormField label={t('history.notes')}>
         <textarea
           value={notes}
-          onChange={(e) => setNotes(e.target.value)}
+          onChange={(e) => setNotes(sanitizeMultiline(e.target.value))}
+          maxLength={MAX_NOTES_LENGTH}
           rows={3}
           className="w-full rounded-2xl border border-input bg-card px-4 py-2 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
       </FormField>
 
-      <Button onClick={handleSave}>{t('common.save')}</Button>
+      <Button onClick={handleSave} disabled={numericAmount === null}>
+        {t('common.save')}
+      </Button>
 
       <AlertDialog>
         <AlertDialogTrigger asChild>

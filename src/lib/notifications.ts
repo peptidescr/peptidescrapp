@@ -1,5 +1,6 @@
 import { getCompoundById } from '../content/compounds'
 import i18n from '../i18n'
+import { formatClock } from './dates'
 import { db, type Protocol } from './db'
 import { contextOf, loggedTimesFor } from './homeData'
 import { isIOS, isStandalone } from './platform'
@@ -105,7 +106,7 @@ function contentFor(protocol: Protocol, occurrence: Occurrence): ReminderContent
     title: name,
     body: i18n.t('notifications.doseDueBody', {
       dose: `${protocol.doseAmount} ${protocol.doseUnit}`,
-      time: occurrence.time,
+      time: formatClock(occurrence.time),
     }),
     tag: reminderTag(protocol.id, occurrence.scheduledAt),
   }

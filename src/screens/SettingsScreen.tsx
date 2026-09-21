@@ -30,6 +30,7 @@ import {
 } from '../lib/backup'
 import { formatDateTime } from '../lib/dates'
 import { db } from '../lib/db'
+import { MAX_BACKUP_BYTES, parseBackup } from '../lib/backupValidation'
 import { isPushActive, isPushConfigured } from '../lib/push'
 import { useInstallState } from '../lib/install'
 import {
@@ -293,9 +294,11 @@ function BackupSection() {
     const file = e.target.files?.[0]
     if (!file) return
     try {
+      if (file.size > MAX_BACKUP_BYTES) throw new Error('Backup file too large')
       const text = await file.text()
-      const payload = JSON.parse(text) as BackupPayload
-      setPendingImport(payload)
+      // Validated before the confirmation dialog: a bad file is refused up
+      // front instead of failing after the user agrees to replace their data.
+      setPendingImport(parseBackup(JSON.parse(text)))
     } catch {
       toast.error(t('settings.backup.importInvalid'))
     } finally {

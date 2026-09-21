@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Combobox } from '@/components/ui/combobox'
-import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Segmented } from '@/components/ui/segmented'
 import { AppHeader } from '../components/AppHeader'
 import {
@@ -561,11 +561,10 @@ function NumberInput({
 }) {
   return (
     <div className="relative flex-1">
-      <Input
-        type="text"
-        inputMode="decimal"
+      <NumericInput
+        kind="decimal"
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onValueChange={onChange}
         placeholder="0"
         aria-label={ariaLabel}
         className={`min-h-14 rounded-2xl px-5 text-lg ${suffix ? 'pr-16' : ''}`}

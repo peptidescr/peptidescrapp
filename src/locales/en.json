@@ -109,7 +109,8 @@
     "mixSummary": "Mix: {{water}} mL water · draw {{units}} units ({{ml}} mL) for {{dose}}",
     "mixSummarySolution": "Ready to use · draw {{units}} units ({{ml}} mL) for {{dose}}",
     "namePlaceholderHint": "e.g. Morning stack",
-    "savedBodySolution": "Next step: work out how much to draw for {{dose}}. The calculator does it from the concentration on the bottle."
+    "savedBodySolution": "Next step: work out how much to draw for {{dose}}. The calculator does it from the concentration on the bottle.",
+    "invalidDays": "Enter a whole number of days, up to {{max}}."
   },
   "schedule": {
     "daily": "Daily",

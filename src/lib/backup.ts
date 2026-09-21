@@ -1,9 +1,10 @@
 import { getCompoundById } from '../content/compounds'
 import { toIsoDate } from './dates'
 import { db, SETTINGS_ID, type DoseLog, type Protocol, type Settings } from './db'
+import { BACKUP_VERSION, parseBackup } from './backupValidation'
+import { csvSafeText } from './sanitize'
 import { applyTheme, resolveTheme } from './theme'
 
-const BACKUP_VERSION = 1
 const SNAPSHOT_KEEP = 7
 
 export interface BackupPayload {
@@ -44,27 +45,25 @@ export function doseLogsToCsv(doseLogs: DoseLog[]): string {
   ]
   const rows = doseLogs.map((log) => {
     const compound = getCompoundById(log.compoundId)
+    // Text cells go through csvSafeText so a note like =HYPERLINK(...) can't run as a formula when the file is opened.
     return [
-      compound?.name ?? log.compoundId,
+      csvSafeText(compound?.name ?? log.compoundId),
       log.doseMcg !== undefined ? String(log.doseMcg / 1000) : '',
       log.doseMcg !== undefined ? String(log.doseMcg) : '',
       log.doseIU !== undefined ? String(log.doseIU / 1000) : '',
       log.administeredAt,
       log.status,
-      log.notes ?? '',
+      csvSafeText(log.notes ?? ''),
     ]
   })
   return [header, ...rows].map((row) => row.map(csvField).join(',')).join('\r\n')
 }
 
 /** Wipes and replaces protocols/doseLogs/settings from a previously exported backup. */
-export async function importBackupPayload(payload: BackupPayload): Promise<void> {
-  if (payload.version !== BACKUP_VERSION) {
-    throw new Error(`Unsupported backup version: ${String(payload.version)}`)
-  }
-  if (!Array.isArray(payload.protocols) || !Array.isArray(payload.doseLogs)) {
-    throw new Error('Malformed backup file')
-  }
+export async function importBackupPayload(input: BackupPayload): Promise<void> {
+  // Re-validated here too, not only where a file is picked, so no caller can
+  // put unchecked data into the database.
+  const payload = parseBackup(input)
   await db.transaction('rw', db.protocols, db.doseLogs, db.settings, async () => {
     await db.protocols.clear()
     await db.doseLogs.clear()
