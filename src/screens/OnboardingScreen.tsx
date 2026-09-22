@@ -8,7 +8,7 @@ import { TemplatePicker } from '../components/TemplatePicker'
 import { Button } from '@/components/ui/button'
 import { OptionCard } from '@/components/ui/option-card'
 import { Progress } from '@/components/ui/progress'
-import { LEGAL_PLACEHOLDER, LEGAL_VERSION } from '../content/legal'
+import { LEGAL_CONTENT, LEGAL_VERSION } from '../content/legal'
 import type { ProtocolTemplate } from '../content/protocolTemplates'
 import { useInstallState } from '../lib/install'
 import { getNotificationCapability, requestNotificationPermission } from '../lib/notifications'
@@ -170,7 +170,7 @@ function LanguageStep({ onNext }: { onNext: () => void }) {
       hero={
         <img
           src="/brand/logo-full.png"
-          alt="Peptides Costa Rica"
+          alt="USA Peptide Depot"
           className="mt-2 h-40 w-auto rounded-[2rem] shadow-[0_24px_64px_-24px_rgb(44_92_181/0.9)]"
         />
       }
@@ -214,7 +214,7 @@ function HowItWorksStep({ onNext }: { onNext: () => void }) {
 
 function DisclaimerStep({ locale, onAccept }: { locale: Locale; onAccept: () => void }) {
   const { t } = useTranslation()
-  const legal = LEGAL_PLACEHOLDER[locale]
+  const legal = LEGAL_CONTENT[locale]
 
   async function handleAccept() {
     await updateSettings({ legalAcceptedVersion: LEGAL_VERSION, legalAcceptedAt: new Date().toISOString() })
@@ -235,9 +235,9 @@ function DisclaimerStep({ locale, onAccept }: { locale: Locale; onAccept: () => 
       }
     >
       <div className="flex max-h-[55vh] flex-col gap-3 overflow-y-auto rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">
-        <p>{legal.disclaimerBody}</p>
+        <p className="whitespace-pre-line">{legal.disclaimerBody}</p>
         <p className="font-medium text-foreground">{legal.termsTitle}</p>
-        <p>{legal.termsBody}</p>
+        <p className="whitespace-pre-line">{legal.termsBody}</p>
       </div>
     </StepShell>
   )

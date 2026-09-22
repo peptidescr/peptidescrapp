@@ -1,39 +1,67 @@
 /*
  * Brand tokens — the single file to edit when swapping the palette.
  *
- * Everything here is derived from the client's own logo (public/brand),
- * sampled pixel-for-pixel rather than eyeballed:
- *   navy     #102c76  — the logo field's edges
- *   royal    #2852a6  — the field's centre glow
- *   sky      #43b1fe → #a8dffd — the three-node molecule glyph
- *   flag red #c62429  — the "COSTA RICA" band (kept for brand art only; it is
- *                       never used as UI state colour, so it can't be mistaken
- *                       for an error)
+ * Rebranded to USA Peptide Depot (usapeptidedepot.com). Everything here is
+ * sampled from their live site (computed styles read via headless Chrome,
+ * not eyeballed) and from public/brand/upd-logo.png, their own logo file:
+ *   forest   #1f4233  — header/nav background, the logo's own tile colour
+ *   green    #274b3b  — their nav/category button (same hue, one step lighter)
+ *   ivory    #ece8d8  — the logo mark's colour, and their header/body text on
+ *                       the forest header
+ *   cream    #fdfbf0  — their page background
+ *   card     #f6f2e2  — their card/panel background (a touch deeper than the
+ *                       page, which is how their own layout reads — not a typo)
+ *   ink      #2a3530  — their body text on the cream background
+ *   muted    #5e6661  — their secondary/muted text
+ *   sage     #bcd4c5  — their muted secondary-text-on-dark colour; reused
+ *                       below as dark mode's light accent (see next para)
+ *   rust     #bf4f0b  — their commerce "Add to cart" accent. Kept out of the
+ *                       UI palette on purpose: it is their store's buy-button
+ *                       colour, not their identity colour, and this app has
+ *                       no equivalent action — reusing it as a UI accent
+ *                       would invent a meaning they never gave it.
  *
- * Dark is the default theme. Its surfaces are the logo's navy taken almost to
- * black (not a neutral grey), so the app reads as the same brand as the icon
- * on the home screen; the accent is the glyph's own sky blue. Because sky blue
- * is light, filled controls carry a deep-navy label (--brand-primary-fg)
- * rather than white — white on this blue is ~2.9:1, well under the 4.5:1
- * that body-size text needs.
+ * Dark is the default theme. The PAGE background (--brand-surface-2) was
+ * tried as a neutral grey — a client request, wanting cards to read as
+ * colour against a colourless canvas — but grey next to this saturated a
+ * green looked like a clash, not a canvas, so that was reverted. What's here
+ * instead is still on-brand: the same forest-green family, just taken darker
+ * relative to the card than the original near-black was (#060f0a vs card's
+ * #122a20), so cards/hero/accent separate from the page by actual luminance,
+ * not just by being a fractionally different shade of the same green.
+ * Everything else in this block is unchanged — cards, borders, ink, and the
+ * sage accent are still exactly what the rebrand set. The accent is their
+ * own sampled sage — light enough to pop on the dark surfaces, so filled
+ * controls carry a dark-forest label (--brand-primary-fg) rather than white,
+ * the same reasoning the previous palette used for its light accent.
  *
- * Light mode keeps the values sourced from peptidescostarica.net's own theme
- * (its Astra globals --ast-global-color-0/-1: #046bd2 / #045cb4).
+ * Light mode uses their real header forest green as the primary colour. The
+ * page background is their real cream, kept white/near-white per the same
+ * request above — but the card/border/accent surfaces below it are a
+ * deliberately more saturated mint than a literal sample of their (very
+ * subtle, cream-on-cream) real card colour would give: on a phone screen,
+ * where cards are most of what's visible, that subtlety read as "bland, no
+ * colour" rather than "refined." These are still the brand's own green, just
+ * turned up enough to actually show as colour against the white page.
  *
  * --brand-warn is intentionally NOT sourced from the brand — it's a
  * deliberately non-alarming amber for measurement-accuracy notices (see
- * units.ts).
+ * units.ts). --destructive* is likewise a standard UI danger red, not a
+ * brand colour. Neither changed by the rebrand or by this pass.
  */
 :root {
-  --brand-primary: #52b7ff;
-  --brand-primary-dk: #2f93e6;
-  --brand-primary-lt: #0f2557;
-  --brand-primary-fg: #04143a;
-  --brand-ink: #eef3ff;
-  --brand-muted: #8f9dc0;
-  --brand-surface: #0d1530;
-  --brand-surface-2: #060b1a;
-  --brand-border: #1b2650;
+  --brand-primary: #bcd4c5;
+  --brand-primary-dk: #9bb9a6;
+  --brand-primary-lt: #1a3a28;
+  --brand-primary-fg: #0e1f16;
+  --brand-ink: #ece8d8;
+  --brand-muted: #8fa396;
+  --brand-surface: #122a20;
+  /* Deep near-black forest — see the doc comment above (a neutral grey was
+     tried and reverted). Everything else in this block stayed exactly as
+     the rebrand left it. */
+  --brand-surface-2: #060f0a;
+  --brand-border: #1f3b2c;
   --brand-warn: #e0954b;
   --brand-warn-lt: #2f2418;
   /* Standard destructive-action red (delete, wipe+import) — a UI safety
@@ -50,20 +78,17 @@
   /* The Home hero and any other "brand art" surface: the logo's own field.
      Fixed (not themed) so the card looks like the logo in both modes. */
   --brand-hero:
-    radial-gradient(90% 120% at 90% -10%, rgb(44 92 181 / 0.9) 0%, rgb(44 92 181 / 0) 62%),
-    linear-gradient(165deg, #123079 0%, #0a1c52 100%);
+    radial-gradient(90% 120% at 90% -10%, rgb(39 75 59 / 0.9) 0%, rgb(39 75 59 / 0) 62%),
+    linear-gradient(165deg, #1f4233 0%, #060f0a 100%);
 
   --brand-contrast: #ffffff;
   --brand-contrast-foreground: #000000;
 
   --radius: 0.75rem;
 
-  /* Montserrat is the face the logo's PEPTIDES / COSTA RICA lettering is set
-     in, so headlines and figures carry the brand's own voice. Instrument Sans
-     stays for body copy and UI chrome — it is narrower and quieter, so the
-     two are clearly distinct. Faces are self-hosted; see styles/fonts.css for
-     why. The system stack stays as the fallback so the app is still legible
-     if a font file ever fails to load. */
+  /* Unchanged by this rebrand — a font swap wasn't part of the brief and the
+     logo's own wordmark doesn't call for one; self-hosted faces stay the
+     same two-family split (display vs. body). See styles/fonts.css. */
   --font-display:
     'Montserrat', 'Instrument Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
     Helvetica, Arial, sans-serif;
@@ -89,15 +114,19 @@
  * aren't redefined here and simply cascade down from the dark :root block.
  */
 :root[data-theme='light'] {
-  --brand-primary: #046bd2;
-  --brand-primary-dk: #045cb4;
-  --brand-primary-lt: #e6f0fb;
+  --brand-primary: #1f4233;
+  --brand-primary-dk: #142d22;
+  /* More saturated than a literal sample of their site would give — see the
+     doc comment above. Ordered lightest→most-saturated as page < surface <
+     border < primary-lt, so a selected/accent state still visibly outranks
+     a plain card, and a card still visibly outranks the bare page. */
+  --brand-primary-lt: #ccded0;
   --brand-primary-fg: #ffffff;
-  --brand-ink: #0f1d3f;
-  --brand-muted: #566789;
-  --brand-surface: #ffffff;
-  --brand-surface-2: #f0f5fa;
-  --brand-border: #d6deec;
+  --brand-ink: #2a3530;
+  --brand-muted: #5e6661;
+  --brand-surface: #e0e9dd;
+  --brand-surface-2: #fdfbf0;
+  --brand-border: #d6e4d6;
   --brand-warn: #a95f22;
   --brand-warn-lt: #fbf1e7;
 

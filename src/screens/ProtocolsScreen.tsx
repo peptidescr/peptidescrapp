@@ -87,14 +87,20 @@ interface ProtocolsScreenProps {
   onReconstitute: (protocolId: string) => void
   /** Open straight into a new-protocol form for this compound (from the calculator's "create a protocol"). */
   initialCompoundId?: string
+  /** Open straight into an existing protocol's edit form (tapping it from Home). */
+  initialProtocolId?: string
 }
 
-export function ProtocolsScreen({ onReconstitute, initialCompoundId }: ProtocolsScreenProps) {
+export function ProtocolsScreen({ onReconstitute, initialCompoundId, initialProtocolId }: ProtocolsScreenProps) {
   const { t } = useTranslation()
   const protocols = useLiveQuery(() => db.protocols.toArray(), [])
   const doseLogs = useLiveQuery(() => db.doseLogs.toArray(), [])
   const [mode, setMode] = useState<Mode>(
-    initialCompoundId ? { kind: 'form', compoundId: initialCompoundId } : { kind: 'list' },
+    initialProtocolId
+      ? { kind: 'form', protocolId: initialProtocolId }
+      : initialCompoundId
+        ? { kind: 'form', compoundId: initialCompoundId }
+        : { kind: 'list' },
   )
   const [listTab, setListTab] = useState<ListTab>('mine')
 

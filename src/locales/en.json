@@ -1,6 +1,6 @@
 {
   "app": {
-    "name": "peptidescr"
+    "name": "USA Peptide Depot"
   },
   "common": {
     "loading": "Loading…",
@@ -216,24 +216,24 @@
     "notifications": "Notifications",
     "notif": {
       "notSupported": "This browser doesn't support notifications.",
-      "needsInstallIOS": "On iPhone/iPad, notifications only work after adding peptidescr to your Home Screen (iOS 16.4+). See Install below.",
+      "needsInstallIOS": "On iPhone/iPad, notifications only work after adding USA Peptide Depot to your Home Screen (iOS 16.4+). See Install below.",
       "granted": "Notifications are enabled.",
-      "denied": "Notifications are blocked. Enable them for peptidescr in your device settings to turn them back on.",
+      "denied": "Notifications are blocked. Enable them for USA Peptide Depot in your device settings to turn them back on.",
       "notAsked": "Notifications aren't enabled yet.",
-      "reliabilityNote": "Reminders are delivered while peptidescr is open or running in the background. If your phone has fully closed the app, a reminder can't arrive until you open it again — anything that came due then shows up on Home with one tap to log it.",
+      "reliabilityNote": "Reminders are delivered while USA Peptide Depot is open or running in the background. If your phone has fully closed the app, a reminder can't arrive until you open it again — anything that came due then shows up on Home with one tap to log it.",
       "enable": "Enable notifications",
       "testCta": "Send a test notification",
-      "testTitle": "peptidescr",
+      "testTitle": "USA Peptide Depot",
       "testBody": "Notifications are working.",
       "testSent": "Test notification sent.",
-      "testFailed": "Couldn't show a notification. Check your device's notification settings for peptidescr.",
+      "testFailed": "Couldn't show a notification. Check your device's notification settings for USA Peptide Depot.",
       "reliabilityNotePush": "Reminders arrive even when the app is closed. Anything that came due while your phone was off or offline shows up on Home with one tap to log it.",
       "pushNote": "To deliver reminders while the app is closed, your device's anonymous push address and the times of your upcoming reminders are sent to our server. Compound names and doses never leave your device."
     },
     "install": {
       "title": "Install",
-      "installed": "peptidescr is installed on this device.",
-      "available": "Install peptidescr for offline use and reliable notifications.",
+      "installed": "USA Peptide Depot is installed on this device.",
+      "available": "Install USA Peptide Depot for offline use and reliable notifications.",
       "cta": "Install",
       "iosInstructions": "In Safari, tap the Share icon, then \"Add to Home Screen.\" This protects your data and is required for notifications on iPhone/iPad.",
       "genericInstructions": "Open your browser's menu and look for \"Install app\" or \"Add to Home Screen.\""
@@ -253,7 +253,7 @@
       "exportCsv": "Export history (CSV)",
       "import": "Import backup",
       "done": "Backup ready.",
-      "importInvalid": "That file doesn't look like a valid peptidescr backup.",
+      "importInvalid": "That file doesn't look like a valid USA Peptide Depot backup.",
       "importConfirm": "This will replace all data currently on this device with the contents of this backup. This can't be undone.",
       "importConfirmCta": "Replace my data",
       "importDone": "Import complete."
@@ -280,10 +280,10 @@
       "title": "Choose your language"
     },
     "disclaimer": {
-      "mustAccept": "You need to accept this to use peptidescr."
+      "mustAccept": "You need to accept this to use USA Peptide Depot."
     },
     "install": {
-      "title": "Install peptidescr",
+      "title": "Install USA Peptide Depot",
       "body": "Installing keeps your data safe and is required for notifications to work on iPhone/iPad."
     },
     "notifications": {
@@ -298,7 +298,7 @@
     },
     "progressLabel": "Step {{step}} of {{total}}",
     "howItWorks": {
-      "title": "How peptidescr works",
+      "title": "How USA Peptide Depot works",
       "subtitle": "Everything stays on this device — here's what each part does.",
       "calculatorTitle": "Calculator",
       "calculatorBody": "Work out exactly what to draw, from a vial or a ready-made solution.",

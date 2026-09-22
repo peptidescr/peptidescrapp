@@ -55,6 +55,8 @@ interface HomeScreenProps {
   onNavigateToProtocols: () => void
   onNavigateToHistory: () => void
   onNavigateToCalculator: () => void
+  /** Tapping a specific protocol (a due/upcoming card): straight to its own edit page. */
+  onOpenProtocol: (protocolId: string) => void
 }
 
 export function HomeScreen({
@@ -62,6 +64,7 @@ export function HomeScreen({
   onNavigateToProtocols,
   onNavigateToHistory,
   onNavigateToCalculator,
+  onOpenProtocol,
 }: HomeScreenProps) {
   const { t } = useTranslation()
   const settings = useSettings()
@@ -141,7 +144,7 @@ export function HomeScreen({
         settings={settings}
         now={now}
         onNavigateToSettings={onNavigateToSettings}
-        onNavigateToProtocols={onNavigateToProtocols}
+        onOpenProtocol={onOpenProtocol}
       />
 
       {dueItems.length > 0 && (
@@ -157,7 +160,7 @@ export function HomeScreen({
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ duration: 0.18 }}
               >
-                <DueCard item={item} now={now} onNavigateToProtocols={onNavigateToProtocols} />
+                <DueCard item={item} now={now} onOpenProtocol={onOpenProtocol} />
               </motion.div>
             ))}
           </AnimatePresence>
@@ -186,7 +189,7 @@ export function HomeScreen({
                 protocol={protocol}
                 occurrence={occurrence}
                 now={now}
-                onNavigateToProtocols={onNavigateToProtocols}
+                onOpenProtocol={onOpenProtocol}
               />
             ))
           ) : (
@@ -266,9 +269,9 @@ function GlyphWatermark() {
 
 /**
  * Today at a glance, as the logo's own molecule: one node per dose due today,
- * joined by a chain that lights up sky-blue as each one is logged. It replaces
- * a progress bar plus a pair of stat tiles — the count, the remainder and the
- * pace are all readable from the shape alone.
+ * joined by a chain that lights up the logo's own ivory as each one is
+ * logged. It replaces a progress bar plus a pair of stat tiles — the count,
+ * the remainder and the pace are all readable from the shape alone.
  *
  * Capped at 8 nodes so a very busy day still fits a phone; past that the chain
  * shows the same proportion instead of one node per dose.
@@ -295,12 +298,12 @@ function DoseChain({ completed, total, label }: { completed: number; total: numb
                 molecule, not a slider track stretched across the card. */}
             {i > 0 && (
               <span
-                className={`h-0.5 max-w-9 flex-1 rounded-full transition-colors ${lit ? 'bg-sky-300' : 'bg-white/25'}`}
+                className={`h-0.5 max-w-9 flex-1 rounded-full transition-colors ${lit ? 'bg-[#ece8d8]' : 'bg-white/25'}`}
               />
             )}
             <span
               className={`size-4 shrink-0 rounded-full transition-all ${
-                lit ? 'bg-sky-300 shadow-[0_0_14px_rgb(125_211_252/0.75)]' : 'border-2 border-white/40'
+                lit ? 'bg-[#ece8d8] shadow-[0_0_14px_rgb(236_232_216/0.75)]' : 'border-2 border-white/40'
               }`}
             />
           </Fragment>
@@ -529,12 +532,12 @@ function NextUpCard({
   protocol,
   occurrence,
   now,
-  onNavigateToProtocols,
+  onOpenProtocol,
 }: {
   protocol: Protocol
   occurrence: Occurrence
   now: Date
-  onNavigateToProtocols: () => void
+  onOpenProtocol: (protocolId: string) => void
 }) {
   const { t } = useTranslation()
   const compound = getCompoundById(protocol.compoundId)
@@ -556,7 +559,7 @@ function NextUpCard({
       protocol={protocol}
       compoundName={compound?.name}
       showActions={canLogToday}
-      onNavigateToProtocols={onNavigateToProtocols}
+      onOpenProtocol={onOpenProtocol}
     />
   )
 }

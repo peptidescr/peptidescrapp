@@ -85,7 +85,7 @@ export function DoseCard({
   compoundName,
   showActions,
   administeredAt,
-  onNavigateToProtocols,
+  onOpenProtocol,
 }: {
   tone: DoseCardTone
   statusLabel: string
@@ -94,7 +94,8 @@ export function DoseCard({
   compoundName: string | undefined
   showActions: boolean
   administeredAt?: Date
-  onNavigateToProtocols: () => void
+  /** Taps the name row: straight to this protocol's own edit page, not just the Protocols list. */
+  onOpenProtocol: (protocolId: string) => void
 }) {
   const { t } = useTranslation()
 
@@ -120,7 +121,7 @@ export function DoseCard({
 
         <button
           type="button"
-          onClick={onNavigateToProtocols}
+          onClick={() => onOpenProtocol(protocol.id)}
           className="-my-1 flex min-h-11 items-center justify-between gap-3 py-1 text-left"
         >
           <span className="min-w-0">
@@ -144,11 +145,11 @@ export function DoseCard({
 export function DueCard({
   item,
   now,
-  onNavigateToProtocols,
+  onOpenProtocol,
 }: {
   item: DueItem
   now: Date
-  onNavigateToProtocols: () => void
+  onOpenProtocol: (protocolId: string) => void
 }) {
   const { t } = useTranslation()
   const compound = getCompoundById(item.protocol.compoundId)
@@ -164,7 +165,7 @@ export function DueCard({
       compoundName={compound?.name}
       showActions
       administeredAt={item.occurrence.scheduledAt}
-      onNavigateToProtocols={onNavigateToProtocols}
+      onOpenProtocol={onOpenProtocol}
     />
   )
 }

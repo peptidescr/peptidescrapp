@@ -1234,3 +1234,131 @@ molecule mark there if the client wants it crisper.
 - Pasting a number with thousands separators ("1,234.56") is read with the first separator as the
   decimal point ("1,23456"); the alternative guesses wrong the other way. Nobody types doses that
   way, and it is bounded by the cap either way.
+
+## Legal disclaimer content (September 2026)
+
+Replaced the TODO placeholder in `src/content/legal.ts` with real copy, per the client's
+direction to draft it from their own site's existing language rather than write generic
+boilerplate. Sourced by fetching peptidescostarica.net directly (footer, FAQ, general notice):
+"intended strictly for laboratory research use," not evaluated/approved by any regulatory
+authority to diagnose/treat/cure/prevent, "not for human or veterinary use," and the company
+itself "does not provide dosing guidance, protocols or medical advice." Quoted/paraphrased
+faithfully rather than invented.
+
+The disclaimer states plainly that the app itself is a personal organizing tool (schedule
+tracking + reconstitution arithmetic), that nothing in it — including protocol template doses
+or calculator results — is medical advice or a usage recommendation, and that the person using
+it is solely responsible for what they choose to use. The terms section now also discloses the
+new Web Push data flow in plain terms (anonymous push address + reminder times leave the device
+if notifications are enabled; compound/dose data never does — see `NOTES.md`'s push section).
+
+`LEGAL_VERSION` bumped 1 → 2, so anyone who tapped through the old TODO text is asked to accept
+again rather than being grandfathered onto real terms they never actually saw. Renamed the
+export `LEGAL_PLACEHOLDER` → `LEGAL_CONTENT` (it stopped being a placeholder); both call sites
+(Onboarding's DisclaimerStep/LegalGate, Settings' LegalSection) updated. Both bodies render with
+`whitespace-pre-line` now so the disclaimer's two paragraphs actually show as two paragraphs —
+they were being collapsed into one run-on line before (harmless with the old one-paragraph
+placeholder, would not have been with real multi-paragraph copy).
+
+**Still not a substitute for the client's lawyer.** This is real, honest copy grounded in the
+client's own published language, not a guess — but it is not legal advice, and the underlying
+conflict the client needs their lawyer to actually resolve (their site's "not for human or
+veterinary use" vs. an app that helps track personal use) is unchanged. Flagged again in
+HANDOVER.md's sign-off list.
+
+Verified live (headless Chrome): fresh onboarding shows the real Spanish disclaimer (no "TODO"
+anywhere); a device that had accepted the old placeholder version is correctly forced back to
+the re-accept gate, shows the real English text, and after accepting is stored as version 2.
+
+## Rebrand: Peptides Costa Rica → USA Peptide Depot (September 2026)
+
+Client asked for a rebrand to USA Peptide Depot (usapeptidedepot.com), scoped by them as
+"colors, app title and logo pretty much." Sourced everything from the real site rather than
+guessing, the same way the original brand pull worked:
+
+- **Colors** (`src/styles/tokens.css`, full rewrite): sampled via headless Chrome's computed
+  styles against the live site — forest green `#1f4233` (their header/nav bg, now the light-mode
+  primary and the dark-mode surface base), their real ivory `#ece8d8` (dark-mode text/accent-on-
+  primary-fill, matching their own header's cream-on-green treatment almost exactly), their real
+  cream page/card backgrounds (`#fdfbf0`/`#f6f2e2`) for light mode, their sampled sage `#bcd4c5`
+  reused as dark mode's light accent. Deliberately did NOT reuse their commerce "Add to cart"
+  rust-orange (`#bf4f0b`) anywhere in the UI — it's their store's buy-button colour, not their
+  identity colour, and this app has no equivalent action; reusing it would invent a meaning they
+  never gave it. `--brand-warn`/`--destructive*` (semantic, brand-independent) untouched, per the
+  same rule the previous rebrand established.
+- **Logo/icons**: downloaded their real transparent `logo.png` (public/brand/upd-logo.png, kept
+  as source of truth) and, since it's transparent (meant to sit on their own dark header), composited
+  it onto their own real header green for every icon/tile context — mirrors how their own site
+  displays it. Square icons/favicon use just the "UPD" monogram (auto-detected via a column-wise
+  opacity scan of the source, which found a clean gap between the monogram and the "USA / Peptide
+  / Depot" wordmark at x≈418-432 of 622px) — a full lockup doesn't survive shrinking to 32-192px.
+  `logo-full.png` (onboarding/Settings) uses the complete lockup. Old `peptidescrlogo.jpeg` removed.
+- **Home hero decoration**: `--brand-hero` gradient recolored to the new forest greens (same
+  structure/angle, new hue). The dose-chain's "lit" node colour (`HomeScreen.tsx`'s `DoseChain`)
+  switched from the old sky-blue to the new ivory — it's pure brand decoration, not a semantic
+  state colour, so it moved with the palette. Left untouched, on purpose: the three
+  allDone/overdue/upcoming status-dot colours (emerald/amber/sky) and the streak flame (amber) —
+  those are semantic/semaphore colours independent of brand hue, not brand art, matching the same
+  distinction the tokens.css doc comment already draws for `--brand-warn`/`--destructive`.
+- **Naming**: "USA Peptide Depot" in prose (locale copy, alt text, legal text, README); "UPD" only
+  in the tightest chrome, where "USA Peptide Depot" would truncate on a home-screen icon label —
+  manifest `short_name`, `apple-mobile-web-app-title`, `<title>` — and in exported-file prefixes
+  (`upd-backup-*.json`, `upd-history-*.csv`). Every literal "peptidescr"/"Peptides Costa Rica"
+  mention in user-visible copy was swapped (grep confirms zero left in locale files/JSX);
+  Spanish sentences that relied on "peptidescr" being implicitly feminine (agreeing with "la
+  app") got an explicit "la app" inserted rather than just a name swap, so the grammar still holds
+  with the new name.
+- **Explicitly NOT touched, and why**: every internal storage identifier that happens to contain
+  the string "peptidescr" — the Dexie **database name** (`db.ts`'s `super('peptidescr')`, and its
+  exact-match twin in `public/sw-notifications.js`'s `indexedDB.open('peptidescr')`), localStorage
+  keys (`THEME_STORAGE_KEY`, `NOTIFIED_STORAGE_KEY`, `ACTIVE_FLAG`), and notification `tag` values.
+  These are plumbing, not the app's display name — renaming the **Dexie DB name** in particular
+  would make every existing install open a brand-new empty database on next launch, silently
+  "losing" all local protocols/history (the old DB would still exist on disk, just orphaned and
+  never read again). Checked explicitly and left alone; verified with a grep after all edits.
+- **Legal disclaimer re-sourced, not just renamed** (`src/content/legal.ts`, `LEGAL_VERSION` 2→3):
+  usapeptidedepot.com's own entry gate is at least as strict as the old client's — it gates on
+  "You represent an institution, university, corporate R&D facility, or qualified researcher" and
+  "NOT for human consumption, clinical use, or veterinary application" (in-vitro lab research
+  specifically). Re-drafted from that real language rather than just search-replacing the company
+  name into the old text, and — as before — did not attribute anything to USA Peptide Depot that
+  their own site doesn't actually say (e.g. the old text's "does not provide dosing guidance"
+  line was specific to the *previous* client's site and wasn't confirmed for this one, so it's
+  gone, not carried over as a guess). Still not a substitute for the client's lawyer — flagged
+  again in HANDOVER.md.
+- **Deliberately left open, flagged to the client rather than decided here**: the app's default
+  locale (`DEFAULT_LOCALE = 'es-CR'` in `i18n.ts`) and `<html lang>` stayed Spanish-Costa-Rica,
+  even though the new brand is a US-first, English-only site — changing the *default experience*
+  for every new install is a product decision, not a visual rebrand, and wasn't asked for.
+  `--font-display`/`--font-sans` (Montserrat/Instrument Sans) also untouched — not asked for, and
+  the new logo's wordmark doesn't obviously call for a different face.
+
+Verified live (headless Chrome, both themes, both languages): fresh onboarding shows the new
+logo/colors/copy throughout; tab title is "UPD"; Settings' expanded legal section shows the
+re-sourced disclaimer; the Home hero, dose-chain and cards recolor correctly in light and dark;
+no console errors; 180/180 tests, typecheck, and build all still green (only the pre-existing,
+unrelated `App.tsx` theme-effect lint error remains).
+
+## Post-rebrand color pass (September 2026)
+
+Client feedback right after the rebrand: dark mode's page background should be more
+distinct from its cards (more "color"), light mode's cards felt bland/washed out (barely
+different from the page), and — first attempt — a neutral grey dark-mode background looked
+like a clash next to the saturated brand green rather than a clean canvas.
+
+- **Light mode**: `--brand-surface`/`--brand-border`/`--brand-primary-lt` pushed to a
+  visibly minty tint (computed blends toward the sampled sage `#bcd4c5`, not eyeballed —
+  see the values and the contrast check in tokens.css's own history) rather than the
+  rebrand's literal (very subtle, cream-on-cream) sample of the real site. On a phone,
+  where cards are most of the visible surface, that subtlety read as "no color" rather
+  than "refined." Page background (`--brand-surface-2`) untouched — still their real cream.
+- **Dark mode**: tried a neutral grey page background first (client's initial ask), reverted
+  after seeing it — grey next to this green reads as mismatched, not as a canvas. Landed on
+  a *deeper* near-black forest (`#060f0a`, vs. the rebrand's `#0a1712`) instead: same on-
+  brand hue family, just with a bigger luminance gap from the card (`#122a20`), so cards
+  separate by actual contrast rather than by being a barely-different shade of the same
+  green. `--brand-hero`'s gradient end-stop and the `theme-color` meta/manifest constants
+  (`theme.ts`, `index.html`, `vite.config.ts`) all re-synced to the new value — these must
+  match `--brand-surface-2` by hand, see each file's own comment.
+- Card/border/accent-on-cards ordering is deliberate in both modes: page < card < border <
+  accent(selected), computed and contrast-checked, not eyeballed — see the values inline.

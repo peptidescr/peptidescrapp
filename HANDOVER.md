@@ -1,12 +1,19 @@
-# HANDOVER — peptidescr
+# HANDOVER — UPD (USA Peptide Depot)
 
 Short client-facing summary. Full engineering log is in `NOTES.md`.
+
+**Rebranded September 2026**, at the client's request, from the original Peptides Costa
+Rica branding to USA Peptide Depot (usapeptidedepot.com) — new colors, logo/icons, and app
+name, sourced directly from the new site rather than guessed. Everything below that predates
+the rebrand still describes the app correctly; only the visual identity, the on-file legal
+text, and the display name changed. See `NOTES.md`'s "Rebrand" entry for the full list of
+what changed and, just as importantly, what was deliberately left alone (in particular: no
+user's local data is affected — the rebrand never touches how or where data is stored).
 
 ## What this is
 
 A branded installable web app (PWA) for tracking peptide reconstitution math and dosing
-schedules. No accounts, no cloud — all data lives on the customer's own device. Installs
-from a link on peptidescostarica.net, works offline once installed.
+schedules. No accounts, no cloud — all data lives on the customer's own device.
 
 ## Status: ready for a first pass with the client
 
@@ -126,7 +133,7 @@ this on Home after enough time has passed (`home.backupNudge`) and now spells th
 plainly in the Storage section itself rather than leaving people to assume installing was
 enough.
 
-## Four things worth the client's deliberate sign-off, not a rubber stamp
+## Six things worth the client's deliberate sign-off, not a rubber stamp
 
 1. **Protocol template doses.** Protocols now offers 9 starter templates (Wolverine,
    Weight Loss Beginner, GH Blast, etc.) that pre-fill a compound/dose/schedule, fully
@@ -135,18 +142,34 @@ enough.
    This is also a deliberate deviation from the original brief's "never suggest a dose"
    rule, done at your explicit request during the build — worth being intentional about
    given the client sells these compounds.
-2. **Legal wording.** Still a placeholder — see `src/content/legal.ts`. Needs the client's
-   lawyer, specifically to resolve the contradiction between their site's "research use
-   only, not for human or veterinary use" and an app that logs personal injections.
+2. **Legal wording.** Real disclaimer and terms text (not a TODO placeholder), re-drafted for
+   the September 2026 rebrand from usapeptidedepot.com's own entry-gate language: it gates on
+   the visitor representing "an institution, university, corporate R&D facility, or qualified
+   researcher" and states products are "NOT for human consumption, clinical use, or veterinary
+   application" — at least as strict as the previous client's site. Plus a plain statement that
+   the app itself gives no medical advice and the person using it is solely responsible for
+   their own choices. Shown before anyone can use the app (and re-shown now, since the wording
+   changed), viewable any time in Settings. **Still needs your lawyer's sign-off before real
+   launch** — the underlying tension is unchanged, just re-pointed at the new brand: the site
+   says these products aren't for human use, and this app helps someone track using them anyway.
 3. **Four category guesses.** HGH, HCG, and the four named blends didn't have categories
    in the original compound table — I assigned best-guess ones (`NOTES.md` and inline in
    `src/content/compounds.ts` have the specifics). One-line changes once confirmed.
-4. **Logo/icon.** Every logo and icon is generated from the client's supplied
-   `public/brand/peptidescrlogo.jpeg` (raster, solid blue background, no transparency).
-   Square icons are a centred crop of it; the Android home-screen icon is a separate padded
-   version so the mask can't clip it. If the client has a vector/transparent original,
-   send it and the PNGs can be regenerated at full quality.
-5. **Logging-streak counter**, new on Home ("Racha de N días"). This reverses an earlier,
+4. **Logo/icon.** Every logo and icon is now generated from `public/brand/upd-logo.png`,
+   USA Peptide Depot's real logo file (transparent, kept as the source of truth), composited
+   onto their own real header green. Square icons use just the "UPD" monogram, cropped out of
+   the full lockup — the full "USA / Peptide / Depot" wordmark doesn't survive shrinking to a
+   32px favicon. The Android home-screen icon is a separate, more heavily padded version so
+   the mask can't clip it. If you get a vector original from them later, the PNGs can be
+   regenerated at full quality from that instead.
+5. **App default language, left as Spanish (Costa Rica).** The new brand is a US-first,
+   English-only site, but I didn't flip the app's default language or locale — that's a real
+   product decision (every new install's first-run experience), not part of "colors, title,
+   logo," and you didn't ask for it. If USA Peptide Depot's customers are mostly English-
+   speaking, worth telling me — it's a one-line default change (`DEFAULT_LOCALE` in
+   `src/i18n.ts`), the English translation is already complete and shipped, and nothing about
+   it is a rebuild.
+6. **Logging-streak counter**, new on Home ("Racha de N días"). This reverses an earlier,
    deliberate design restraint (no streak/gamification language, to keep this strictly a
    record-keeping tool and stay clear of anything that could read as encouraging a dose)
    — added because it's part of PeptIQ's UX and you asked to match it. Copy is kept

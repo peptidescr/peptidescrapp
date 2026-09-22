@@ -1,9 +1,10 @@
-# peptidescr
+# UPD (USA Peptide Depot)
 
-Branded installable PWA for Peptides Costa Rica — dose logging, mixing calculator, and
+Branded installable PWA for USA Peptide Depot — dose logging, mixing calculator, and
 schedule tracking. No backend, no accounts; all data stays on-device (IndexedDB via
-Dexie). See `NOTES.md` for engineering decisions and `HANDOVER.md` for the client-facing
-summary.
+Dexie). Rebranded September 2026 from the original client, Peptides Costa Rica — see
+`NOTES.md` for that history. See `NOTES.md` for engineering decisions and `HANDOVER.md`
+for the client-facing summary.
 
 ## Develop
 

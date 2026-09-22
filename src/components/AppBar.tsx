@@ -45,7 +45,7 @@ export function AppBar({
       style={{ paddingTop: 'env(safe-area-inset-top)' }}
     >
       <div className="flex items-center justify-between px-4" style={{ height: APP_BAR_HEIGHT }}>
-        <img src="/brand/icon-192.png" alt="Peptides Costa Rica" className="size-8 rounded-[10px]" />
+        <img src="/brand/icon-192.png" alt="USA Peptide Depot" className="size-8 rounded-[10px]" />
         {showActions && (
           <div className="-mr-3 flex items-center">
             <button

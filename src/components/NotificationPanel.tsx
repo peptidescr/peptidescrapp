@@ -16,7 +16,8 @@ interface NotificationPanelProps {
   settings: Settings | undefined
   now: Date
   onNavigateToSettings: () => void
-  onNavigateToProtocols: () => void
+  /** Taps a due/missed card: straight to that protocol's own edit page. */
+  onOpenProtocol: (protocolId: string) => void
 }
 
 /**
@@ -36,7 +37,7 @@ export function NotificationPanel({
   settings,
   now,
   onNavigateToSettings,
-  onNavigateToProtocols,
+  onOpenProtocol,
 }: NotificationPanelProps) {
   const { t } = useTranslation()
   const [requesting, setRequesting] = useState(false)
@@ -48,9 +49,9 @@ export function NotificationPanel({
   const showIosNudge = capability.requiresInstallOnIOS
   const hasAnything = dueItems.length > 0 || showBackupNudge || showEnableNudge || showIosNudge
 
-  function goToProtocols() {
+  function goToProtocol(protocolId: string) {
     onOpenChange(false)
-    onNavigateToProtocols()
+    onOpenProtocol(protocolId)
   }
 
   function goToSettings() {
@@ -118,7 +119,7 @@ export function NotificationPanel({
               key={`${item.protocol.id}-${item.occurrence.scheduledAt.toISOString()}`}
               item={item}
               now={now}
-              onNavigateToProtocols={goToProtocols}
+              onOpenProtocol={goToProtocol}
             />
           ))}
 

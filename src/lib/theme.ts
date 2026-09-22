@@ -34,8 +34,8 @@ export const THEME_STORAGE_KEY = 'peptidescr:theme'
 // theme — used only for the <meta name="theme-color"> browser-chrome color,
 // which can't read a CSS custom property. Keep in sync with tokens.css by
 // hand if the palette changes.
-const LIGHT_THEME_COLOR = '#f0f5fa'
-const DARK_THEME_COLOR = '#060b1a'
+const LIGHT_THEME_COLOR = '#fdfbf0'
+const DARK_THEME_COLOR = '#060f0a'
 
 /** True if the device prefers dark, or if matchMedia isn't available (this app defaults dark-first). */
 export function prefersDarkColorScheme(): boolean {

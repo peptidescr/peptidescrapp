@@ -1,4 +1,4 @@
-import { Mail, MessageCircle, Phone } from 'lucide-react'
+import { Mail, Phone } from 'lucide-react'
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -18,7 +18,7 @@ import { Segmented } from '@/components/ui/segmented'
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { AppHeader } from '../components/AppHeader'
 import { HowItWorksList } from '../components/HowItWorksList'
-import { LEGAL_PLACEHOLDER, LEGAL_VERSION } from '../content/legal'
+import { LEGAL_CONTENT, LEGAL_VERSION } from '../content/legal'
 import {
   backupToJson,
   buildBackupPayload,
@@ -276,7 +276,7 @@ function BackupSection() {
     const payload = await buildBackupPayload()
     const result = await shareOrDownloadFile(
       backupToJson(payload),
-      `peptidescr-backup-${Date.now()}.json`,
+      `upd-backup-${Date.now()}.json`,
       'application/json',
     )
     if (result !== 'cancelled') {
@@ -287,7 +287,7 @@ function BackupSection() {
 
   async function handleExportCsv() {
     const doseLogs = await db.doseLogs.toArray()
-    await shareOrDownloadFile(doseLogsToCsv(doseLogs), `peptidescr-history-${Date.now()}.csv`, 'text/csv')
+    await shareOrDownloadFile(doseLogsToCsv(doseLogs), `upd-history-${Date.now()}.csv`, 'text/csv')
   }
 
   async function handleFileSelected(e: ChangeEvent<HTMLInputElement>) {
@@ -361,8 +361,8 @@ function BackupSection() {
 function LegalSection() {
   const { t, i18n } = useTranslation()
   const settings = useSettings()
-  const locale: keyof typeof LEGAL_PLACEHOLDER = i18n.language === 'en' ? 'en' : 'es-CR'
-  const legal = LEGAL_PLACEHOLDER[locale]
+  const locale: keyof typeof LEGAL_CONTENT = i18n.language === 'en' ? 'en' : 'es-CR'
+  const legal = LEGAL_CONTENT[locale]
   const [expanded, setExpanded] = useState(false)
 
   return (
@@ -385,9 +385,9 @@ function LegalSection() {
       {expanded && (
         <div className="flex flex-col gap-2 text-sm text-muted-foreground">
           <p className="font-medium text-foreground">{legal.disclaimerTitle}</p>
-          <p>{legal.disclaimerBody}</p>
+          <p className="whitespace-pre-line">{legal.disclaimerBody}</p>
           <p className="font-medium text-foreground">{legal.termsTitle}</p>
-          <p>{legal.termsBody}</p>
+          <p className="whitespace-pre-line">{legal.termsBody}</p>
         </div>
       )}
     </SectionCard>
@@ -398,29 +398,28 @@ function ContactSection() {
   const { t } = useTranslation()
   return (
     <SectionCard title={t('settings.contact.title')}>
-      <img src="/brand/logo-full.png" alt="Peptides Costa Rica" className="h-16 w-auto self-start rounded-xl" />
-      <p className="text-sm text-muted-foreground">Jacó · San José, Costa Rica</p>
-      <a href="https://peptidescostarica.net" className="text-sm text-primary" target="_blank" rel="noreferrer">
-        peptidescostarica.net
-      </a>
-      <Button asChild className="justify-start bg-[#25D366] text-white active:bg-[#1da851]">
-        <a href="https://wa.me/50684046973" target="_blank" rel="noreferrer">
-          <MessageCircle className="size-4" />
-          {t('settings.contact.whatsapp')}
-        </a>
-      </Button>
-      <a href="tel:+50684046973" className="flex items-center gap-2 text-sm text-primary">
-        <Phone className="size-4" />
-        CR +506 8404-6973
+      <img src="/brand/logo-full.png" alt="USA Peptide Depot" className="h-16 w-auto self-start rounded-xl" />
+      <a href="https://www.usapeptidedepot.com" className="text-sm text-primary" target="_blank" rel="noreferrer">
+        usapeptidedepot.com
       </a>
       <a href="tel:+18314715559" className="flex items-center gap-2 text-sm text-primary">
         <Phone className="size-4" />
-        US +1 (831) 471-5559
+        +1 (831) 471-5559
       </a>
-      <a href="mailto:info@peptidescostarica.net" className="flex items-center gap-2 text-sm text-primary">
+      <a href="mailto:info@usapeptidedepot.com" className="flex items-center gap-2 text-sm text-primary">
         <Mail className="size-4" />
-        info@peptidescostarica.net
+        info@usapeptidedepot.com
       </a>
+      {/*
+        Dropped, pending client confirmation rather than guessed: the Costa
+        Rica WhatsApp link/phone (+506 8404-6973) and the "Jacó · San José,
+        Costa Rica" address. usapeptidedepot.com's own contact page gives only
+        the US email/phone above and a generic "United States Logistics &
+        Climate Storage Facility" — it doesn't confirm the CR line is still
+        answered under the new brand, or that a CR address still belongs on
+        this contact card. Restore either (or add a new WhatsApp/CR entry) as
+        soon as the client says which numbers/address to show here.
+      */}
     </SectionCard>
   )
 }

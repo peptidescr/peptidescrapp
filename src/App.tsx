@@ -30,24 +30,37 @@ function App() {
   // change, so a stale one can never re-apply itself later.
   const [calculatorProtocolId, setCalculatorProtocolId] = useState<string | undefined>()
   const [newProtocolCompoundId, setNewProtocolCompoundId] = useState<string | undefined>()
+  const [editProtocolId, setEditProtocolId] = useState<string | undefined>()
 
-  function goToTab(next: Tab) {
+  function clearOneShotNav() {
     setCalculatorProtocolId(undefined)
     setNewProtocolCompoundId(undefined)
+    setEditProtocolId(undefined)
+  }
+
+  function goToTab(next: Tab) {
+    clearOneShotNav()
     setTab(next)
   }
 
   /** "Next step: reconstitute" — open the calculator prefilled for a protocol. */
   function openCalculatorFor(protocolId: string) {
+    clearOneShotNav()
     setCalculatorProtocolId(protocolId)
-    setNewProtocolCompoundId(undefined)
     setTab('calculator')
   }
 
   /** The calculator's "create a protocol" — open a new-protocol form for that compound. */
   function openNewProtocolFor(compoundId: string) {
-    setCalculatorProtocolId(undefined)
+    clearOneShotNav()
     setNewProtocolCompoundId(compoundId)
+    setTab('protocols')
+  }
+
+  /** Tapping a protocol on Home (a due/upcoming card) — straight to that protocol's own edit page. */
+  function openProtocolEditor(protocolId: string) {
+    clearOneShotNav()
+    setEditProtocolId(protocolId)
     setTab('protocols')
   }
 
@@ -220,13 +233,18 @@ function App() {
               onNavigateToProtocols={() => goToTab('protocols')}
               onNavigateToHistory={() => goToTab('history')}
               onNavigateToCalculator={() => goToTab('calculator')}
+              onOpenProtocol={openProtocolEditor}
             />
           )}
           {tab === 'calculator' && (
             <CalculatorScreen protocolId={calculatorProtocolId} onCreateProtocol={openNewProtocolFor} />
           )}
           {tab === 'protocols' && (
-            <ProtocolsScreen onReconstitute={openCalculatorFor} initialCompoundId={newProtocolCompoundId} />
+            <ProtocolsScreen
+              onReconstitute={openCalculatorFor}
+              initialCompoundId={newProtocolCompoundId}
+              initialProtocolId={editProtocolId}
+            />
           )}
           {tab === 'history' && <HistoryScreen />}
           {tab === 'settings' && <SettingsScreen />}
