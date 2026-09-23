@@ -52,7 +52,11 @@
 :root {
   --brand-primary: #bcd4c5;
   --brand-primary-dk: #9bb9a6;
-  --brand-primary-lt: #1a3a28;
+  /* Raised from #1a3a28 — that sat only 1.22:1 from the card (#122a20), so a
+     "selected" chip/badge was nearly invisible against a plain card. This
+     blends further toward the sage accent (5.9:1 for sage text on top, still
+     comfortably legible) so a highlighted state actually reads as one. */
+  --brand-primary-lt: #344c41;
   --brand-primary-fg: #0e1f16;
   --brand-ink: #ece8d8;
   --brand-muted: #8fa396;
@@ -61,7 +65,12 @@
      tried and reverted). Everything else in this block stayed exactly as
      the rebrand left it. */
   --brand-surface-2: #060f0a;
-  --brand-border: #1f3b2c;
+  /* Raised from #1f3b2c — that sat only 1.25:1 from the card, so card
+     outlines, dividers, and outlined ("secondary") buttons were barely
+     visible, which is what actually made the whole page read as "everything
+     blends together." Now ~2.1:1 against the card, ~2.7:1 against the page —
+     a real line, not just a marginally-different green. */
+  --brand-border: #455d52;
   --brand-warn: #e0954b;
   --brand-warn-lt: #2f2418;
   /* Standard destructive-action red (delete, wipe+import) — a UI safety
@@ -86,15 +95,16 @@
 
   --radius: 0.75rem;
 
-  /* Unchanged by this rebrand — a font swap wasn't part of the brief and the
-     logo's own wordmark doesn't call for one; self-hosted faces stay the
-     same two-family split (display vs. body). See styles/fonts.css. */
+  /* Archivo (display) / Manrope (body) — matches usapeptidedepot.com's own
+     fonts, not guessed. See styles/fonts.css for how "matches" was verified
+     (their declared "Cera Pro" never actually loads, even on their own
+     site — Archivo/Manrope are what a real visitor's browser renders). */
   --font-display:
-    'Montserrat', 'Instrument Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Archivo', 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
     Helvetica, Arial, sans-serif;
 
   --font-sans:
-    'Instrument Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
+    'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
     Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
 }
 

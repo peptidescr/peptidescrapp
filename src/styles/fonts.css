@@ -6,13 +6,26 @@
  * silently falls back to a system face the moment the user is offline —
  * exactly when they're most likely to be opening it (a phone in a clinic, on
  * a plane). Vite's PWA workbox config already precaches `**\/*.woff2`
- * (vite.config.ts), so these three files ship inside the service worker cache
+ * (vite.config.ts), so these four files ship inside the service worker cache
  * and render identically offline.
  *
- * Both families are variable fonts: one file per unicode-range covers the
- * entire weight axis, which is why there are three files and not a dozen.
- * `font-weight: 100 900` tells the browser the range the file can synthesise
- * from, so `font-weight: 600` interpolates rather than faux-bolding.
+ * Archivo (display) / Manrope (body) match usapeptidedepot.com's own fonts —
+ * not guessed: their site's CSS actually asks for "Cera Pro" first (a
+ * commercial font we can't license or self-host) with Archivo/Manrope as
+ * its declared fallback. Checked live via headless Chrome: Cera Pro shows up
+ * in `document.fonts` as `unloaded` even on their own site, so Archivo and
+ * Manrope are what a real visitor's browser actually renders — matching
+ * those *is* matching their site, Cera Pro was never actually a factor.
+ * Their heading/label/button text computes to weight 800 in Archivo; their
+ * flowing paragraph text computes to weight 400 in Manrope — exactly the
+ * display/body split this file already had (previously Montserrat/
+ * Instrument Sans), so only the two families changed, not the structure.
+ *
+ * Both are variable fonts: one file per unicode-range covers the entire
+ * weight axis, which is why there are four files and not a dozen.
+ * `font-weight: 1XX 9XX` tells the browser the range each file can
+ * synthesise from, so e.g. `font-weight: 600` interpolates rather than
+ * faux-bolding.
  *
  * The latin-ext ranges matter for Spanish: á é í ó ú ñ ¿ ¡ live in Latin-1
  * Supplement (inside the `latin` range), but the extended range covers the
@@ -22,39 +35,49 @@
  * files inside our own bundle is permitted.
  */
 
-/* Montserrat — display: headlines and figures. It is the face the logo's own
-   lettering is set in. Latin only: it covers every Spanish diacritic
-   (á é í ó ú ñ ¿ ¡ ü) that our copy uses; Instrument Sans below still carries
-   the extended range for compound names. */
+/* Archivo — display: headlines and figures, matching the weight (800) their
+   own heading/button text actually renders at. */
 @font-face {
-  font-family: 'Montserrat';
+  font-family: 'Archivo';
   font-style: normal;
   font-weight: 100 900;
   font-display: swap;
-  src: url('/fonts/montserrat-latin.woff2') format('woff2');
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
-    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
-    U+FEFF, U+FFFD;
-}
-
-/* Instrument Sans — body and every piece of UI chrome. */
-@font-face {
-  font-family: 'Instrument Sans';
-  font-style: normal;
-  font-weight: 100 900;
-  font-display: swap;
-  src: url('/fonts/instrument-sans-latin.woff2') format('woff2');
+  src: url('/fonts/archivo-latin.woff2') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
     U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
     U+FEFF, U+FFFD;
 }
 
 @font-face {
-  font-family: 'Instrument Sans';
+  font-family: 'Archivo';
   font-style: normal;
   font-weight: 100 900;
   font-display: swap;
-  src: url('/fonts/instrument-sans-latin-ext.woff2') format('woff2');
+  src: url('/fonts/archivo-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB,
+    U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* Manrope — body and every piece of UI chrome, matching their flowing
+   paragraph text's actual weight (400). */
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url('/fonts/manrope-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+    U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url('/fonts/manrope-latin-ext.woff2') format('woff2');
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
     U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB,
     U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;

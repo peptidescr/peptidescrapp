@@ -65,9 +65,10 @@ body {
 }
 
 /*
- * Display type. Montserrat sets wide and heavy, so headlines get a touch of
- * negative tracking to keep the letterforms tight the way the logo's are.
- * In @layer base so any utility (tracking-*, etc.) still wins over it.
+ * Display type. Archivo at its bold weights sets wide, so headlines get a
+ * touch of negative tracking to keep the letterforms tight, matching how
+ * usapeptidedepot.com's own heading text (same Archivo fallback, weight 800)
+ * reads. In @layer base so any utility (tracking-*, etc.) still wins over it.
  */
 @layer base {
   .font-display {

@@ -1362,3 +1362,50 @@ like a clash next to the saturated brand green rather than a clean canvas.
   match `--brand-surface-2` by hand, see each file's own comment.
 - Card/border/accent-on-cards ordering is deliberate in both modes: page < card < border <
   accent(selected), computed and contrast-checked, not eyeballed — see the values inline.
+
+## Font swap to match usapeptidedepot.com; confirmed cream light-mode bg (September 2026)
+
+- **Fonts**: self-hosted Archivo (display) + Manrope (body), replacing Montserrat/Instrument
+  Sans. Verified rather than guessed: their site's CSS asks for `"Cera Pro", Archivo, ...`
+  for headings/buttons and `"Cera Pro", Manrope, ...` for body copy, but Cera Pro (a
+  commercial font) shows up as `unloaded` in `document.fonts` even on their own live site —
+  so Archivo/Manrope are what a real visitor's browser actually renders, and matching those
+  *is* matching the site (Cera Pro was never actually a factor for anyone). Their heading/
+  button text computes to Archivo at weight 800; their paragraph text computes to Manrope at
+  weight 400 — same display/body split this file already had, just the two families changed.
+  Downloaded the real variable-font woff2 files from Google Fonts (same licence class, same
+  self-hosting rationale as the previous faces — see fonts.css). `--font-display`/`--font-sans`
+  in tokens.css updated; `index.css`'s negative-tracking comment (for wide/heavy display type)
+  re-pointed at Archivo, value unchanged (still suits a bold grotesque face).
+- **Light-mode background**: client asked to use their cream. Checked — `--brand-surface-2`
+  in light mode was already their exact real page-background colour (`#fdfbf0`, sampled
+  during the original rebrand and never touched since, including by the later color pass,
+  which only touched card/border/accent). Re-verified with a fresh live pixel sample
+  (`rgb(253, 251, 240)` on their real `<body>`, confirmed as the only background color in
+  play — every section on their page is otherwise transparent over it). No change needed;
+  called this out explicitly rather than silently no-op'ing the request.
+- Verified live (headless Chrome): `document.fonts` shows Archivo/Manrope loaded; onboarding
+  and Home render in the new faces in both languages/themes; light mode's page margins are
+  visibly cream. Typecheck, 180/180 tests, and build all green.
+
+## Dark-mode contrast fix (September 2026)
+
+Client feedback: dark mode had nothing giving contrast, everything blended together.
+Measured why (WCAG contrast ratio, not eyeballed): `--brand-border` (#1f3b2c) was only
+1.25:1 from the card surface (#122a20), and `--brand-primary-lt` (the selected/accent
+panel tint, #1a3a28) only 1.22:1 — both essentially the same green as the card they sit on.
+That's the actual mechanism behind "blends in": every card outline, list divider, outlined
+("secondary") button, and segmented control was a hairline nobody could see, and a
+"selected" chip/badge looked identical to an ordinary one.
+
+Fixed by raising both, blended further toward the sage accent rather than picked by eye:
+- `--brand-border`: `#1f3b2c` → `#455d52` (card contrast 1.25 → 2.13, page contrast → 2.72)
+- `--brand-primary-lt`: `#1a3a28` → `#344c41` (card contrast 1.22 → 1.64; sage text on top
+  still 5.9:1, comfortably legible)
+
+Verified live (headless Chrome, dark theme): Settings' outlined buttons, segmented
+controls, and card boundaries are now clearly visible edges rather than same-colour blocks.
+Light mode has the same structural gap numerically (border-vs-card ~1.06:1) but wasn't
+part of this request — low-contrast hairlines read as normal/subtle in light mode in a way
+they don't in dark, and light mode was just deliberately tuned in the previous pass — left
+alone pending explicit ask. Typecheck, 180/180 tests, and build all green.
