@@ -22,13 +22,20 @@ export type BrandLocale = 'es-CR' | 'en'
 
 export interface BrandConfig {
   id: BrandId
-  /** Prose name, as it appears inside sentences ("Install {{appName}}"). */
+  /** Prose name, as it appears inside sentences ("Install {{appName}}"), and the manifest's full `name`. */
   appName: string
+  /**
+   * Browser tab <title> only. A separate field from appName because the
+   * two can genuinely differ — PCR's tab is the fuller "Peptides Costa
+   * Rica" while appName (used mid-sentence everywhere else, and as the
+   * manifest's install name) stays the shorter "Peptides CR". Defaults to
+   * appName when a brand has no reason to diverge (see UPD_BRAND).
+   */
+  title: string
   /**
    * Tight chrome only: manifest short_name (Android's under-icon caption)
    * and the iOS home-screen label — both genuinely space-constrained, so
-   * this stays terse. The browser tab <title> uses appName instead (see
-   * vite.config.ts's brandHtml), since a tab has room for the real name.
+   * this stays terse.
    */
   shortName: string
   /** Prefix for exported backup/history filenames. */
@@ -49,6 +56,7 @@ export interface BrandConfig {
 export const PCR_BRAND: BrandConfig = {
   id: 'pcr',
   appName: 'Peptides CR',
+  title: 'Peptides Costa Rica',
   shortName: 'peptidescr',
   filePrefix: 'peptidescr',
   locales: ['es-CR', 'en'],
@@ -60,6 +68,7 @@ export const PCR_BRAND: BrandConfig = {
 export const UPD_BRAND: BrandConfig = {
   id: 'upd',
   appName: 'USA Peptide Depot',
+  title: 'USA Peptide Depot',
   shortName: 'UPD',
   filePrefix: 'upd',
   locales: ['en'],
