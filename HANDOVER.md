@@ -26,6 +26,29 @@ text, and the display name changed. See `NOTES.md`'s "Rebrand" entry for the ful
 what changed and, just as importantly, what was deliberately left alone (in particular: no
 user's local data is affected — the rebrand never touches how or where data is stored).
 
+**Phase 2, first batch (September 2026): the vial layer.** Now in both sites:
+- **Vial tracking**, with lot, batch, label expiry and the customer's own discard-by date.
+  Doses count down automatically as they're logged.
+- **Alerts** when a vial is running low or empty, or near its discard-by or expiry date. They
+  show on Home and in the bell, and arrive as notifications, including when the app is closed.
+- **A drawn syringe** showing exactly where to pull to, in the calculator and on each protocol.
+- **Adherence %** over the last 30 days, per protocol and overall.
+- **A month calendar** in History, where missed days can be filled in afterwards.
+- **Custom compounds**, so customers can log things you don't sell.
+
+Backups include all of it, and older backups still import.
+
+Still to come in Phase 2: your full catalogue synced from each store, cycling in weeks
+on/off, "save my protocol as a template", and injection-site rotation.
+
+**Email reminders were dropped.** Push reminders already work, and email would mean
+storing each customer's address on a server, which the privacy terms say we don't do.
+**Questions for you:**
+1. Can USA Peptide Depot send a product export or feed? Their store has no public product
+   list to sync from; Peptides CR's (WooCommerce) does.
+2. Do you want a default "discard after N days" for mixed vials? It's left blank on purpose,
+   since how long a mixed vial lasts is a product claim.
+
 ## What this is
 
 A branded installable web app (PWA) for tracking peptide reconstitution math and dosing

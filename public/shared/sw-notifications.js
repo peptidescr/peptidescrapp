@@ -16,19 +16,26 @@ self.addEventListener('notificationclick', (event) => {
 })
 
 // --- Closed-app reminders (Web Push) ---------------------------------------
-// The push server only ever sends `{ tag }`, where tag is "<protocolId>|<ISO time>"
-// (src/lib/pushSchedule.ts). Everything visible — the protocol's name, the dose,
-// the language — is looked up here from the phone's own IndexedDB, so none of it
-// ever has to leave the device.
+// The push server only ever sends `{ tag }` (src/lib/pushSchedule.ts), one of:
+//   "<protocolId>|<ISO time>"                         — a dose reminder
+//   "vial|<vialId>|<discard|expiry>|<yyyy-MM-dd>"     — a vial date reminder
+// Everything visible — names, the dose, dates, the language — is looked up
+// here from the phone's own IndexedDB, so none of it ever has to leave the device.
 
 const TEXT = {
   en: {
     body: (dose, time) => 'Time for your ' + dose + ' dose (' + time + ').',
     generic: 'Time for your dose.',
+    vialDiscard: (date) => 'Vial discard-by date: ' + date + '.',
+    vialExpiry: (date) => 'Vial expiry on the label: ' + date + '.',
+    vialGeneric: 'A vial needs your attention.',
   },
   'es-CR': {
     body: (dose, time) => 'Es hora de tu dosis de ' + dose + ' (' + time + ').',
     generic: 'Es hora de tu dosis.',
+    vialDiscard: (date) => 'Fecha de descarte del vial: ' + date + '.',
+    vialExpiry: (date) => 'Vencimiento del vial según la etiqueta: ' + date + '.',
+    vialGeneric: 'Un vial necesita tu atención.',
   },
 }
 
@@ -60,8 +67,42 @@ function formatTime(iso) {
   return (hours % 12 === 0 ? 12 : hours % 12) + ':' + String(date.getMinutes()).padStart(2, '0') + ' ' + (hours < 12 ? 'AM' : 'PM')
 }
 
+// dd/MM/yyyy, matching formatDate in src/lib/dates.ts.
+function formatDay(isoDay) {
+  const parts = String(isoDay || '').split('-')
+  return parts.length === 3 ? parts[2] + '/' + parts[1] + '/' + parts[0] : ''
+}
+
+// The vial's *current* dates are read, not the ones it had when the push was
+// scheduled, so an edit made since then still shows correctly.
+async function buildVialReminder(vialId, kind) {
+  let vial
+  let protocol
+  let compound
+  let locale = 'es-CR'
+  try {
+    const db = await openDatabase()
+    const settings = await readRecord(db, 'settings', 1)
+    if (settings && settings.locale) locale = settings.locale
+    if (vialId) vial = await readRecord(db, 'vials', vialId)
+    if (vial && vial.protocolId) protocol = await readRecord(db, 'protocols', vial.protocolId)
+    if (vial) compound = await readRecord(db, 'compounds', vial.compoundId)
+    db.close()
+  } catch (err) {
+    // Fall through to the generic text below.
+  }
+
+  const text = TEXT[locale] || TEXT['es-CR']
+  const title = (protocol && protocol.name) || (compound && compound.name) || 'peptidescr'
+  const date = vial && (kind === 'expiry' ? vial.expiresOn : vial.discardOn)
+  if (!vial || vial.status !== 'active' || !date) return { title, body: text.vialGeneric }
+  return { title, body: kind === 'expiry' ? text.vialExpiry(formatDay(date)) : text.vialDiscard(formatDay(date)) }
+}
+
 async function buildReminder(tag) {
-  const [protocolId, iso] = tag.split('|')
+  const parts = tag.split('|')
+  if (parts[0] === 'vial') return buildVialReminder(parts[1], parts[2])
+  const [protocolId, iso] = parts
   let protocol
   let compound
   let locale = 'es-CR'

@@ -7,6 +7,7 @@ import { Toaster } from './components/ui/sonner'
 import { LEGAL_VERSION } from './content/legal'
 import { maybeCreateDailySnapshot } from './lib/backup'
 import { db, ensureCompoundsSeeded, ensureSettingsRow } from './lib/db'
+import { useCustomCompoundsLoaded } from './lib/customCompounds'
 import { DEFAULT_LOCALE, toSupportedLocale } from './i18n'
 import { scheduleUpcomingReminders, startReminderLoop } from './lib/notifications'
 import { applyTheme, resolveTheme, subscribeToSystemTheme, type ResolvedTheme } from './lib/theme'
@@ -80,8 +81,12 @@ function App() {
   // a live derivation would flip the gate and unmount the wizard before the
   // remaining steps ran. Computed once from the first settings load, then
   // only ever changed by an explicit callback below.
+  //
+  // Also waits for the user's custom compounds to load into memory (see
+  // src/lib/customCompounds.ts), so no screen ever renders one by its id.
+  const customCompoundsLoaded = useCustomCompoundsLoaded()
   const [gate, setGate] = useState<Gate>('loading')
-  if (settings && gate === 'loading') {
+  if (settings && customCompoundsLoaded && gate === 'loading') {
     const alreadyOnboardedBeforeThisFlagExisted =
       !settings.onboardingCompletedAt && settings.legalAcceptedVersion === LEGAL_VERSION
     if (alreadyOnboardedBeforeThisFlagExisted) {
@@ -127,9 +132,13 @@ function App() {
   // toSupportedLocale: a settings row (or an imported backup) can carry a
   // language this build doesn't offer — e.g. 'es-CR' on the English-only
   // brand — so that falls back to the build's default instead.
+  // The correction is also saved, not just applied: the service worker reads
+  // `settings.locale` directly to word closed-app reminders, and would
+  // otherwise keep sending them in the language this build doesn't offer.
   useEffect(() => {
     if (!settings) return
     const locale = toSupportedLocale(settings.locale)
+    if (locale !== settings.locale) void updateSettings({ locale })
     if (locale !== i18n.language) {
       void i18n.changeLanguage(locale)
     }
@@ -251,7 +260,7 @@ function App() {
               initialProtocolId={editProtocolId}
             />
           )}
-          {tab === 'history' && <HistoryScreen />}
+          {tab === 'history' && <HistoryScreen onOpenProtocol={openProtocolEditor} />}
           {tab === 'settings' && <SettingsScreen />}
         </motion.div>
       </AnimatePresence>

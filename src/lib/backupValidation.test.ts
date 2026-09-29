@@ -104,7 +104,8 @@ describe('parseBackup', () => {
   it('rejects wrong versions, wrong shapes, duplicate ids and oversized lists', () => {
     expect(() => parseBackup(null)).toThrow()
     expect(() => parseBackup([])).toThrow()
-    expect(() => parseBackup(backup({ version: 2 }))).toThrow()
+    expect(() => parseBackup(backup({ version: 3 }))).toThrow()
+    expect(() => parseBackup(backup({ version: '2' }))).toThrow()
     expect(() => parseBackup(backup({ protocols: 'x' }))).toThrow()
     expect(() => parseBackup(backup({ protocols: [protocol, protocol] }))).toThrow()
     const tooMany = Array.from({ length: 1001 }, (_, i) => ({ ...protocol, id: `p${i}` }))
@@ -153,5 +154,102 @@ describe('parseBackup', () => {
     )
     expect(ok.settings).toEqual({ id: 1, locale: 'en', syringeType: 'U-100', theme: 'dark' })
     expect(() => parseBackup(backup({ settings: { locale: 'fr', syringeType: 'U-100' } }))).toThrow()
+  })
+})
+
+describe('parseBackup, format v2 (vials, custom compounds, user templates)', () => {
+  const vial = {
+    id: 'v1',
+    compoundId: 'bpc-157',
+    protocolId: 'p1',
+    totalMcg: 10_000,
+    diluentMl: 2,
+    lot: 'A123',
+    batch: 'B7',
+    expiresOn: '2027-01-31',
+    openedOn: '2026-03-01',
+    discardOn: '2026-03-29',
+    status: 'active',
+    createdAt: '2026-03-01T09:00:00.000Z',
+    updatedAt: '2026-03-01T09:00:00.000Z',
+  }
+  const custom = {
+    id: 'custom-1',
+    name: 'My compound',
+    category: 'whatever',
+    defaultUnit: 'mg',
+    vialSizes: [5, 10],
+    form: 'powder',
+    isBlend: true,
+    isDiluent: true,
+    isCustom: true,
+  }
+  const template = {
+    id: 't1',
+    name: 'My morning routine',
+    compoundId: 'custom-1',
+    doseAmount: 2,
+    doseUnit: 'mg',
+    schedule: { kind: 'weekdays', days: [1, 3, 5] },
+    reminderTimes: ['07:30'],
+    route: 'subcutaneous',
+    createdAt: '2026-03-01T09:00:00.000Z',
+  }
+
+  it('still imports a v1 file, with the v2 collections empty', () => {
+    const result = parseBackup(backup({ version: 1 }))
+    expect(result.version).toBe(2)
+    expect(result.protocols).toHaveLength(1)
+    expect(result.vials).toEqual([])
+    expect(result.customCompounds).toEqual([])
+    expect(result.userTemplates).toEqual([])
+  })
+
+  it('round-trips vials, custom compounds, templates and a dose linked to a vial', () => {
+    const result = parseBackup(
+      backup({
+        doseLogs: [{ ...log, vialId: 'v1' }],
+        vials: [vial],
+        customCompounds: [custom],
+        userTemplates: [template],
+      }),
+    )
+    expect(result.vials).toEqual([vial])
+    expect(result.doseLogs[0]?.vialId).toBe('v1')
+    expect(result.userTemplates[0]).toEqual(template)
+    // Custom compounds are normalised: category and flags are the app's, never the file's.
+    expect(result.customCompounds[0]).toEqual({
+      ...custom,
+      category: 'custom',
+      isBlend: false,
+      isDiluent: false,
+    })
+  })
+
+  it('requires exactly one vial amount, of the right kind', () => {
+    const noAmount: Record<string, unknown> = { ...vial }
+    delete noAmount.totalMcg
+    expect(() => parseBackup(backup({ vials: [noAmount] }))).toThrow()
+    expect(() => parseBackup(backup({ vials: [{ ...vial, totalMilliIU: 5000 }] }))).toThrow()
+    expect(() => parseBackup(backup({ vials: [{ ...vial, totalMcg: 0 }] }))).toThrow()
+    expect(() => parseBackup(backup({ vials: [{ ...vial, status: 'lost' }] }))).toThrow()
+    expect(() => parseBackup(backup({ vials: [{ ...vial, discardOn: '2026-02-31' }] }))).toThrow()
+  })
+
+  it('only accepts custom-prefixed compound ids, so a backup can never overwrite a catalogue entry', () => {
+    expect(() => parseBackup(backup({ customCompounds: [{ ...custom, id: 'bpc-157' }] }))).toThrow()
+    expect(() => parseBackup(backup({ customCompounds: [{ ...custom, name: '   ' }] }))).toThrow()
+  })
+
+  it('drops a dose-to-vial link whose vial is not in the file, keeping the dose', () => {
+    const result = parseBackup(backup({ doseLogs: [{ ...log, vialId: 'gone' }] }))
+    expect(result.doseLogs).toHaveLength(1)
+    expect(result.doseLogs[0]).not.toHaveProperty('vialId')
+  })
+
+  it('sanitizes lot and batch, dropping them when empty', () => {
+    const result = parseBackup(backup({ vials: [{ ...vial, lot: '  A1‮23  ', batch: '   ' }] }))
+    expect(result.vials[0]?.lot).toBe('A123')
+    expect(result.vials[0]).not.toHaveProperty('batch')
   })
 })

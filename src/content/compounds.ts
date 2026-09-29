@@ -1,6 +1,8 @@
 /**
- * The client's seeded compound catalogue. Read-only at runtime — there is no
- * "create a compound" feature in Phase 1 (see brief: no user-created compounds).
+ * The client's seeded compound catalogue, read-only at runtime, plus the
+ * user's own custom compounds (Phase 2) layered on top of it in memory — see
+ * "Custom compounds" at the bottom of this file. Every lookup below answers
+ * for both, so no caller has to know which kind a compound is.
  *
  * Vial size units are NOT uniform across `vialSizes` — they depend on the
  * compound, per this rule (see `vialSizeUnit` below):
@@ -29,6 +31,8 @@ export interface Compound {
   form: CompoundForm
   isBlend: boolean
   isDiluent: boolean
+  /** A compound the user created themselves (see src/lib/customCompounds.ts). Absent on catalogue entries. */
+  isCustom?: boolean
 }
 
 function powder(
@@ -165,7 +169,7 @@ export function vialSizeUnit(compound: Compound): CompoundUnit | 'mL' {
 }
 
 export function getCompoundById(id: string): Compound | undefined {
-  return COMPOUNDS.find((c) => c.id === id)
+  return COMPOUNDS.find((c) => c.id === id) ?? customCompounds.find((c) => c.id === id)
 }
 
 /**
@@ -178,9 +182,17 @@ export function compareAlphabetical(a: string, b: string): number {
   return a.localeCompare(b, 'en', { sensitivity: 'base', numeric: true })
 }
 
-/** Compounds selectable in the UI's compound picker — excludes diluents. Alphabetical by name. */
+/**
+ * Compounds selectable in the UI's compound picker — catalogue (minus
+ * diluents) and the user's custom compounds, alphabetical by name. Returns
+ * the same array until the custom set changes, so it's safe as a
+ * useSyncExternalStore snapshot (see useSelectableCompounds).
+ */
 export function listSelectableCompounds(): Compound[] {
-  return COMPOUNDS.filter((c) => !c.isDiluent).sort((a, b) => compareAlphabetical(a.name, b.name))
+  selectableCache ??= [...COMPOUNDS.filter((c) => !c.isDiluent), ...customCompounds].sort((a, b) =>
+    compareAlphabetical(a.name, b.name),
+  )
+  return selectableCache
 }
 
 export function listDiluents(): Compound[] {
@@ -190,4 +202,37 @@ export function listDiluents(): Compound[] {
 /** Category names, alphabetical. */
 export function listCategories(): string[] {
   return [...new Set(listSelectableCompounds().map((c) => c.category))].sort(compareAlphabetical)
+}
+
+// ---------------------------------------------------------------------------
+// Custom compounds
+// ---------------------------------------------------------------------------
+//
+// The user's own compounds live in Dexie (same `compounds` table as the
+// catalogue, flagged `isCustom`), but every lookup above is synchronous and
+// called from render and from plain functions alike. So the current set is
+// mirrored here in memory: src/lib/customCompounds.ts keeps it in step with
+// the database and calls setCustomCompounds on every change. Listeners let
+// React re-render when it changes (useSelectableCompounds / useCustomCompounds).
+
+/** Stored `category` for custom compounds; shown translated, never raw (see compoundCategoryLabel). */
+export const CUSTOM_CATEGORY = 'custom'
+
+let customCompounds: readonly Compound[] = []
+let selectableCache: Compound[] | null = null
+const listeners = new Set<() => void>()
+
+export function setCustomCompounds(list: readonly Compound[]): void {
+  customCompounds = list
+  selectableCache = null
+  for (const listener of listeners) listener()
+}
+
+export function getCustomCompounds(): readonly Compound[] {
+  return customCompounds
+}
+
+export function subscribeToCompounds(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => listeners.delete(listener)
 }

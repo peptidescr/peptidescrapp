@@ -3,7 +3,7 @@ import { DayPicker, type DayPickerProps } from 'react-day-picker'
 import { cn } from '@/lib/utils'
 
 /** react-day-picker v10 wrapper, styled to match the app's design tokens. */
-export function Calendar({ className, classNames, showOutsideDays = true, ...props }: DayPickerProps) {
+export function Calendar({ className, classNames, components, showOutsideDays = true, ...props }: DayPickerProps) {
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
@@ -37,6 +37,8 @@ export function Calendar({ className, classNames, showOutsideDays = true, ...pro
       components={{
         Chevron: ({ orientation }) =>
           orientation === 'left' ? <ChevronLeft className="size-4" /> : <ChevronRight className="size-4" />,
+        // Merged, not replaced, so a caller's custom DayButton keeps these chevrons.
+        ...components,
       }}
       {...props}
     />

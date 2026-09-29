@@ -1470,3 +1470,81 @@ English, with a welcome step, no language row, UPD contact, legal v3 and green p
 is Spanish, with language cards, the language row, restored CR contact with WhatsApp, legal
 v4 and navy palette. Lint has one pre-existing error (`react-hooks/set-state-in-effect`
 in `App.tsx`'s theme effect), untouched here.
+
+## Phase 2, batch 1: the vial layer (September 2026)
+
+Scope decided with the developer after re-reviewing Phase 2 of CR-TRK-2608-A: build the
+vial layer first (none of it depends on the client, and Phase 3's reorder prompt hangs off
+it). The catalogue sync, cycling in weeks, "save as template" and site rotation come next.
+**Email fallback is dropped.** Push is already live, and email would mean storing identities
+server-side, contradicting the "no identity collected" legal text. **The dosed protocol
+templates stay** (the developer's call, overriding the proposal's dose-free guidance), with
+"save my protocol as a template" to be added in batch 2. The `userTemplates` table already
+exists (schema v2) for that.
+
+**Built:**
+- **Custom compounds.** These are stored in the same `compounds` table (`isCustom`, ids
+  `custom-…`), so the service worker's notification text needed no change.
+  `getCompoundById`/`listSelectableCompounds` also answer for them through an in-memory
+  mirror (`compounds.ts` bottom, kept in sync by `lib/customCompounds.ts`). Writes update
+  the mirror synchronously, so a picker can select a compound the moment it's created. The
+  App's loading gate waits for the first sync. An "Add your own compound" footer appears on
+  both compound pickers; Settings → Your compounds handles edit and delete (delete only when
+  unused).
+- **Vials** (`lib/vials.ts`), with lot, batch, printed expiry and the user's own discard-by
+  date. A protocol has at most one active vial. What's left is **derived, never stored**:
+  the starting amount minus the `taken` logs carrying the vial's `vialId`, which
+  `logProtocolDose` stamps. Editing or deleting history therefore corrects the vial by
+  itself. Doses left are floored. "Enough until" walks the schedule. The discard-by date is
+  never defaulted: `BrandConfig.defaultDiscardDays` exists but stays unset unless the client
+  supplies a figure. Entry points are "Start a vial with this mix" in the calculator and
+  the vial strip on each protocol card (gauge, finish/discard/start next, edit details).
+- **Alerts:** low stock (3 or fewer doses left, or the last dose within 7 days), empty,
+  discard-by and printed expiry (3 days ahead, then passed). They appear on Home, in the
+  bell (same computed list, so the count and panel agree), and as notifications.
+  Notifications work two ways:
+  - Foreground: once per alert, forgotten when the alert clears.
+  - Closed app: date alerts are pushed at 09:00 on the notice day and on the date itself,
+    tagged `vial|<id>|<kind>|<day>`. The service worker reads the vial's current dates from
+    IndexedDB, so the server still learns nothing.
+
+  There's no reorder button: that's Phase 3. `VialAlertCard` has an empty action slot for it.
+- **Visual syringe** (`lib/syringe.ts` + `SyringeGraphic`). It uses the smallest real barrel
+  for the type that holds the draw (U-100: 30/50/100 units, 2-unit marks on the 100), with
+  theme tokens only. It appears in the calculator result (hero tone) and on a protocol's
+  saved mix.
+- **Adherence**: taken ÷ settled scheduled doses over 30 days. Skipped doses are shown
+  separately, and doses still inside the 12-hour missed window aren't counted yet. Paused
+  protocols report nothing. It shows on protocol cards and on the Home hero.
+  `schedule.ts`'s matching rule was generalised to `matchLogsToOccurrences` (and
+  `findUnloggedOccurrences` wraps it unchanged), so adherence can tell taken from skipped
+  without a second copy of the rule.
+- **Month calendar** on History (List | Month): taken, skipped, missed and scheduled day
+  markers, drawn by a custom react-day-picker `DayButton` that reads them from a context.
+  Tapping a day lists its logs; missed or just-due doses can be backfilled with the same card
+  as Home's catch-up.
+- **Backup format v2** (vials, custom compounds, user templates). v1 files still import. A
+  dose-to-vial link whose vial isn't in the file is dropped rather than failing the import.
+  The CSV gains lot and batch columns.
+
+**Fixed along the way:**
+- On the English-only build, an older install could still have `es-CR` saved. The app now
+  saves the corrected locale, because the service worker reads `settings.locale` directly
+  and would otherwise send closed-app reminders in Spanish.
+
+**Verified:**
+- Typecheck, 224/224 tests (new: vials, adherence, syringe geometry, registry, backup v2,
+  push vial tags, month marks), and both brand builds. The upd bundle has no Spanish vial
+  strings and neither brand's name leaks into the other's.
+- In headless Edge over CDP, on both brands:
+  1. Added a custom compound in Settings.
+  2. Seeded a protocol with mixed history: 76% adherence and 3 missed.
+  3. Started a vial: 20 doses left.
+  4. Backfilled a missed dose from Month view: 19 left, which shows the vial link works.
+  5. Backdated the discard-by date: the Home alert appeared and the bell went from 5 to 6.
+  6. The calculator drew a 10-unit syringe and offered "start a vial".
+  7. Exported a backup, wiped the vial and compound, and imported it: both restored, still
+     19 left.
+  8. A v1 backup imported.
+  9. Light and dark themes both checked.
+- Lint still shows the one pre-existing `set-state-in-effect` error in `App.tsx`.

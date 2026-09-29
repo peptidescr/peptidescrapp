@@ -1,5 +1,5 @@
 import * as PopoverPrimitive from '@radix-ui/react-popover'
-import { Check, ChevronDown } from 'lucide-react'
+import { Check, ChevronDown, Plus } from 'lucide-react'
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { cn } from '@/lib/utils'
 
@@ -21,6 +21,11 @@ interface ComboboxProps {
   allowCustom?: boolean
   /** Caps how much can be typed into the field. */
   maxLength?: number
+  /**
+   * A row pinned under the options (e.g. "Add your own compound"). Always
+   * shown — most usefully when the typed text matches nothing.
+   */
+  footerAction?: { label: string; onSelect: () => void }
   className?: string
   'aria-label'?: string
 }
@@ -54,6 +59,7 @@ export function Combobox({
   emptyText,
   allowCustom = false,
   maxLength,
+  footerAction,
   className,
   'aria-label': ariaLabel,
 }: ComboboxProps) {
@@ -228,6 +234,20 @@ export function Combobox({
               ))
             )}
           </div>
+          {footerAction && (
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                close()
+                footerAction.onSelect()
+              }}
+              className="mt-1 flex min-h-11 w-full items-center gap-2 rounded-lg border-t border-border px-3 py-2 text-left text-base font-medium text-primary"
+            >
+              <Plus className="size-4 shrink-0" />
+              {footerAction.label}
+            </button>
+          )}
         </PopoverPrimitive.Content>
       </PopoverPrimitive.Portal>
     </PopoverPrimitive.Root>

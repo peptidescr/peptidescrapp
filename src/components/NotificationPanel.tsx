@@ -4,15 +4,19 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DueCard } from './DoseCard'
+import { VialAlertCard } from './VialAlertCard'
 import type { DoseLog, Protocol, Settings } from '../lib/db'
 import { computeDueItems, computeShowBackupNudge } from '../lib/homeData'
 import { getNotificationCapability, requestNotificationPermission } from '../lib/notifications'
+import { vialAlertKey, type VialAlert } from '../lib/vials'
 
 interface NotificationPanelProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   protocols: Protocol[]
   doseLogs: DoseLog[]
+  /** Computed once by Home, so the bell's count and this list can't disagree. */
+  vialAlerts: VialAlert[]
   settings: Settings | undefined
   now: Date
   onNavigateToSettings: () => void
@@ -34,6 +38,7 @@ export function NotificationPanel({
   onOpenChange,
   protocols,
   doseLogs,
+  vialAlerts,
   settings,
   now,
   onNavigateToSettings,
@@ -47,7 +52,8 @@ export function NotificationPanel({
   const capability = getNotificationCapability()
   const showEnableNudge = capability.supported && !capability.requiresInstallOnIOS && capability.permission === 'default'
   const showIosNudge = capability.requiresInstallOnIOS
-  const hasAnything = dueItems.length > 0 || showBackupNudge || showEnableNudge || showIosNudge
+  const hasAnything =
+    dueItems.length > 0 || vialAlerts.length > 0 || showBackupNudge || showEnableNudge || showIosNudge
 
   function goToProtocol(protocolId: string) {
     onOpenChange(false)
@@ -113,6 +119,10 @@ export function NotificationPanel({
               {t('home.backupNudge')}
             </button>
           )}
+
+          {vialAlerts.map((alert) => (
+            <VialAlertCard key={vialAlertKey(alert)} alert={alert} onOpenProtocol={goToProtocol} />
+          ))}
 
           {dueItems.map((item) => (
             <DueCard

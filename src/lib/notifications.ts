@@ -7,6 +7,8 @@ import { isIOS, isStandalone } from './platform'
 import { isPushActive, requestPushSync, syncPushSchedule } from './push'
 import { reminderTag } from './pushSchedule'
 import { findUnloggedOccurrences, getOccurrencesInRange, type Occurrence } from './schedule'
+import { describeVialAlert } from './vialText'
+import { computeVialAlerts, vialAlertKey, type VialAlertKind } from './vials'
 
 /** Ambient ref for the Chromium-only Notification Triggers proposal — not in TS's lib.dom.d.ts. */
 interface TimestampTriggerLike {
@@ -184,9 +186,73 @@ export async function notifyDueReminders(now: Date = new Date()): Promise<void> 
   if (changed) writeNotified(notified)
 }
 
+const NOTIFIED_VIALS_KEY = 'peptidescr.notifiedVialAlerts'
+/** Alert kinds the push server also delivers (vial dates — see buildPushSchedule); skipped here while it's active. */
+const PUSHED_VIAL_KINDS: ReadonlySet<VialAlertKind> = new Set(['discardSoon', 'discardPassed', 'expirySoon', 'expired'])
+
+function readNotifiedVials(): Set<string> {
+  try {
+    const raw = localStorage.getItem(NOTIFIED_VIALS_KEY)
+    return new Set(raw ? (JSON.parse(raw) as string[]) : [])
+  } catch {
+    return new Set()
+  }
+}
+
+function writeNotifiedVials(keys: Set<string>): void {
+  try {
+    localStorage.setItem(NOTIFIED_VIALS_KEY, JSON.stringify([...keys]))
+  } catch {
+    // Worst case an alert repeats once; never worth failing over.
+  }
+}
+
+/**
+ * Notifies each vial alert (low, empty, discard-by, label expiry) once. A key
+ * is forgotten as soon as its alert clears — a new vial started, a date
+ * edited — so the same situation arising again is announced again, but an
+ * alert that simply persists isn't repeated every check.
+ */
+export async function notifyVialAlerts(now: Date = new Date()): Promise<void> {
+  if (!canShowNotifications()) return
+  const [vials, protocols, doseLogs] = await Promise.all([
+    db.vials.toArray(),
+    db.protocols.toArray(),
+    db.doseLogs.toArray(),
+  ])
+  const alerts = computeVialAlerts(vials, protocols, doseLogs, now)
+  const notified = readNotifiedVials()
+  const current = new Set(alerts.map(vialAlertKey))
+  const pushActive = isPushActive()
+  let changed = false
+
+  for (const alert of alerts) {
+    const key = vialAlertKey(alert)
+    if (notified.has(key) || (pushActive && PUSHED_VIAL_KINDS.has(alert.kind))) continue
+    notified.add(key)
+    changed = true
+    const shown = await showNotification({
+      title: i18n.t('app.name'),
+      body: describeVialAlert(alert, i18n.t),
+      tag: `vial-alert|${key}`,
+    })
+    if (!shown) notified.delete(key)
+  }
+  for (const key of notified) {
+    if (!current.has(key)) {
+      notified.delete(key)
+      changed = true
+    }
+  }
+  if (changed) writeNotifiedVials(notified)
+}
+
 /** Starts the reminder checks; returns a function that stops them. Safe to call before permission is granted — checks no-op until it is. */
 export function startReminderLoop(): () => void {
-  const check = () => void notifyDueReminders()
+  const check = () => {
+    void notifyDueReminders()
+    void notifyVialAlerts()
+  }
   const onVisible = () => {
     if (document.visibilityState !== 'visible') return
     check()

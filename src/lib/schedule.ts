@@ -172,27 +172,31 @@ function toIsoDate(day: Date): string {
  * are accounted for) is the same either way.
  */
 export function findUnloggedOccurrences(occurrences: Occurrence[], loggedAdministeredAt: Date[]): Occurrence[] {
-  const available = loggedAdministeredAt.map((log, idx) => ({ idx, log }))
-  const consumed = new Set<number>()
-  const unlogged: Occurrence[] = []
+  const matches = matchLogsToOccurrences(occurrences, loggedAdministeredAt, (at) => at)
+  return occurrences.filter((_, i) => matches[i] === null)
+}
 
-  for (const occ of occurrences) {
-    const candidates = available.filter(
-      ({ idx, log }) => !consumed.has(idx) && isSameDay(log, occ.scheduledAt),
-    )
-    if (candidates.length === 0) {
-      unlogged.push(occ)
-      continue
-    }
+/**
+ * The matching rule above, reporting which log (if any) accounted for each
+ * occurrence — for callers that need more than "logged or not", e.g.
+ * adherence telling a taken dose from a skipped one. Result is parallel to
+ * `occurrences`.
+ */
+export function matchLogsToOccurrences<T>(occurrences: Occurrence[], logs: T[], timeOf: (log: T) => Date): (T | null)[] {
+  const available = logs.map((log, idx) => ({ idx, log, at: timeOf(log) }))
+  const consumed = new Set<number>()
+
+  return occurrences.map((occ) => {
+    const candidates = available.filter(({ idx, at }) => !consumed.has(idx) && isSameDay(at, occ.scheduledAt))
+    if (candidates.length === 0) return null
     candidates.sort(
       (a, b) =>
-        Math.abs(a.log.getTime() - occ.scheduledAt.getTime()) -
-        Math.abs(b.log.getTime() - occ.scheduledAt.getTime()),
+        Math.abs(a.at.getTime() - occ.scheduledAt.getTime()) - Math.abs(b.at.getTime() - occ.scheduledAt.getTime()),
     )
-    consumed.add(candidates[0]!.idx)
-  }
-
-  return unlogged
+    const best = candidates[0]!
+    consumed.add(best.idx)
+    return best.log
+  })
 }
 
 function getUnloggedOccurrencesUpTo(

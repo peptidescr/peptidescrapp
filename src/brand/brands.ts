@@ -39,6 +39,13 @@ export interface BrandConfig {
    * CSS custom property, so keep these in sync with tokens.css by hand.
    */
   themeColors: { dark: string; light: string }
+  /**
+   * Days after opening to prefill a new vial's discard-by date with. Left
+   * unset on purpose: how long a mixed vial stays usable is a product claim,
+   * so the app only fills one in if the client supplies the figure for
+   * their products. Unset = the user enters their own date (or none).
+   */
+  defaultDiscardDays?: number
 }
 
 export const PCR_BRAND: BrandConfig = {

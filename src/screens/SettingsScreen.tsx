@@ -1,4 +1,4 @@
-import { Mail, MessageCircle, Phone } from 'lucide-react'
+import { ChevronRight, Mail, MessageCircle, Phone, Plus } from 'lucide-react'
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -17,6 +17,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Segmented } from '@/components/ui/segmented'
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { AppHeader } from '../components/AppHeader'
+import { CustomCompoundSheet } from '../components/CustomCompoundSheet'
 import { HowItWorksList } from '../components/HowItWorksList'
 import { BRAND } from '../brand'
 import { LEGAL_CONTENT, LEGAL_VERSION } from '../content/legal'
@@ -29,7 +30,9 @@ import {
   shareOrDownloadFile,
   type BackupPayload,
 } from '../lib/backup'
+import { compareAlphabetical, type Compound } from '../content/compounds'
 import { SUPPORTED_LOCALES } from '../i18n'
+import { useCustomCompounds } from '../lib/customCompounds'
 import { formatDateTime } from '../lib/dates'
 import { db } from '../lib/db'
 import { MAX_BACKUP_BYTES, parseBackup } from '../lib/backupValidation'
@@ -56,6 +59,7 @@ export function SettingsScreen() {
       <InstallSection />
       <StorageSection />
       <BackupSection />
+      <CustomCompoundsSection />
       <HowItWorksSection />
       <LegalSection />
       <ContactSection />
@@ -80,6 +84,48 @@ function SectionCard({ title, children }: { title: string; children: ReactNode }
 }
 
 const THEME_MODES = ['light', 'dark', 'system'] as const
+
+/** The user's own compounds: rename, fix the unit, or delete one nothing uses any more. */
+function CustomCompoundsSection() {
+  const { t } = useTranslation()
+  const customs = useCustomCompounds()
+  const [editing, setEditing] = useState<Compound | 'new' | null>(null)
+  const sorted = [...customs].sort((a, b) => compareAlphabetical(a.name, b.name))
+
+  return (
+    <SectionCard title={t('compounds.manageTitle')}>
+      {sorted.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{t('compounds.manageEmpty')}</p>
+      ) : (
+        <div className="-mx-1 flex flex-col divide-y divide-border">
+          {sorted.map((compound) => (
+            <button
+              key={compound.id}
+              type="button"
+              onClick={() => setEditing(compound)}
+              className="flex min-h-11 items-center justify-between gap-2 px-1 text-left text-sm text-foreground"
+            >
+              <span className="truncate">{compound.name}</span>
+              <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+                {compound.defaultUnit}
+                <ChevronRight className="size-4" />
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+      <Button variant="secondary" onClick={() => setEditing('new')} className="self-start">
+        <Plus className="size-4" />
+        {t('compounds.addCustom')}
+      </Button>
+      <CustomCompoundSheet
+        open={editing !== null}
+        onOpenChange={(open) => !open && setEditing(null)}
+        compound={editing === 'new' || editing === null ? undefined : editing}
+      />
+    </SectionCard>
+  )
+}
 
 /**
  * Language and appearance are both "how do I want the app to look and read",
@@ -291,8 +337,12 @@ function BackupSection() {
   }
 
   async function handleExportCsv() {
-    const doseLogs = await db.doseLogs.toArray()
-    await shareOrDownloadFile(doseLogsToCsv(doseLogs), `${BRAND.filePrefix}-history-${Date.now()}.csv`, 'text/csv')
+    const [doseLogs, vials] = await Promise.all([db.doseLogs.toArray(), db.vials.toArray()])
+    await shareOrDownloadFile(
+      doseLogsToCsv(doseLogs, vials),
+      `${BRAND.filePrefix}-history-${Date.now()}.csv`,
+      'text/csv',
+    )
   }
 
   async function handleFileSelected(e: ChangeEvent<HTMLInputElement>) {

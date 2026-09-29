@@ -8,12 +8,14 @@ import { Card } from '@/components/ui/card'
 import { DoseCard, DueCard } from '../components/DoseCard'
 import { EmptyState } from '../components/EmptyState'
 import { NotificationPanel } from '../components/NotificationPanel'
+import { VialAlertCard } from '../components/VialAlertCard'
 import { getCompoundById } from '../content/compounds'
 import { formatDate, formatTime } from '../lib/dates'
 import { db, type DoseLog, type Protocol } from '../lib/db'
 import {
   computeDueItems,
   computeGetStartedSteps,
+  computeOverallAdherence,
   computeRecentActivity,
   computeShowBackupNudge,
   computeStreakDays,
@@ -27,6 +29,7 @@ import { getNotificationCapability } from '../lib/notifications'
 import type { Occurrence } from '../lib/schedule'
 import { useLiveQuery } from '../lib/useLiveQuery'
 import { updateSettings, useSettings } from '../lib/useSettings'
+import { computeVialAlerts, vialAlertKey } from '../lib/vials'
 
 /** Time-of-day greeting — no name/account to personalize with, just the hour. */
 function greetingKey(now: Date): string {
@@ -70,6 +73,7 @@ export function HomeScreen({
   const settings = useSettings()
   const protocols = useLiveQuery(() => db.protocols.toArray(), [])
   const doseLogs = useLiveQuery(() => db.doseLogs.toArray(), [])
+  const vials = useLiveQuery(() => db.vials.toArray(), [])
   const [now, setNow] = useState(() => new Date())
   const [notificationsOpen, setNotificationsOpen] = useState(false)
 
@@ -103,6 +107,15 @@ export function HomeScreen({
 
   const recentActivity = useMemo(() => computeRecentActivity(doseLogs ?? []), [doseLogs])
 
+  const vialAlerts = useMemo(
+    () => computeVialAlerts(vials ?? [], protocols ?? [], doseLogs ?? [], now),
+    [vials, protocols, doseLogs, now],
+  )
+  const adherence = useMemo(
+    () => computeOverallAdherence(protocols ?? [], doseLogs ?? [], now),
+    [protocols, doseLogs, now],
+  )
+
   const getStartedSteps = useMemo(
     () => computeGetStartedSteps(protocols ?? [], doseLogs ?? [], settings),
     [protocols, doseLogs, settings],
@@ -122,7 +135,7 @@ export function HomeScreen({
   // inside the panel it opens.
   const capability = getNotificationCapability()
   const notifNudgeCount = capability.supported && (capability.requiresInstallOnIOS || capability.permission === 'default') ? 1 : 0
-  const notificationCount = dueItems.length + (showBackupNudge ? 1 : 0) + notifNudgeCount
+  const notificationCount = dueItems.length + vialAlerts.length + (showBackupNudge ? 1 : 0) + notifNudgeCount
 
   return (
     <div className="flex flex-col gap-7 px-4 pb-6 pt-2">
@@ -132,6 +145,7 @@ export function HomeScreen({
         todayProgress={todayProgress}
         todayStatus={todayStatus}
         streakDays={overallStreak}
+        adherencePercent={adherence.percent}
         onOpenNotifications={() => setNotificationsOpen(true)}
         onOpenHistory={onNavigateToHistory}
       />
@@ -141,6 +155,7 @@ export function HomeScreen({
         onOpenChange={setNotificationsOpen}
         protocols={protocols ?? []}
         doseLogs={doseLogs ?? []}
+        vialAlerts={vialAlerts}
         settings={settings}
         now={now}
         onNavigateToSettings={onNavigateToSettings}
@@ -164,6 +179,15 @@ export function HomeScreen({
               </motion.div>
             ))}
           </AnimatePresence>
+        </section>
+      )}
+
+      {vialAlerts.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <SectionTitle>{t('vialAlerts.title')}</SectionTitle>
+          {vialAlerts.map((alert) => (
+            <VialAlertCard key={vialAlertKey(alert)} alert={alert} onOpenProtocol={onOpenProtocol} />
+          ))}
         </section>
       )}
 
@@ -331,6 +355,7 @@ function HeroHeader({
   todayProgress,
   todayStatus,
   streakDays,
+  adherencePercent,
   onOpenNotifications,
   onOpenHistory,
 }: {
@@ -339,6 +364,7 @@ function HeroHeader({
   todayProgress: { completed: number; total: number }
   todayStatus: TodayStatus
   streakDays: number
+  adherencePercent: number | null
   onOpenNotifications: () => void
   onOpenHistory: () => void
 }) {
@@ -422,6 +448,12 @@ function HeroHeader({
             </button>
           )}
         </div>
+      )}
+
+      {adherencePercent !== null && (
+        <p className="relative mt-1 text-xs font-medium text-white/75">
+          {t('adherence.overall', { percent: adherencePercent })}
+        </p>
       )}
     </div>
   )

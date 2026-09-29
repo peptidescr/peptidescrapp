@@ -10,8 +10,13 @@
  * are dropped, types and ranges are checked, free text is sanitized, and any
  * record that isn't valid rejects the whole file (before anything is written)
  * rather than restoring a quietly partial history.
+ *
+ * Format versions: 1 (Phase 1: protocols, dose logs, settings) and 2 (adds
+ * vials, custom compounds and user templates). Both import; a v1 file simply
+ * restores with none of the v2 collections. Exports are always the latest.
  */
-import type { DoseLog, Protocol, SavedReconstitution, Settings } from './db'
+import { CUSTOM_CATEGORY, type Compound } from '../content/compounds'
+import type { DoseLog, Protocol, SavedReconstitution, Settings, UserTemplate, Vial } from './db'
 import {
   MAX_DAY_COUNT,
   MAX_DOSE_AMOUNT,
@@ -22,10 +27,16 @@ import {
 } from './sanitize'
 import type { Schedule, Weekday } from './schedule'
 
-export const BACKUP_VERSION = 1
+export const BACKUP_VERSION = 2
+const SUPPORTED_VERSIONS: readonly unknown[] = [1, 2]
 export const MAX_BACKUP_BYTES = 20 * 1024 * 1024
 const MAX_PROTOCOLS = 1000
 const MAX_DOSE_LOGS = 200_000
+const MAX_VIALS = 10_000
+const MAX_CUSTOM_COMPOUNDS = 500
+const MAX_USER_TEMPLATES = 500
+const MAX_VIAL_SIZES = 20
+export const MAX_LOT_LENGTH = 40
 const MAX_ID_LENGTH = 100
 const MAX_REMINDER_TIMES = 12
 const MAX_CUSTOM_DATES = 500
@@ -36,6 +47,9 @@ export interface ValidBackup {
   protocols: Protocol[]
   doseLogs: DoseLog[]
   settings?: Settings
+  vials: Vial[]
+  customCompounds: Compound[]
+  userTemplates: UserTemplate[]
 }
 
 class InvalidBackupError extends Error {}
@@ -174,6 +188,7 @@ function doseLog(value: unknown): DoseLog {
     updatedAt: isoDateTime(value.updatedAt ?? value.administeredAt, 'doseLog.updatedAt'),
   }
   if (value.protocolId !== undefined) result.protocolId = str(value.protocolId, 'doseLog.protocolId')
+  if (value.vialId !== undefined) result.vialId = str(value.vialId, 'doseLog.vialId')
   if (value.doseMcg !== undefined) result.doseMcg = finiteNumber(value.doseMcg, 'doseLog.doseMcg', 0, 1e12)
   if (value.doseIU !== undefined) result.doseIU = finiteNumber(value.doseIU, 'doseLog.doseIU', 0, 1e12)
   if (typeof value.notes === 'string') {
@@ -181,6 +196,92 @@ function doseLog(value: unknown): DoseLog {
     if (notes) result.notes = notes
   }
   return result
+}
+
+/** Optional short free text (lot, batch): sanitized, and dropped rather than stored when empty. */
+function optionalText(value: unknown, maxLength: number): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const text = sanitizeText(value, maxLength).trim()
+  return text || undefined
+}
+
+function vial(value: unknown): Vial {
+  if (!isRecord(value)) fail('vial')
+  const result: Vial = {
+    id: str(value.id, 'vial.id'),
+    compoundId: str(value.compoundId, 'vial.compoundId'),
+    openedOn: isoDate(value.openedOn, 'vial.openedOn'),
+    status: oneOf(value.status, ['active', 'finished', 'discarded'] as const, 'vial.status'),
+    createdAt: isoDateTime(value.createdAt ?? value.updatedAt, 'vial.createdAt'),
+    updatedAt: isoDateTime(value.updatedAt ?? value.createdAt, 'vial.updatedAt'),
+  }
+  // Same rule as DoseLog: exactly one of the two amounts.
+  const hasMcg = value.totalMcg !== undefined
+  const hasIU = value.totalMilliIU !== undefined
+  if (hasMcg === hasIU) fail('vial amount')
+  if (hasMcg) result.totalMcg = finiteNumber(value.totalMcg, 'vial.totalMcg', 1, 1e12)
+  if (hasIU) result.totalMilliIU = finiteNumber(value.totalMilliIU, 'vial.totalMilliIU', 1, 1e12)
+  if (value.protocolId !== undefined) result.protocolId = str(value.protocolId, 'vial.protocolId')
+  if (value.diluentMl !== undefined) result.diluentMl = finiteNumber(value.diluentMl, 'vial.diluentMl', 0, 1e6)
+  if (value.expiresOn !== undefined) result.expiresOn = isoDate(value.expiresOn, 'vial.expiresOn')
+  if (value.discardOn !== undefined) result.discardOn = isoDate(value.discardOn, 'vial.discardOn')
+  if (value.closedAt !== undefined) result.closedAt = isoDateTime(value.closedAt, 'vial.closedAt')
+  const lot = optionalText(value.lot, MAX_LOT_LENGTH)
+  if (lot) result.lot = lot
+  const batch = optionalText(value.batch, MAX_LOT_LENGTH)
+  if (batch) result.batch = batch
+  if (typeof value.notes === 'string') {
+    const notes = sanitizeMultiline(value.notes, MAX_NOTES_LENGTH).trim()
+    if (notes) result.notes = notes
+  }
+  return result
+}
+
+/** Only user-created compounds travel in a backup — the catalogue comes from the app itself. */
+function customCompound(value: unknown): Compound {
+  if (!isRecord(value)) fail('compound')
+  const id = str(value.id, 'compound.id')
+  if (!id.startsWith('custom-')) fail('compound.id')
+  const name = sanitizeText(String(value.name ?? ''), MAX_NAME_LENGTH).trim()
+  if (!name) fail('compound.name')
+  if (!Array.isArray(value.vialSizes) || value.vialSizes.length > MAX_VIAL_SIZES) fail('compound.vialSizes')
+  return {
+    id,
+    name,
+    category: CUSTOM_CATEGORY,
+    defaultUnit: oneOf(value.defaultUnit, ['mg', 'mcg', 'IU'] as const, 'compound.defaultUnit'),
+    vialSizes: value.vialSizes.map((size) => finiteNumber(size, 'compound.vialSizes', 0, 1e9)),
+    form: oneOf(value.form, ['powder', 'solution'] as const, 'compound.form'),
+    isBlend: false,
+    isDiluent: false,
+    isCustom: true,
+  }
+}
+
+function userTemplate(value: unknown): UserTemplate {
+  if (!isRecord(value)) fail('template')
+  // Same field rules as a protocol — reuse its validator on a protocol-shaped view.
+  const asProtocol = protocol({ ...value, startDate: '2000-01-01', isActive: true })
+  const name = sanitizeText(String(value.name ?? ''), MAX_NAME_LENGTH).trim()
+  if (!name) fail('template.name')
+  return {
+    id: asProtocol.id,
+    name,
+    compoundId: asProtocol.compoundId,
+    doseAmount: asProtocol.doseAmount,
+    doseUnit: asProtocol.doseUnit,
+    schedule: asProtocol.schedule,
+    reminderTimes: asProtocol.reminderTimes,
+    route: asProtocol.route,
+    createdAt: isoDateTime(value.createdAt, 'template.createdAt'),
+  }
+}
+
+/** A v2 collection: absent in a v1 file (→ empty), otherwise an array within its size limit. */
+function optionalList<T>(value: unknown, max: number, parse: (item: unknown) => T, what: string): T[] {
+  if (value === undefined) return []
+  if (!Array.isArray(value) || value.length > max) fail(what)
+  return value.map(parse)
 }
 
 function settings(value: unknown): Settings | undefined {
@@ -207,14 +308,24 @@ function settings(value: unknown): Settings | undefined {
  */
 export function parseBackup(input: unknown): ValidBackup {
   if (!isRecord(input)) fail('not an object')
-  if (input.version !== BACKUP_VERSION) fail(`unsupported version ${String(input.version)}`)
+  if (!SUPPORTED_VERSIONS.includes(input.version)) fail(`unsupported version ${String(input.version)}`)
   if (!Array.isArray(input.protocols) || !Array.isArray(input.doseLogs)) fail('missing protocols or dose logs')
   if (input.protocols.length > MAX_PROTOCOLS || input.doseLogs.length > MAX_DOSE_LOGS) fail('too many records')
 
   const protocols = input.protocols.map(protocol)
   const doseLogs = input.doseLogs.map(doseLog)
-  for (const list of [protocols, doseLogs]) {
+  const vials = optionalList(input.vials, MAX_VIALS, vial, 'vials')
+  const customCompounds = optionalList(input.customCompounds, MAX_CUSTOM_COMPOUNDS, customCompound, 'custom compounds')
+  const userTemplates = optionalList(input.userTemplates, MAX_USER_TEMPLATES, userTemplate, 'templates')
+  for (const list of [protocols, doseLogs, vials, customCompounds, userTemplates]) {
     if (new Set(list.map((r) => r.id)).size !== list.length) fail('duplicate ids')
+  }
+
+  // A link to a vial that isn't in the file is dropped, not fatal: the dose
+  // itself is still a true record, it just no longer counts against a vial.
+  const vialIds = new Set(vials.map((v) => v.id))
+  for (const log of doseLogs) {
+    if (log.vialId !== undefined && !vialIds.has(log.vialId)) delete log.vialId
   }
 
   return {
@@ -223,5 +334,8 @@ export function parseBackup(input: unknown): ValidBackup {
     protocols,
     doseLogs,
     settings: settings(input.settings),
+    vials,
+    customCompounds,
+    userTemplates,
   }
 }

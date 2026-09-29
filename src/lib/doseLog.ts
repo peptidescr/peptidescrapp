@@ -2,6 +2,7 @@ import { getCompoundById } from '../content/compounds'
 import { db, type DoseLog, type DoseStatus, type Protocol } from './db'
 import { requestPushSync } from './push'
 import { microgramsFromMass, milliIUFromIU, type MassUnit } from './units'
+import { findActiveVialId } from './vials'
 
 /** Shared by Home's catch-up/quick-log and History's manual entry. */
 export async function logProtocolDose(
@@ -12,6 +13,9 @@ export async function logProtocolDose(
   const compound = getCompoundById(protocol.compoundId)
   const isIU = compound?.defaultUnit === 'IU'
   const now = new Date().toISOString()
+  // Recorded against the protocol's active vial, if it has one, so the
+  // vial's remaining amount and doses-left follow automatically (vials.ts).
+  const vialId = await findActiveVialId(protocol.id)
 
   const doseLog: DoseLog = {
     id: crypto.randomUUID(),
@@ -24,6 +28,7 @@ export async function logProtocolDose(
     createdAt: now,
     updatedAt: now,
   }
+  if (vialId) doseLog.vialId = vialId
   await db.doseLogs.put(doseLog)
   // A dose logged ahead of time must not still be pushed at its scheduled moment.
   requestPushSync()

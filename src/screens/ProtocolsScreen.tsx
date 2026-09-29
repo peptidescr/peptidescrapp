@@ -41,12 +41,16 @@ import { Switch } from '@/components/ui/switch'
 import { EmptyState } from '../components/EmptyState'
 import { AppHeader } from '../components/AppHeader'
 import { ProtocolSavedPrompt } from '../components/ProtocolSavedPrompt'
+import { CustomCompoundSheet } from '../components/CustomCompoundSheet'
+import { SyringeGraphic } from '../components/SyringeGraphic'
 import { TemplatePicker } from '../components/TemplatePicker'
-import { compareAlphabetical, getCompoundById, listSelectableCompounds } from '../content/compounds'
+import { VialStrip } from '../components/VialStrip'
+import { compareAlphabetical, getCompoundById } from '../content/compounds'
+import { compoundCategoryLabel, useSelectableCompounds } from '../lib/customCompounds'
 import { PROTOCOL_TEMPLATES, type ProtocolTemplate } from '../content/protocolTemplates'
 import { formatDateTime, toIsoDate } from '../lib/dates'
-import { db, type DoseLog, type Protocol, type Route } from '../lib/db'
-import { computeProtocolStats } from '../lib/homeData'
+import { db, type DoseLog, type Protocol, type Route, type Vial } from '../lib/db'
+import { computeAdherence, computeProtocolStats } from '../lib/homeData'
 import { scheduleUpcomingReminders } from '../lib/notifications'
 import { alphabeticalOptions } from '../lib/options'
 import { requestPushSync } from '../lib/push'
@@ -95,6 +99,7 @@ export function ProtocolsScreen({ onReconstitute, initialCompoundId, initialProt
   const { t } = useTranslation()
   const protocols = useLiveQuery(() => db.protocols.toArray(), [])
   const doseLogs = useLiveQuery(() => db.doseLogs.toArray(), [])
+  const vials = useLiveQuery(() => db.vials.toArray(), [])
   const [mode, setMode] = useState<Mode>(
     initialProtocolId
       ? { kind: 'form', protocolId: initialProtocolId }
@@ -210,6 +215,7 @@ export function ProtocolsScreen({ onReconstitute, initialCompoundId, initialProt
                       <ProtocolRow
                         protocol={protocol}
                         doseLogs={doseLogs ?? []}
+                        vials={vials ?? []}
                         onEdit={() => setMode({ kind: 'form', protocolId: protocol.id })}
                       />
                     </motion.div>
@@ -227,10 +233,12 @@ export function ProtocolsScreen({ onReconstitute, initialCompoundId, initialProt
 function ProtocolRow({
   protocol,
   doseLogs,
+  vials,
   onEdit,
 }: {
   protocol: Protocol
   doseLogs: DoseLog[]
+  vials: Vial[]
   onEdit: () => void
 }) {
   const { t, i18n } = useTranslation()
@@ -240,6 +248,7 @@ function ProtocolRow({
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   const stats = useMemo(() => computeProtocolStats(protocol, doseLogs, new Date()), [protocol, doseLogs])
+  const adherence = useMemo(() => computeAdherence(protocol, doseLogs, new Date()), [protocol, doseLogs])
 
   async function toggleActive() {
     setMenuOpen(false)
@@ -321,9 +330,19 @@ function ProtocolRow({
           <Badge variant="destructive">{t('protocols.missedCount', { count: stats.missedCount })}</Badge>
         )}
       </div>
+      {adherence.percent !== null && (
+        <p className="px-4 pt-1 text-xs text-muted-foreground">
+          {t('adherence.protocol', { percent: adherence.percent })}
+          <span className="sr-only">
+            {' '}
+            ({t('adherence.detail', { taken: adherence.taken, skipped: adherence.skipped, missed: adherence.missed })})
+          </span>
+        </p>
+      )}
 
       {protocol.reconstitution && (
-        <p className="mx-4 mt-3 flex items-start gap-2 rounded-2xl bg-accent px-3 py-2 text-sm text-foreground">
+        <div className="mx-4 mt-3 flex flex-col gap-2 rounded-2xl bg-accent px-3 py-2 text-sm text-foreground">
+          <p className="flex items-start gap-2">
           <FlaskConical className="mt-0.5 size-4 shrink-0 text-primary" />
           {protocol.reconstitution.diluentMl === undefined
             ? t('protocols.mixSummarySolution', {
@@ -337,8 +356,15 @@ function ProtocolRow({
                 ml: formatDecimal(protocol.reconstitution.drawVolumeMl, locale, 3),
                 dose: `${formatDecimal(protocol.reconstitution.doseAmount, locale, 3)} ${protocol.reconstitution.doseUnit}`,
               })}
-        </p>
+          </p>
+          <SyringeGraphic
+            drawUnits={protocol.reconstitution.drawSyringeUnits}
+            syringeType={protocol.reconstitution.syringeType}
+          />
+        </div>
       )}
+
+      <VialStrip protocol={protocol} vials={vials} doseLogs={doseLogs} />
 
       {/* Footer: when it's next due, and how much is on record. One hairline
           instead of a nested tinted tile. */}
@@ -447,11 +473,12 @@ export function ProtocolForm({
     () => (protocolId ? db.protocols.get(protocolId) : undefined),
     [protocolId],
   )
-  const compounds = useMemo(() => listSelectableCompounds(), [])
+  const compounds = useSelectableCompounds()
+  const [addingCompound, setAddingCompound] = useState(false)
 
   const compoundOptions = useMemo(
-    () => compounds.map((c) => ({ value: c.id, label: c.name, hint: c.category })),
-    [compounds],
+    () => compounds.map((c) => ({ value: c.id, label: c.name, hint: compoundCategoryLabel(c, t) })),
+    [compounds, t],
   )
   const scheduleOptions = useMemo(() => alphabeticalOptions(SCHEDULE_KINDS, (k) => t(`schedule.${k}`)), [t])
   const routeOptions = useMemo(() => alphabeticalOptions(ROUTES, (r) => t(`route.${r}`)), [t])
@@ -515,7 +542,15 @@ export function ProtocolForm({
     setLoaded(true)
   }
 
-  const compound = compounds.find((c) => c.id === compoundId)
+  // getCompoundById (the live registry), not `compounds`: a compound created
+  // a moment ago via "Add your own" isn't in this render's list yet.
+  const compound = getCompoundById(compoundId)
+
+  function selectCompound(id: string) {
+    setCompoundId(id)
+    const c = getCompoundById(id)
+    if (c) setDoseUnit(c.defaultUnit)
+  }
 
   // Parsed, range-checked values. Save stays disabled until each field that
   // applies is valid — bad input is refused, never quietly turned into a default.
@@ -638,13 +673,15 @@ export function ProtocolForm({
       <FormField label={t('protocols.compound')}>
         <Combobox
           value={compoundId}
-          onValueChange={(value) => {
-            setCompoundId(value)
-            const c = compounds.find((x) => x.id === value)
-            if (c) setDoseUnit(c.defaultUnit)
-          }}
+          onValueChange={selectCompound}
           options={compoundOptions}
           emptyText={t('common.noMatches')}
+          footerAction={{ label: t('compounds.addCustom'), onSelect: () => setAddingCompound(true) }}
+        />
+        <CustomCompoundSheet
+          open={addingCompound}
+          onOpenChange={setAddingCompound}
+          onSaved={(c) => selectCompound(c.id)}
         />
       </FormField>
 
