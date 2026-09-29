@@ -24,7 +24,12 @@ export interface BrandConfig {
   id: BrandId
   /** Prose name, as it appears inside sentences ("Install {{appName}}"). */
   appName: string
-  /** Tight chrome: manifest short_name, <title>, iOS home-screen label. */
+  /**
+   * Tight chrome only: manifest short_name (Android's under-icon caption)
+   * and the iOS home-screen label — both genuinely space-constrained, so
+   * this stays terse. The browser tab <title> uses appName instead (see
+   * vite.config.ts's brandHtml), since a tab has room for the real name.
+   */
   shortName: string
   /** Prefix for exported backup/history filenames. */
   filePrefix: string

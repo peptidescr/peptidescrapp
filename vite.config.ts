@@ -51,6 +51,7 @@ function sharedPublicFiles(): Plugin {
 function brandHtml(brand: BrandConfig): Plugin {
   const values: Record<string, string> = {
     '%BRAND_LANG%': brand.defaultLocale,
+    '%BRAND_TITLE%': brand.appName,
     '%BRAND_SHORT_NAME%': brand.shortName,
     '%BRAND_DESCRIPTION%': brand.description,
     '%BRAND_THEME_DARK%': brand.themeColors.dark,
