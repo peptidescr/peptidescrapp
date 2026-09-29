@@ -11,6 +11,7 @@
  * tokens.css: the CSS is two static `:root` blocks, no media query, so JS
  * always hands it a concrete answer.
  */
+import { BRAND } from '../brand'
 import type { ThemeMode } from './units'
 
 export type ResolvedTheme = 'light' | 'dark'
@@ -30,12 +31,11 @@ export type ResolvedTheme = 'light' | 'dark'
  */
 export const THEME_STORAGE_KEY = 'peptidescr:theme'
 
-// Mirrors tokens.css's --brand-surface-2 (the page background) for each
-// theme — used only for the <meta name="theme-color"> browser-chrome color,
-// which can't read a CSS custom property. Keep in sync with tokens.css by
-// hand if the palette changes.
-const LIGHT_THEME_COLOR = '#fdfbf0'
-const DARK_THEME_COLOR = '#060f0a'
+// The <meta name="theme-color"> browser-chrome color per theme — see
+// BrandConfig.themeColors (src/brand/brands.ts) for why it's duplicated
+// from tokens.css.
+const LIGHT_THEME_COLOR = BRAND.themeColors.light
+const DARK_THEME_COLOR = BRAND.themeColors.dark
 
 /** True if the device prefers dark, or if matchMedia isn't available (this app defaults dark-first). */
 export function prefersDarkColorScheme(): boolean {

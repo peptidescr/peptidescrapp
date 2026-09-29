@@ -8,7 +8,9 @@ import { TemplatePicker } from '../components/TemplatePicker'
 import { Button } from '@/components/ui/button'
 import { OptionCard } from '@/components/ui/option-card'
 import { Progress } from '@/components/ui/progress'
+import { BRAND } from '../brand'
 import { LEGAL_CONTENT, LEGAL_VERSION } from '../content/legal'
+import { SUPPORTED_LOCALES } from '../i18n'
 import type { ProtocolTemplate } from '../content/protocolTemplates'
 import { useInstallState } from '../lib/install'
 import { getNotificationCapability, requestNotificationPermission } from '../lib/notifications'
@@ -148,6 +150,12 @@ function StepShell({
   )
 }
 
+/**
+ * First step: the brand's logo plus a language choice. On a build with a
+ * single language (BRAND.locales) there's nothing to choose, so the same
+ * step stays as a plain welcome screen — keeping the step count, and the
+ * logo moment, the same for both brands.
+ */
 function LanguageStep({ onNext }: { onNext: () => void }) {
   const { t, i18n } = useTranslation()
   const [selected, setSelected] = useState<Locale>((i18n.language === 'en' ? 'en' : 'es-CR') as Locale)
@@ -166,26 +174,28 @@ function LanguageStep({ onNext }: { onNext: () => void }) {
   return (
     <StepShell
       centered
-      title={t('onboarding.language.title')}
+      title={SUPPORTED_LOCALES.length > 1 ? t('onboarding.language.title') : t('onboarding.welcome.title')}
       hero={
         <img
           src="/brand/logo-full.png"
-          alt="USA Peptide Depot"
-          className="mt-2 h-40 w-auto rounded-[2rem] shadow-[0_24px_64px_-24px_rgb(44_92_181/0.9)]"
+          alt={BRAND.appName}
+          className="mt-2 h-40 w-auto rounded-[2rem] shadow-[0_24px_64px_-24px_var(--brand-logo-glow)]"
         />
       }
       footer={<Button onClick={onNext}>{t('onboarding.continue')}</Button>}
     >
-      <div className="flex w-full flex-col gap-2 text-left">
-        {(['es-CR', 'en'] as const).map((l) => (
-          <OptionCard
-            key={l}
-            label={l === 'es-CR' ? t('settings.spanish') : t('settings.english')}
-            selected={selected === l}
-            onSelect={() => void handleSelect(l)}
-          />
-        ))}
-      </div>
+      {SUPPORTED_LOCALES.length > 1 && (
+        <div className="flex w-full flex-col gap-2 text-left">
+          {SUPPORTED_LOCALES.map((l) => (
+            <OptionCard
+              key={l}
+              label={l === 'es-CR' ? t('settings.spanish') : t('settings.english')}
+              selected={selected === l}
+              onSelect={() => void handleSelect(l)}
+            />
+          ))}
+        </div>
+      )}
     </StepShell>
   )
 }

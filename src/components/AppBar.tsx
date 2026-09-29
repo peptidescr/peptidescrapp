@@ -1,5 +1,6 @@
 import { Moon, Settings, Sun } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { BRAND } from '../brand'
 import type { ResolvedTheme } from '../lib/theme'
 
 /** Height of the bar below the safe-area inset. App.tsx reserves exactly this much above the page. */
@@ -45,7 +46,7 @@ export function AppBar({
       style={{ paddingTop: 'env(safe-area-inset-top)' }}
     >
       <div className="flex items-center justify-between px-4" style={{ height: APP_BAR_HEIGHT }}>
-        <img src="/brand/icon-192.png" alt="USA Peptide Depot" className="size-8 rounded-[10px]" />
+        <img src="/brand/icon-192.png" alt={BRAND.appName} className="size-8 rounded-[10px]" />
         {showActions && (
           <div className="-mr-3 flex items-center">
             <button

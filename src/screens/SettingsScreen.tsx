@@ -1,4 +1,4 @@
-import { Mail, Phone } from 'lucide-react'
+import { Mail, MessageCircle, Phone } from 'lucide-react'
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -18,6 +18,7 @@ import { Segmented } from '@/components/ui/segmented'
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { AppHeader } from '../components/AppHeader'
 import { HowItWorksList } from '../components/HowItWorksList'
+import { BRAND } from '../brand'
 import { LEGAL_CONTENT, LEGAL_VERSION } from '../content/legal'
 import {
   backupToJson,
@@ -28,6 +29,7 @@ import {
   shareOrDownloadFile,
   type BackupPayload,
 } from '../lib/backup'
+import { SUPPORTED_LOCALES } from '../i18n'
 import { formatDateTime } from '../lib/dates'
 import { db } from '../lib/db'
 import { MAX_BACKUP_BYTES, parseBackup } from '../lib/backupValidation'
@@ -105,18 +107,21 @@ function PreferencesSection() {
   return (
     <Card>
       <CardContent className="gap-5">
-        <div className="flex flex-col gap-2">
-          <p className="text-sm font-medium text-foreground">{t('settings.language')}</p>
-          <Segmented
-            ariaLabel={t('settings.language')}
-            value={locale}
-            onChange={(next) => void setLocale(next)}
-            options={[
-              { value: 'es-CR', label: t('settings.spanish') },
-              { value: 'en', label: t('settings.english') },
-            ]}
-          />
-        </div>
+        {/* Only when this build offers more than one language (BRAND.locales). */}
+        {SUPPORTED_LOCALES.length > 1 && (
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-medium text-foreground">{t('settings.language')}</p>
+            <Segmented
+              ariaLabel={t('settings.language')}
+              value={locale}
+              onChange={(next) => void setLocale(next)}
+              options={SUPPORTED_LOCALES.map((l) => ({
+                value: l,
+                label: l === 'es-CR' ? t('settings.spanish') : t('settings.english'),
+              }))}
+            />
+          </div>
+        )}
         <div className="flex flex-col gap-2">
           <p className="text-sm font-medium text-foreground">{t('settings.appearance.title')}</p>
           <Segmented
@@ -276,7 +281,7 @@ function BackupSection() {
     const payload = await buildBackupPayload()
     const result = await shareOrDownloadFile(
       backupToJson(payload),
-      `upd-backup-${Date.now()}.json`,
+      `${BRAND.filePrefix}-backup-${Date.now()}.json`,
       'application/json',
     )
     if (result !== 'cancelled') {
@@ -287,7 +292,7 @@ function BackupSection() {
 
   async function handleExportCsv() {
     const doseLogs = await db.doseLogs.toArray()
-    await shareOrDownloadFile(doseLogsToCsv(doseLogs), `upd-history-${Date.now()}.csv`, 'text/csv')
+    await shareOrDownloadFile(doseLogsToCsv(doseLogs), `${BRAND.filePrefix}-history-${Date.now()}.csv`, 'text/csv')
   }
 
   async function handleFileSelected(e: ChangeEvent<HTMLInputElement>) {
@@ -396,30 +401,32 @@ function LegalSection() {
 
 function ContactSection() {
   const { t } = useTranslation()
+  const { contact } = BRAND
   return (
     <SectionCard title={t('settings.contact.title')}>
-      <img src="/brand/logo-full.png" alt="USA Peptide Depot" className="h-16 w-auto self-start rounded-xl" />
-      <a href="https://www.usapeptidedepot.com" className="text-sm text-primary" target="_blank" rel="noreferrer">
-        usapeptidedepot.com
+      <img src="/brand/logo-full.png" alt={BRAND.appName} className="h-16 w-auto self-start rounded-xl" />
+      {contact.address && <p className="text-sm text-muted-foreground">{contact.address}</p>}
+      <a href={contact.website.href} className="text-sm text-primary" target="_blank" rel="noreferrer">
+        {contact.website.label}
       </a>
-      <a href="tel:+18314715559" className="flex items-center gap-2 text-sm text-primary">
-        <Phone className="size-4" />
-        +1 (831) 471-5559
-      </a>
-      <a href="mailto:info@usapeptidedepot.com" className="flex items-center gap-2 text-sm text-primary">
+      {contact.whatsapp && (
+        <Button asChild className="justify-start bg-[#25D366] text-white active:bg-[#1da851]">
+          <a href={`https://wa.me/${contact.whatsapp}`} target="_blank" rel="noreferrer">
+            <MessageCircle className="size-4" />
+            {t('settings.contact.whatsapp')}
+          </a>
+        </Button>
+      )}
+      {contact.phones.map((phone) => (
+        <a key={phone.href} href={phone.href} className="flex items-center gap-2 text-sm text-primary">
+          <Phone className="size-4" />
+          {phone.label}
+        </a>
+      ))}
+      <a href={`mailto:${contact.email}`} className="flex items-center gap-2 text-sm text-primary">
         <Mail className="size-4" />
-        info@usapeptidedepot.com
+        {contact.email}
       </a>
-      {/*
-        Dropped, pending client confirmation rather than guessed: the Costa
-        Rica WhatsApp link/phone (+506 8404-6973) and the "Jacó · San José,
-        Costa Rica" address. usapeptidedepot.com's own contact page gives only
-        the US email/phone above and a generic "United States Logistics &
-        Climate Storage Facility" — it doesn't confirm the CR line is still
-        answered under the new brand, or that a CR address still belongs on
-        this contact card. Restore either (or add a new WhatsApp/CR entry) as
-        soon as the client says which numbers/address to show here.
-      */}
     </SectionCard>
   )
 }

@@ -1,6 +1,22 @@
-# HANDOVER — UPD (USA Peptide Depot)
+# HANDOVER — UPD (USA Peptide Depot) / Peptides CR
 
 Short client-facing summary. Full engineering log is in `NOTES.md`.
+
+**Two sites, one app (September 2026).** The same app now ships as two separately branded
+sites, each on its own subdomain:
+
+- **USA Peptide Depot**: the current green look, **English only**. No language picker, and
+  the first onboarding screen is a plain "Welcome to USA Peptide Depot".
+- **Peptides Costa Rica**: the original navy/sky-blue look, logo and fonts, restored.
+  **Spanish by default**, with English available exactly as before.
+
+Features, screens and fixes are shared, so every future change lands on both at once. Each
+site keeps its own customers' data and reminders; nothing is shared between them.
+**Before the Peptides CR site goes live, please confirm:** (1) the Costa Rica WhatsApp /
+phone (+506 8404-6973) and the "Jacó · San José" address on its contact card are still
+current, and (2) its legal text with your lawyer. It is new wording in the same shape as
+USA Peptide Depot's, built on what peptidescostarica.net itself says ("research use only,
+not for human or veterinary use"), because that brand only ever had placeholder text.
 
 **Rebranded September 2026**, at the client's request, from the original Peptides Costa
 Rica branding to USA Peptide Depot (usapeptidedepot.com) — new colors, logo/icons, and app
@@ -97,10 +113,12 @@ from Settings, in case someone wants a refresher later.
 
 **One step: deploy.** I don't have Cloudflare/Netlify account access from here. Once
 you've had a look and we're both happy, either:
-- **You deploy it**: `npm run build` produces `dist/`. For Netlify:
-  `npx netlify deploy --prod --dir=dist` (one-time browser login on first run). For
-  Cloudflare Pages: `npx wrangler pages deploy dist --project-name=peptidescr` (same).
-  Either takes under a minute once logged in.
+- **You deploy it**: create **two Netlify sites from this same repo** (same branch, same
+  build settings; `netlify.toml` already has them). They differ only in environment variables:
+  `VITE_BRAND=upd` on one and `VITE_BRAND=pcr` on the other, plus each site's own VAPID keys
+  for reminders (see `.env.example`). Point each subdomain at its site under Domain
+  management. After that, every push redeploys both. To try a build locally:
+  `npm run build:upd` / `npm run build:pcr`.
 - **Or add me to your account** and I'll run the deploy and hand you the URL, and keep
   redeploying as you and the client give feedback.
 
@@ -155,20 +173,17 @@ enough.
 3. **Four category guesses.** HGH, HCG, and the four named blends didn't have categories
    in the original compound table — I assigned best-guess ones (`NOTES.md` and inline in
    `src/content/compounds.ts` have the specifics). One-line changes once confirmed.
-4. **Logo/icon.** Every logo and icon is now generated from `public/brand/upd-logo.png`,
+4. **Logo/icon.** Every USA Peptide Depot logo and icon is generated from `public/upd/brand/upd-logo.png`,
    USA Peptide Depot's real logo file (transparent, kept as the source of truth), composited
    onto their own real header green. Square icons use just the "UPD" monogram, cropped out of
    the full lockup — the full "USA / Peptide / Depot" wordmark doesn't survive shrinking to a
    32px favicon. The Android home-screen icon is a separate, more heavily padded version so
    the mask can't clip it. If you get a vector original from them later, the PNGs can be
    regenerated at full quality from that instead.
-5. **App default language, left as Spanish (Costa Rica).** The new brand is a US-first,
-   English-only site, but I didn't flip the app's default language or locale — that's a real
-   product decision (every new install's first-run experience), not part of "colors, title,
-   logo," and you didn't ask for it. If USA Peptide Depot's customers are mostly English-
-   speaking, worth telling me — it's a one-line default change (`DEFAULT_LOCALE` in
-   `src/i18n.ts`), the English translation is already complete and shipped, and nothing about
-   it is a rebuild.
+5. **App language, now settled per site.** USA Peptide Depot is English only; Peptides CR
+   is Spanish by default with English available. Anyone on the USA Peptide Depot site who had
+   picked Spanish before this change is switched to English automatically. Each site's
+   languages are one line in `src/brand/brands.ts`.
 6. **Logging-streak counter**, new on Home ("Racha de N días"). This reverses an earlier,
    deliberate design restraint (no streak/gamification language, to keep this strictly a
    record-keeping tool and stay clear of anything that could read as encouraging a dose)
@@ -186,7 +201,7 @@ enough.
   premium, PeptIQ-like" look that was asked for — but it's a real product decision, not
   just a visual tweak. If the client's customers expect the app to follow their phone's
   own light/dark setting, say so and light mode comes back easily — nothing was deleted,
-  the old values are sitting in a comment in `src/styles/tokens.css`.
+  the old values are sitting in a comment in `src/brand/upd/tokens.css`.
 - **Bundle size.** The modern UI pass added a real dependency footprint (Radix UI, Motion,
   a calendar library, icons) — the app's JS roughly doubled to get the more polished,
   animated feel. Still loads fine, but worth knowing if the client's customers are often

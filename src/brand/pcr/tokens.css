@@ -1,0 +1,115 @@
+/*
+ * Brand tokens — the single file to edit when swapping the palette.
+ *
+ * Everything here is derived from the client's own logo (public/brand),
+ * sampled pixel-for-pixel rather than eyeballed:
+ *   navy     #102c76  — the logo field's edges
+ *   royal    #2852a6  — the field's centre glow
+ *   sky      #43b1fe → #a8dffd — the three-node molecule glyph
+ *   flag red #c62429  — the "COSTA RICA" band (kept for brand art only; it is
+ *                       never used as UI state colour, so it can't be mistaken
+ *                       for an error)
+ *
+ * Dark is the default theme. Its surfaces are the logo's navy taken almost to
+ * black (not a neutral grey), so the app reads as the same brand as the icon
+ * on the home screen; the accent is the glyph's own sky blue. Because sky blue
+ * is light, filled controls carry a deep-navy label (--brand-primary-fg)
+ * rather than white — white on this blue is ~2.9:1, well under the 4.5:1
+ * that body-size text needs.
+ *
+ * Light mode keeps the values sourced from peptidescostarica.net's own theme
+ * (its Astra globals --ast-global-color-0/-1: #046bd2 / #045cb4).
+ *
+ * --brand-warn is intentionally NOT sourced from the brand — it's a
+ * deliberately non-alarming amber for measurement-accuracy notices (see
+ * units.ts).
+ */
+:root {
+  --brand-primary: #52b7ff;
+  --brand-primary-dk: #2f93e6;
+  --brand-primary-lt: #0f2557;
+  --brand-primary-fg: #04143a;
+  --brand-ink: #eef3ff;
+  --brand-muted: #8f9dc0;
+  --brand-surface: #0d1530;
+  --brand-surface-2: #060b1a;
+  --brand-border: #1b2650;
+  --brand-warn: #e0954b;
+  --brand-warn-lt: #2f2418;
+  /* Standard destructive-action red (delete, wipe+import) — a UI safety
+     convention, not a brand colour, and deliberately distinct from
+     --brand-warn's non-alarming amber (which is about measurement accuracy,
+     never framed as danger — see units.ts). */
+  --destructive: #f87171;
+  --destructive-foreground: #1f0a0a;
+  /* Missed/overdue dose cards read as "lit" via this glow — reads correctly
+     only on a near-black page, so the light block below replaces it with a
+     ring + tint instead of tuning the same shadow shape. See DoseCard.tsx. */
+  --destructive-glow: 0 0 24px -10px var(--destructive);
+
+  /* The Home hero and any other "brand art" surface: the logo's own field.
+     Fixed (not themed) so the card looks like the logo in both modes. */
+  --brand-hero:
+    radial-gradient(90% 120% at 90% -10%, rgb(44 92 181 / 0.9) 0%, rgb(44 92 181 / 0) 62%),
+    linear-gradient(165deg, #123079 0%, #0a1c52 100%);
+
+  /* Soft glow behind the logo on the first onboarding step — the logo field's royal blue. */
+  --brand-logo-glow: rgb(44 92 181 / 0.9);
+
+  --brand-contrast: #ffffff;
+  --brand-contrast-foreground: #000000;
+
+  --radius: 0.75rem;
+
+  /* Montserrat is the face the logo's PEPTIDES / COSTA RICA lettering is set
+     in, so headlines and figures carry the brand's own voice. Instrument Sans
+     stays for body copy and UI chrome — it is narrower and quieter, so the
+     two are clearly distinct. Faces are self-hosted; see styles/fonts.css for
+     why. The system stack stays as the fallback so the app is still legible
+     if a font file ever fails to load. */
+  --font-display:
+    'Montserrat', 'Instrument Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    Helvetica, Arial, sans-serif;
+
+  --font-sans:
+    'Instrument Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
+    Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+}
+
+/*
+ * Light mode. JS (src/lib/theme.ts) always resolves 'system' to a concrete
+ * theme and sets this attribute on <html> — this selector never has to
+ * compete with a media query. Overriding at the --brand-* / --destructive*
+ * layer (not --color-*) is deliberate: src/index.css's `@theme` block is
+ * NOT `@theme inline`, so every --color-* semantic token is late-bound as
+ * var(--brand-*) and re-resolves automatically. It also catches the call
+ * sites that read --brand-* names directly (bg-brand-warn-lt/text-brand-warn
+ * in HomeScreen/NotificationPanel/CalculatorScreen, and
+ * active:bg-brand-primary-dk in button-variants.ts) for free.
+ *
+ * Only properties that actually need a different light value are listed —
+ * --brand-hero, --brand-contrast/-foreground, --radius and the font stacks
+ * aren't redefined here and simply cascade down from the dark :root block.
+ */
+:root[data-theme='light'] {
+  --brand-primary: #046bd2;
+  --brand-primary-dk: #045cb4;
+  --brand-primary-lt: #e6f0fb;
+  --brand-primary-fg: #ffffff;
+  --brand-ink: #0f1d3f;
+  --brand-muted: #566789;
+  --brand-surface: #ffffff;
+  --brand-surface-2: #f0f5fa;
+  --brand-border: #d6deec;
+  --brand-warn: #a95f22;
+  --brand-warn-lt: #fbf1e7;
+
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  /* A glow only reads as "lit" on a dark page — on light it was a muddy
+     smudge, so this is a crisp ring plus a soft tinted drop shadow instead,
+     not a tuned version of the same shadow shape. */
+  --destructive-glow:
+    0 0 0 1.5px var(--destructive),
+    0 6px 16px -6px rgb(220 38 38 / 0.35);
+}

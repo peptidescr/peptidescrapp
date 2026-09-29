@@ -7,7 +7,7 @@ import { Toaster } from './components/ui/sonner'
 import { LEGAL_VERSION } from './content/legal'
 import { maybeCreateDailySnapshot } from './lib/backup'
 import { db, ensureCompoundsSeeded, ensureSettingsRow } from './lib/db'
-import { DEFAULT_LOCALE } from './i18n'
+import { DEFAULT_LOCALE, toSupportedLocale } from './i18n'
 import { scheduleUpcomingReminders, startReminderLoop } from './lib/notifications'
 import { applyTheme, resolveTheme, subscribeToSystemTheme, type ResolvedTheme } from './lib/theme'
 import { updateSettings, useSettings } from './lib/useSettings'
@@ -124,9 +124,14 @@ function App() {
     return startReminderLoop()
   }, [appOpen])
 
+  // toSupportedLocale: a settings row (or an imported backup) can carry a
+  // language this build doesn't offer — e.g. 'es-CR' on the English-only
+  // brand — so that falls back to the build's default instead.
   useEffect(() => {
-    if (settings && settings.locale !== i18n.language) {
-      void i18n.changeLanguage(settings.locale)
+    if (!settings) return
+    const locale = toSupportedLocale(settings.locale)
+    if (locale !== i18n.language) {
+      void i18n.changeLanguage(locale)
     }
   }, [settings, i18n])
 

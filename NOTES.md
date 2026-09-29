@@ -1409,3 +1409,64 @@ Light mode has the same structural gap numerically (border-vs-card ~1.06:1) but 
 part of this request — low-contrast hairlines read as normal/subtle in light mode in a way
 they don't in dark, and light mode was just deliberately tuned in the previous pass — left
 alone pending explicit ask. Typecheck, 180/180 tests, and build all green.
+
+## Two branded builds: USA Peptide Depot + Peptides CR (September 2026)
+
+Client request: the same app on two subdomains with two looks. USA Peptide Depot is
+English only; the other is the pre-rebrand Peptides Costa Rica look (commit `53c0889`),
+Spanish default with English kept. Everything else is identical.
+
+**Mechanism: the brand is picked at build time, not runtime.** `VITE_BRAND=upd|pcr` (env
+var, which is how each Netlify site picks) or `vite --mode upd|pcr` (the `dev:*`/`build:*`
+scripts), default `upd` so the existing site is unchanged until someone sets it.
+`vite.config.ts` resolves it once, throws on an unknown value, and `define`s
+`import.meta.env.VITE_BRAND` so the app and config can't disagree. A runtime
+hostname switch was rejected: the manifest, icons, `index.html` meta and the pre-paint theme
+script would all need runtime switching, and a PWA's manifest can't really be swapped.
+Two Netlify sites also give each brand its own origin, so IndexedDB, localStorage, service
+worker, Netlify Blobs push store and VAPID keys are all separate for free. That's also why
+storage identifiers (`peptidescr` Dexie DB, localStorage keys, notification tags) were
+deliberately left identical across brands.
+
+**Where brand lives:**
+- `src/brand/brands.ts`: plain data (names, locales, manifest description, theme-color
+  hexes), imported by both `vite.config.ts` (Node) and the app.
+- `src/brand/index.ts`: `BRAND` for the app, plus the contact card data.
+- `src/brand/<id>/tokens.css` + `fonts.css`: pulled in by `index.css` through the
+  `@brand-styles` alias. pcr's are the `53c0889` files verbatim; the variable set was
+  identical to upd's, so no gaps. New shared token `--brand-logo-glow`: the onboarding
+  logo's glow was still hard-coded to the old navy after the rebrand.
+- `public/<id>/` is Vite's `publicDir` (icons, logo, fonts), and `public/shared/`
+  (`sw-notifications.js`) is served and emitted at the root by a small plugin, because Vite
+  only has one publicDir. `peptidescrlogo.jpeg` (the unreferenced source JPEG) was not restored.
+- `index.html` uses `%BRAND_*%` placeholders, filled by a `transformIndexHtml` plugin.
+  `theme.ts` reads theme-color hexes from `BRAND`, so the old "keep in sync by hand" duplication
+  between index.html and theme.ts is gone.
+- Locale strings name the app as `{{appName}}` (i18next `defaultVariables`), so one pair of
+  locale files serves both brands.
+- `src/content/legal.ts`: one template, with each brand's seller notice. upd's output was
+  checked byte-for-byte against the previous text and stays at LEGAL_VERSION 3, so nobody is
+  re-prompted. pcr only ever had placeholder legal text, so its notice is new, built on its own
+  site's stated "research use only, not for human or veterinary use". It needs lawyer review;
+  version 4, above anything shipped, so a repointed domain would re-prompt.
+
+**Keeping the other brand out of each bundle:** a `BRAND.id === ...` lookup or two named
+consts picked by a ternary kept both brands' data in the bundle (spreads and function calls
+aren't provably pure). Each brand's data is instead written inline in its branch of a literal
+`import.meta.env.VITE_BRAND === 'pcr' ? … : …`, so the dead branch is deleted whole. Same
+trick in `i18n.ts`: the upd build doesn't include `es-CR.json` at all. Checked by grepping
+each `dist/`: no "USA Peptide Depot"/Archivo/sage in pcr, and no "Peptides CR"/Spanish UI
+strings/Montserrat/navy in upd. Spanish still appears in upd's bundle in content that is
+bilingual by design (compound catalogue, protocol templates, the legal template).
+
+**Single-language UX:** the Settings language row is hidden, and onboarding step 1 stays as
+a welcome screen (logo + "Welcome to {{appName}}") without the language cards, which keeps the
+step count and the logo moment. `App.tsx` maps a stored locale the build doesn't offer
+(an old `es-CR` settings row, an imported backup) to the default via `toSupportedLocale`.
+
+**Verified:** typecheck, 185/185 tests (new `src/brand/brands.test.ts`), both builds. Both
+builds were driven in headless Edge over CDP: full onboarding to Home to Settings. upd is
+English, with a welcome step, no language row, UPD contact, legal v3 and green palette. pcr
+is Spanish, with language cards, the language row, restored CR contact with WhatsApp, legal
+v4 and navy palette. Lint has one pre-existing error (`react-hooks/set-state-in-effect`
+in `App.tsx`'s theme effect), untouched here.

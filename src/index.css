@@ -1,7 +1,8 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
-@import './styles/fonts.css';
-@import './styles/tokens.css';
+/* The build's brand (src/brand/<id>/) — alias set in vite.config.ts. */
+@import '@brand-styles/fonts.css';
+@import '@brand-styles/tokens.css';
 
 @theme {
   --color-brand-primary: var(--brand-primary);
@@ -22,8 +23,8 @@
   /*
    * shadcn/ui's standard semantic token vocabulary, bridged onto our brand
    * palette above rather than given independent values — this is the only
-   * place that mapping lives, so tokens.css stays the one file to edit for a
-   * palette swap. Every ui/*.tsx component below reads only these names,
+   * place that mapping lives, so each brand's tokens.css stays the one file to
+   * edit for a palette swap. Every ui/*.tsx component below reads only these names,
    * never a --brand-* variable directly, matching shadcn's own components as
    * published (easiest to diff against their docs later).
    */
@@ -65,10 +66,10 @@ body {
 }
 
 /*
- * Display type. Archivo at its bold weights sets wide, so headlines get a
- * touch of negative tracking to keep the letterforms tight, matching how
- * usapeptidedepot.com's own heading text (same Archivo fallback, weight 800)
- * reads. In @layer base so any utility (tracking-*, etc.) still wins over it.
+ * Display type. Both brands' display faces (Archivo, Montserrat) set wide at
+ * bold weights, so headlines get a touch of negative tracking to keep the
+ * letterforms tight. In @layer base so any utility (tracking-*, etc.) still
+ * wins over it.
  */
 @layer base {
   .font-display {

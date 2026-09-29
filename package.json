@@ -5,7 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:pcr": "vite --mode pcr",
+    "dev:upd": "vite --mode upd",
     "build": "tsc -b && vite build",
+    "build:pcr": "tsc -b && vite build --mode pcr",
+    "build:upd": "tsc -b && vite build --mode upd",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",

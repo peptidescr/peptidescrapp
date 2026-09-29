@@ -90,6 +90,10 @@
     radial-gradient(90% 120% at 90% -10%, rgb(39 75 59 / 0.9) 0%, rgb(39 75 59 / 0) 62%),
     linear-gradient(165deg, #1f4233 0%, #060f0a 100%);
 
+  /* Soft glow behind the logo on the first onboarding step — the logo tile's
+     own green (it was still the previous brand's blue until this was a token). */
+  --brand-logo-glow: rgb(39 75 59 / 0.9);
+
   --brand-contrast: #ffffff;
   --brand-contrast-foreground: #000000;
 
