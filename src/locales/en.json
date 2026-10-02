@@ -235,8 +235,27 @@
       "installed": "{{appName}} is installed on this device.",
       "available": "Install {{appName}} for offline use and reliable notifications.",
       "cta": "Install",
-      "iosInstructions": "In Safari, tap the Share icon, then \"Add to Home Screen.\" This protects your data and is required for notifications on iPhone/iPad.",
-      "genericInstructions": "Open your browser's menu and look for \"Install app\" or \"Add to Home Screen.\""
+      "ios": {
+        "title": "Add {{appName}} to your iPhone",
+        "step1": "Tap Share in Safari",
+        "step2": "Tap \"Add to Home Screen\"",
+        "step3": "Tap Add",
+        "footer": "That's it — {{appName}} will appear on your Home Screen."
+      },
+      "android": {
+        "title": "Add {{appName}} to your Android device",
+        "step1": "Tap the menu in Chrome",
+        "step2": "Tap \"Add to Home screen\" or \"Install app\"",
+        "step3": "Tap \"Install\" or \"Add\"",
+        "footer": "That's it — {{appName}} will appear on your Home Screen."
+      },
+      "generic": {
+        "title": "Add {{appName}} to your device",
+        "step1": "Open your browser's menu, or look for an install icon in the address bar",
+        "step2": "Select \"Install\" or \"Add to Home Screen\"",
+        "step3": "Confirm",
+        "footer": "That's it — {{appName}} will appear on your device."
+      }
     },
     "storage": {
       "title": "Storage",

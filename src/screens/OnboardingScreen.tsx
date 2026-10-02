@@ -1,9 +1,10 @@
-import { Bell, CalendarClock, ChevronLeft, FlaskConical, ShieldCheck, Smartphone, Syringe } from 'lucide-react'
+import { Bell, CalendarClock, ChevronLeft, FlaskConical, ShieldCheck, Syringe } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AppHeader } from '../components/AppHeader'
 import { HowItWorksList } from '../components/HowItWorksList'
+import { InstallInstructions } from '../components/InstallInstructions'
 import { TemplatePicker } from '../components/TemplatePicker'
 import { Button } from '@/components/ui/button'
 import { OptionCard } from '@/components/ui/option-card'
@@ -12,7 +13,6 @@ import { BRAND } from '../brand'
 import { LEGAL_CONTENT, LEGAL_VERSION } from '../content/legal'
 import { SUPPORTED_LOCALES } from '../i18n'
 import type { ProtocolTemplate } from '../content/protocolTemplates'
-import { useInstallState } from '../lib/install'
 import { getNotificationCapability, requestNotificationPermission } from '../lib/notifications'
 import type { Locale } from '../lib/units'
 import { updateSettings } from '../lib/useSettings'
@@ -255,7 +255,6 @@ function DisclaimerStep({ locale, onAccept }: { locale: Locale; onAccept: () => 
 
 function InstallStep({ onNext }: { onNext: () => void }) {
   const { t } = useTranslation()
-  const install = useInstallState()
 
   return (
     <StepShell
@@ -263,25 +262,12 @@ function InstallStep({ onNext }: { onNext: () => void }) {
       body={t('onboarding.install.body')}
       footer={<Button onClick={onNext}>{t('onboarding.continue')}</Button>}
     >
-      <div className="flex items-start gap-3 rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent">
-          <Smartphone className="size-4 text-primary" />
-        </span>
-        {install.isStandalone ? (
-          <p className="pt-1.5">{t('settings.install.installed')}</p>
-        ) : install.canPromptInstall ? (
-          <p className="pt-1.5">{t('settings.install.available')}</p>
-        ) : install.isIOS ? (
-          <p className="pt-1.5">{t('settings.install.iosInstructions')}</p>
-        ) : (
-          <p className="pt-1.5">{t('settings.install.genericInstructions')}</p>
-        )}
+      <div className="rounded-2xl border border-border bg-card p-4">
+        {/* 'secondary': StepShell's own footer already has the primary
+            "Continue" button — a second primary-colored button here would
+            compete with it (see InstallInstructions' own doc comment). */}
+        <InstallInstructions buttonVariant="secondary" />
       </div>
-      {!install.isStandalone && install.canPromptInstall && (
-        <Button variant="secondary" onClick={() => void install.promptInstall()}>
-          {t('settings.install.cta')}
-        </Button>
-      )}
     </StepShell>
   )
 }
