@@ -9,7 +9,7 @@
 import { endOfDay, endOfMonth, isSameDay, isToday, isYesterday, startOfDay, startOfMonth } from 'date-fns'
 import type { DoseLog, Protocol } from './db'
 import { contextOf, loggedTimesFor, MISSED_THRESHOLD_HOURS } from './homeData'
-import { findUnloggedOccurrences, getOccurrencesInRange, type Occurrence } from './schedule'
+import { findUnloggedInRange, type Occurrence } from './schedule'
 import { toIsoDate } from './dates'
 
 export interface DayGroup {
@@ -101,9 +101,7 @@ export function computeDayActivity(
     // Paused protocols are included deliberately: pausing stops future
     // reminders, it doesn't rewrite what was scheduled back when the day in
     // question was live, and you should still be able to backfill it.
-    const occurrences = getOccurrencesInRange(contextOf(protocol), dayStart, dayEnd)
-    if (occurrences.length === 0) continue
-    for (const occurrence of findUnloggedOccurrences(occurrences, loggedTimesFor(protocol, doseLogs))) {
+    for (const occurrence of findUnloggedInRange(contextOf(protocol), dayStart, dayEnd, loggedTimesFor(protocol, doseLogs))) {
       missedSlots.push({ protocol, occurrence })
     }
   }
@@ -147,8 +145,7 @@ function unloggedSlots(protocols: Protocol[], doseLogs: DoseLog[], from: Date, t
   const slots: DaySlot[] = []
   for (const protocol of protocols) {
     if (!protocol.isActive) continue
-    const occurrences = getOccurrencesInRange(contextOf(protocol), from, to)
-    for (const occurrence of findUnloggedOccurrences(occurrences, loggedTimesFor(protocol, doseLogs))) {
+    for (const occurrence of findUnloggedInRange(contextOf(protocol), from, to, loggedTimesFor(protocol, doseLogs))) {
       const at = occurrence.scheduledAt.getTime()
       slots.push({ protocol, occurrence, isMissed: at <= missedBefore, isFuture: at > now.getTime() })
     }

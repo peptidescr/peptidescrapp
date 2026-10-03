@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   cyclePhase,
+  findUnloggedInRange,
   findUnloggedOccurrences,
   getDueOccurrences,
   getMissedOccurrences,
@@ -9,6 +10,7 @@ import {
   isScheduledDay,
   type ScheduleContext,
   type Weekday,
+  wouldSettle,
 } from './schedule'
 
 function day(y: number, m: number, d: number, h = 0, min = 0): Date {
@@ -411,5 +413,54 @@ describe('cyclePhase', () => {
   it('is null for other schedules and before the start', () => {
     expect(cyclePhase({ schedule: { kind: 'daily' }, startDate: start }, day(2026, 1, 6))).toBeNull()
     expect(cyclePhase(ctx, day(2026, 1, 4))).toBeNull()
+  })
+})
+
+describe('late and early doses', () => {
+  // Weekly on Mondays at 09:00, from Mon 2026-01-05.
+  const weekly: ScheduleContext = {
+    schedule: { kind: 'weekdays', days: [1] },
+    startDate: '2026-01-05',
+    reminderTimes: ['09:00'],
+  }
+
+  it('counts a weekly dose taken a day or two late for its week', () => {
+    const now = day(2026, 1, 21, 12) // Wednesday after the Jan 19 dose
+    const lateLog = day(2026, 1, 20, 18) // Tuesday evening
+    const logged = [day(2026, 1, 5, 9), day(2026, 1, 12, 9), lateLog]
+    expect(getMissedOccurrences(weekly, now, logged)).toEqual([])
+    expect(getMissedOccurrences(weekly, now, logged.slice(0, 2)).map((o) => o.date)).toEqual(['2026-01-19'])
+  })
+
+  it('counts a weekly dose taken early, so it isn’t next any more', () => {
+    const now = day(2026, 1, 18, 10) // Sunday
+    const early = day(2026, 1, 18, 10)
+    const logged = [day(2026, 1, 5, 9), day(2026, 1, 12, 9), early]
+    expect(getNextOccurrence(weekly, now, logged)?.date).toBe('2026-01-26')
+  })
+
+  it('does not stretch further than 3½ days, or across to a dose that has its own log', () => {
+    const logged = [day(2026, 1, 5, 9), day(2026, 1, 16, 9)] // Friday, 4 days after Jan 12
+    expect(getMissedOccurrences(weekly, day(2026, 1, 17), logged).map((o) => o.date)).toEqual(['2026-01-12'])
+  })
+
+  it('keeps daily doses same-day only', () => {
+    const daily: ScheduleContext = { schedule: { kind: 'daily' }, startDate: '2026-01-05', reminderTimes: ['08:00'] }
+    // An extra log the evening before doesn't stand in for the next morning.
+    const logged = [day(2026, 1, 5, 8), day(2026, 1, 5, 21)]
+    expect(getMissedOccurrences(daily, day(2026, 1, 7), logged).map((o) => o.date)).toEqual(['2026-01-06'])
+  })
+
+  it('sees logs just outside the range it is asked about', () => {
+    // Asking only about Monday Jan 19: the Tuesday log falls outside, but still settles it.
+    const logged = [day(2026, 1, 20, 18)]
+    expect(findUnloggedInRange(weekly, day(2026, 1, 19), day(2026, 1, 19, 23, 59), logged)).toEqual([])
+  })
+
+  it('wouldSettle says whether logging now counts for a dose', () => {
+    const occurrence = getNextOccurrence(weekly, day(2026, 1, 17, 10), [day(2026, 1, 5, 9), day(2026, 1, 12, 9)])!
+    expect(occurrence.date).toBe('2026-01-19')
+    expect(wouldSettle(weekly, occurrence, [], day(2026, 1, 17, 10))).toBe(true) // Saturday, 2 days early
+    expect(wouldSettle(weekly, occurrence, [], day(2026, 1, 15, 10))).toBe(false) // 4 days early
   })
 })

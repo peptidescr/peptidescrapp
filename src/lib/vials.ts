@@ -20,7 +20,7 @@ import { toIsoDate } from './dates'
 import { db, type DoseLog, type Protocol, type Vial } from './db'
 import { contextOf, loggedTimesFor } from './homeData'
 import { requestPushSync } from './push'
-import { findUnloggedOccurrences, getOccurrencesInRange } from './schedule'
+import { findUnloggedInRange } from './schedule'
 import { doseOn } from './titration'
 import { microgramsFromMass, milliIUFromIU, type MassUnit } from './units'
 
@@ -97,8 +97,10 @@ export function computeVialState(
   let dosesLeft: number | null = doseSize && doseSize > 0 ? Math.floor(remaining / doseSize) : null
   let lastDoseOn: Date | null = null
   if (protocol?.isActive && dosesLeft !== null && dosesLeft > 0) {
-    const upcoming = findUnloggedOccurrences(
-      getOccurrencesInRange(contextOf(protocol), now, addDays(now, RUN_OUT_HORIZON_DAYS)),
+    const upcoming = findUnloggedInRange(
+      contextOf(protocol),
+      now,
+      addDays(now, RUN_OUT_HORIZON_DAYS),
       loggedTimesFor(protocol, doseLogs),
     )
     if (protocol.titration) {

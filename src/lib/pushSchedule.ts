@@ -2,7 +2,7 @@ import { addDays, parseISO, set } from 'date-fns'
 import { toIsoDate } from './dates'
 import type { DoseLog, Protocol, Vial } from './db'
 import { contextOf, loggedTimesFor } from './homeData'
-import { findUnloggedOccurrences, getOccurrencesInRange } from './schedule'
+import { findUnloggedInRange } from './schedule'
 import { DATE_NOTICE_DAYS } from './vials'
 
 /** How far ahead reminders are uploaded. Each app open refreshes this, so it's a ceiling on "days away from the app", not a schedule length. */
@@ -60,10 +60,10 @@ export function buildPushSchedule(
 
   for (const protocol of protocols) {
     if (!protocol.isActive) continue
-    const upcoming = getOccurrencesInRange(contextOf(protocol), now, horizon).filter(
+    const upcoming = findUnloggedInRange(contextOf(protocol), now, horizon, loggedTimesFor(protocol, doseLogs)).filter(
       (o) => o.scheduledAt.getTime() > now.getTime(),
     )
-    for (const occurrence of findUnloggedOccurrences(upcoming, loggedTimesFor(protocol, doseLogs))) {
+    for (const occurrence of upcoming) {
       items.push({ at: occurrence.scheduledAt.getTime(), tag: reminderTag(protocol.id, occurrence.scheduledAt) })
     }
   }

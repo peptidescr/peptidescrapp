@@ -6,7 +6,7 @@ import { contextOf, loggedTimesFor } from './homeData'
 import { isIOS, isStandalone } from './platform'
 import { isPushActive, requestPushSync, syncPushSchedule } from './push'
 import { reminderTag } from './pushSchedule'
-import { findUnloggedOccurrences, getOccurrencesInRange, type Occurrence } from './schedule'
+import { findUnloggedInRange, getOccurrencesInRange, type Occurrence } from './schedule'
 import { doseOn, formatDose } from './titration'
 import { describeVialAlert } from './vialText'
 import { computeVialAlerts, vialAlertKey, type VialAlertKind } from './vials'
@@ -166,8 +166,7 @@ export async function notifyDueReminders(now: Date = new Date()): Promise<void> 
     if (!protocol.isActive) continue
     const ctx = contextOf(protocol)
     const windowStart = new Date(now.getTime() - LATE_GRACE_MS)
-    const recent = getOccurrencesInRange(ctx, windowStart, now)
-    for (const occurrence of findUnloggedOccurrences(recent, loggedTimesFor(protocol, doseLogs))) {
+    for (const occurrence of findUnloggedInRange(ctx, windowStart, now, loggedTimesFor(protocol, doseLogs))) {
       const content = contentFor(protocol, occurrence)
       if (notified[content.tag]) continue
       // Marked before awaiting so two overlapping checks (timer + visibility

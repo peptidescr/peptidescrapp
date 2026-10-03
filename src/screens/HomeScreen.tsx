@@ -15,6 +15,7 @@ import { formatDate, formatTime } from '../lib/dates'
 import { db, type DoseLog, type Protocol } from '../lib/db'
 import {
   computeDoseChanges,
+  contextOf,
   computeDueItems,
   computeGetStartedSteps,
   computeOverallAdherence,
@@ -28,7 +29,7 @@ import {
   type TodayStatus,
 } from '../lib/homeData'
 import { getNotificationCapability } from '../lib/notifications'
-import { cyclePhase, type Occurrence } from '../lib/schedule'
+import { cyclePhase, wouldSettle, type Occurrence } from '../lib/schedule'
 import { useLiveQuery } from '../lib/useLiveQuery'
 import { updateSettings, useSettings } from '../lib/useSettings'
 import { computeVialAlerts, vialAlertKey } from '../lib/vials'
@@ -587,15 +588,14 @@ function NextUpCard({
 }) {
   const { t } = useTranslation()
   const compound = getCompoundById(protocol.compoundId)
-  // One-tap logging here means "ahead of schedule, right now" — that only
-  // makes sense while the occurrence is still today. For a dose several days
-  // out (a weekly/every-N-days/cycling protocol between reminders), logging
-  // it "now" would date-mismatch against its actual scheduled day and the
-  // card would never register it as fulfilled — so the buttons are withheld
-  // until the day itself, rather than appearing to work but silently not
-  // updating anything. See NOTES.md.
-  const canLogToday = isSameDay(occurrence.scheduledAt, now)
-  const dayWord = canLogToday ? t('home.today') : formatDate(occurrence.scheduledAt)
+  // One-tap logging here means "ahead of schedule, right now". It's offered
+  // when a log now would count for this dose: on its own day, or — for doses
+  // at least two days apart, like a weekly shot — up to 3½ days early (see
+  // matchLogsToOccurrences). Further out, a log now wouldn't register against
+  // it, so the buttons are withheld rather than appearing to do nothing.
+  const isToday = isSameDay(occurrence.scheduledAt, now)
+  const canLogNow = isToday || wouldSettle(contextOf(protocol), occurrence, [], now)
+  const dayWord = isToday ? t('home.today') : formatDate(occurrence.scheduledAt)
   // In a weeks cycle's off weeks, why the next dose is so far away is the
   // useful part. The date stays the dose's own (beside its time), not the
   // day the on-block starts, which a weekday pattern may not dose on.
@@ -612,7 +612,7 @@ function NextUpCard({
       time={occurrence.scheduledAt}
       protocol={protocol}
       compoundName={compound?.name}
-      showActions={canLogToday}
+      showActions={canLogNow}
       onOpenProtocol={onOpenProtocol}
     />
   )

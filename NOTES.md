@@ -1827,3 +1827,43 @@ The `userTemplates` table has existed since schema v2.
   - It appeared under "My templates" as "(stepped) · 6 wk on / 2 wk off".
   - Creating from it prefilled everything, and saving produced an identical plan.
   - Deleting it left both protocols in place, with no console errors.
+
+## Tier 1 (1 of 5): late and early doses (October 2026)
+
+From the competitor review (Shotsy handles this; we didn't). Before this, a dose only counted on its
+scheduled calendar day. A weekly shot taken a day late read as missed, and its log matched nothing.
+
+**Matching** (`matchLogsToOccurrences`, `src/lib/schedule.ts`) now has two passes:
+1. **Same day, nearest in time.** Unchanged.
+2. **Late or early, only between doses at least two days apart.** A leftover log pairs with the
+   nearest unmatched dose within half the gap to its neighbours, capped at 3½ days, closest pairs
+   first. A weekly dose gets ±3½ days and an every-other-day dose ±1 day. Daily doses stay
+   same-day only, so an extra evening log can't stand in for the next morning's dose (an existing
+   adherence test pinned that).
+
+**Range helpers:** the gap is measured within the list given, and a log just outside a range has to
+be seen. So every caller now goes through `matchLogsInRange` / `findUnloggedInRange`, which match
+over ±4 extra days and then trim to the range. That covers due/missed/next, adherence, Home's
+today, History's calendar, vial run-out, push and foreground reminders. Pass 2 binary-searches the
+leftover logs, so a 400-day horizon against long histories stays cheap.
+
+**UI:**
+- **Next up** offers Taken/Skipped whenever logging now would settle the dose (`wouldSettle`), e.g.
+  a Monday weekly dose on Saturday, not only on its own day.
+- **Catch-up:** Taken on a dose from an earlier day, where logging now still counts for it, opens
+  `LateDoseSheet`: **Just now** (the default) or **On schedule** (the old behaviour). With "just
+  now", a once-a-week weekday or every-N-days schedule (`shiftScheduleTo`, `src/lib/lateDose.ts`)
+  can **keep the schedule** or **move future doses** to that weekday or count from today. Each
+  choice shows its resulting next dose.
+- Moving restarts tracking at the start of that day, like any schedule edit. Moving an every-N
+  schedule moves its start date, so a titration shifts with it.
+- If the protocol tracks sites, the site picker follows.
+
+**Verified:**
+- Typecheck, 328/328 tests (new: weekly late and early, the 3½-day cap, daily staying strict, logs
+  just outside a range, `wouldSettle`, every `shiftScheduleTo` case), lint (known `App.tsx` error
+  only), i18n parity.
+- Live on the UPD build at 390px. A weekly dose missed two days ago appeared in Catch-up. Next up
+  offered logging a weekly dose two days early. Taken asked when; "Just now" plus "Move to
+  Saturdays" logged at the real time, moved the schedule to today's weekday, and cleared Catch-up.
+  No console errors.

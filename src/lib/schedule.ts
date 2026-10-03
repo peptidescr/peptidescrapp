@@ -280,14 +280,16 @@ function toIsoDate(day: Date): string {
   return `${y}-${m}-${d}`
 }
 
+/** The furthest a dose can be logged before or after its scheduled time and still count for it. */
+export const MAX_OFF_SCHEDULE_MS = 3.5 * 24 * 60 * 60 * 1000
+/** Late/early matching only applies between doses at least this far apart (every other day or sparser). */
+const MIN_GAP_FOR_OFF_SCHEDULE_MS = 2 * 24 * 60 * 60 * 1000
+/** How far beyond a range matching looks, so a late or early log just outside it still finds its dose. */
+const MATCH_PADDING_DAYS = 4
+
 /**
- * Pairs logged administration times to occurrences so a logged dose stops
- * showing as due/missed. Matching is same-calendar-day + nearest-in-time,
- * processed in chronological occurrence order — exact for the common once-
- * or twice-daily cases; with several same-day reminder times and irregular
- * logging times a log could in principle pair with a neighbouring occurrence
- * instead of its "true" one, but the visible result (that day's occurrences
- * are accounted for) is the same either way.
+ * Which unlogged occurrences remain once logs are matched — see matchLogsToOccurrences.
+ * Prefer findUnloggedInRange, which also sees logs and doses just outside the range.
  */
 export function findUnloggedOccurrences(occurrences: Occurrence[], loggedAdministeredAt: Date[]): Occurrence[] {
   const matches = matchLogsToOccurrences(occurrences, loggedAdministeredAt, (at) => at)
@@ -295,26 +297,112 @@ export function findUnloggedOccurrences(occurrences: Occurrence[], loggedAdminis
 }
 
 /**
- * The matching rule above, reporting which log (if any) accounted for each
- * occurrence — for callers that need more than "logged or not", e.g.
- * adherence telling a taken dose from a skipped one. Result is parallel to
- * `occurrences`.
+ * Pairs logged administration times to occurrences, so a logged dose stops
+ * showing as due or missed. Result is parallel to `occurrences`. Two passes:
+ *
+ * 1. **Same day, nearest in time** — exact for the everyday case, including
+ *    several doses a day; unchanged from before late/early matching existed.
+ * 2. **Late or early** — for doses at least two days apart, a log still
+ *    unmatched pairs with the nearest occurrence still unmatched, if it's
+ *    within half the gap to that occurrence's neighbours (capped at 3½ days).
+ *    A weekly dose taken a day late counts for its week instead of reading as
+ *    missed. Daily doses stay same-day only, so an extra evening log can't
+ *    swallow the next morning's dose. Closest pairs are settled first.
+ *
+ * `occurrences` must be chronological. The gap is measured within the list
+ * given, so callers should pass occurrences a little beyond the range they
+ * care about (see findUnloggedInRange / matchLogsInRange).
  */
 export function matchLogsToOccurrences<T>(occurrences: Occurrence[], logs: T[], timeOf: (log: T) => Date): (T | null)[] {
-  const available = logs.map((log, idx) => ({ idx, log, at: timeOf(log) }))
+  const available = logs.map((log, idx) => ({ idx, log, at: timeOf(log).getTime() }))
   const consumed = new Set<number>()
+  const result: (T | null)[] = occurrences.map(() => null)
 
-  return occurrences.map((occ) => {
-    const candidates = available.filter(({ idx, at }) => !consumed.has(idx) && isSameDay(at, occ.scheduledAt))
-    if (candidates.length === 0) return null
-    candidates.sort(
-      (a, b) =>
-        Math.abs(a.at.getTime() - occ.scheduledAt.getTime()) - Math.abs(b.at.getTime() - occ.scheduledAt.getTime()),
-    )
-    const best = candidates[0]!
-    consumed.add(best.idx)
-    return best.log
+  occurrences.forEach((occ, i) => {
+    const target = occ.scheduledAt.getTime()
+    let best: (typeof available)[number] | undefined
+    for (const candidate of available) {
+      if (consumed.has(candidate.idx) || !isSameDay(candidate.at, occ.scheduledAt)) continue
+      if (!best || Math.abs(candidate.at - target) < Math.abs(best.at - target)) best = candidate
+    }
+    if (best) {
+      consumed.add(best.idx)
+      result[i] = best.log
+    }
   })
+
+  // Pass 2 looks only at nearby logs (binary search over the leftovers by
+  // time), so a long horizon against years of history stays cheap.
+  const leftover = available.filter((log) => !consumed.has(log.idx)).sort((a, b) => a.at - b.at)
+  const firstAtOrAfter = (time: number) => {
+    let lo = 0
+    let hi = leftover.length
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1
+      if (leftover[mid]!.at < time) lo = mid + 1
+      else hi = mid
+    }
+    return lo
+  }
+  const pairs: { occurrence: number; log: (typeof available)[number]; distance: number }[] = []
+  if (leftover.length > 0) {
+    occurrences.forEach((occ, i) => {
+      if (result[i] !== null) return
+      const target = occ.scheduledAt.getTime()
+      const prev = occurrences[i - 1]?.scheduledAt.getTime()
+      const next = occurrences[i + 1]?.scheduledAt.getTime()
+      const gap = Math.min(prev === undefined ? Infinity : target - prev, next === undefined ? Infinity : next - target)
+      // Doses a day or less apart are settled by pass 1 alone: an evening log
+      // must not quietly stand in for tomorrow morning's dose.
+      if (gap < MIN_GAP_FOR_OFF_SCHEDULE_MS) return
+      const tolerance = Math.min(MAX_OFF_SCHEDULE_MS, gap / 2)
+      for (let j = firstAtOrAfter(target - tolerance); j < leftover.length && leftover[j]!.at <= target + tolerance; j++) {
+        const log = leftover[j]!
+        pairs.push({ occurrence: i, log, distance: Math.abs(log.at - target) })
+      }
+    })
+  }
+  pairs.sort((a, b) => a.distance - b.distance)
+  for (const { occurrence, log } of pairs) {
+    if (result[occurrence] !== null || consumed.has(log.idx)) continue
+    consumed.add(log.idx)
+    result[occurrence] = log.log
+  }
+  return result
+}
+
+/**
+ * Occurrences in [from, to] with the log (if any) that settled each, matched
+ * over a few extra days either side so a dose logged late or early just
+ * outside the range — or a neighbouring dose just outside it — is taken into
+ * account. The way to ask "which of these doses are logged".
+ */
+export function matchLogsInRange<T>(
+  ctx: ScheduleContext,
+  from: Date,
+  to: Date,
+  logs: T[],
+  timeOf: (log: T) => Date,
+): { occurrence: Occurrence; log: T | null }[] {
+  if (from > to) return []
+  const occurrences = getOccurrencesInRange(ctx, addDays(from, -MATCH_PADDING_DAYS), addDays(to, MATCH_PADDING_DAYS))
+  const matches = matchLogsToOccurrences(occurrences, logs, timeOf)
+  return occurrences
+    .map((occurrence, i) => ({ occurrence, log: matches[i] ?? null }))
+    .filter(({ occurrence }) => occurrence.scheduledAt >= from && occurrence.scheduledAt <= to)
+}
+
+/** The unlogged occurrences in [from, to] (see matchLogsInRange). */
+export function findUnloggedInRange(ctx: ScheduleContext, from: Date, to: Date, loggedAdministeredAt: Date[]): Occurrence[] {
+  return matchLogsInRange(ctx, from, to, loggedAdministeredAt, (at) => at)
+    .filter(({ log }) => log === null)
+    .map(({ occurrence }) => occurrence)
+}
+
+/** Whether logging a dose at `at` would settle this occurrence — e.g. "can Next up's dose be logged now?". */
+export function wouldSettle(ctx: ScheduleContext, occurrence: Occurrence, loggedAdministeredAt: Date[], at: Date): boolean {
+  const before = occurrence.scheduledAt
+  return !findUnloggedInRange(ctx, before, before, [...loggedAdministeredAt, at]).length
 }
 
 function getUnloggedOccurrencesUpTo(
@@ -326,9 +414,7 @@ function getUnloggedOccurrencesUpTo(
   const start = parseISO(ctx.startDate)
   const lookback = new Date(now.getTime() - MISSED_LOOKBACK_DAYS * 24 * 60 * 60 * 1000)
   const from = start > lookback ? start : lookback
-  if (from > upTo) return []
-  const occurrences = getOccurrencesInRange(ctx, from, upTo)
-  return findUnloggedOccurrences(occurrences, loggedAdministeredAt)
+  return findUnloggedInRange(ctx, from, upTo, loggedAdministeredAt)
 }
 
 /**
@@ -373,7 +459,5 @@ export function getNextOccurrence(
     ? parseISO(ctx.endDate)
     : addDays(now, NEXT_OCCURRENCE_HORIZON_DAYS)
   if (horizonEnd < now) return null
-  const occurrences = getOccurrencesInRange(ctx, now, horizonEnd)
-  const unlogged = findUnloggedOccurrences(occurrences, loggedAdministeredAt)
-  return unlogged[0] ?? null
+  return findUnloggedInRange(ctx, now, horizonEnd, loggedAdministeredAt)[0] ?? null
 }

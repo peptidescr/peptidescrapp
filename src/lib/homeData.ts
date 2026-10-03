@@ -6,12 +6,12 @@
 import { addDays, endOfDay, isSameDay, parseISO, startOfDay } from 'date-fns'
 import type { DoseLog, Protocol, Settings } from './db'
 import {
-  findUnloggedOccurrences,
+  findUnloggedInRange,
   getDueOccurrences,
   getMissedOccurrences,
   getNextOccurrence,
   getOccurrencesInRange,
-  matchLogsToOccurrences,
+  matchLogsInRange,
   type Occurrence,
   type ScheduleContext,
 } from './schedule'
@@ -123,13 +123,12 @@ export function computeTodayProgress(protocols: Protocol[], doseLogs: DoseLog[],
 
   for (const protocol of protocols) {
     if (!protocol.isActive) continue
-    const occurrences = getOccurrencesInRange(contextOf(protocol), dayStart, dayEnd)
+    const ctx = contextOf(protocol)
+    const occurrences = getOccurrencesInRange(ctx, dayStart, dayEnd)
     if (occurrences.length === 0) continue
 
     const unlogged = new Set(
-      findUnloggedOccurrences(occurrences, loggedTimesFor(protocol, doseLogs)).map((o) =>
-        o.scheduledAt.getTime(),
-      ),
+      findUnloggedInRange(ctx, dayStart, dayEnd, loggedTimesFor(protocol, doseLogs)).map((o) => o.scheduledAt.getTime()),
     )
 
     for (const occurrence of occurrences) {
@@ -312,16 +311,14 @@ export function computeAdherence(
   days = ADHERENCE_WINDOW_DAYS,
 ): Adherence {
   if (!protocol.isActive) return EMPTY_ADHERENCE
-  const occurrences = getOccurrencesInRange(contextOf(protocol), addDays(now, -days), now)
   const logs = doseLogs.filter((log) => log.protocolId === protocol.id)
-  const matches = matchLogsToOccurrences(occurrences, logs, (log) => new Date(log.administeredAt))
+  const settled = matchLogsInRange(contextOf(protocol), addDays(now, -days), now, logs, (log) => new Date(log.administeredAt))
   const missedBefore = now.getTime() - MISSED_THRESHOLD_HOURS * 60 * 60 * 1000
 
   let taken = 0
   let skipped = 0
   let missed = 0
-  occurrences.forEach((occurrence, i) => {
-    const log = matches[i]
+  settled.forEach(({ occurrence, log }) => {
     if (log?.status === 'taken') taken += 1
     else if (log?.status === 'skipped') skipped += 1
     else if (occurrence.scheduledAt.getTime() <= missedBefore) missed += 1

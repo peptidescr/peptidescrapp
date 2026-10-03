@@ -177,6 +177,19 @@
     "deltoid-left": "Deltoides izquierdo",
     "deltoid-right": "Deltoides derecho"
   },
+  "late": {
+    "title": "¿Cuándo te la aplicaste?",
+    "body": "Esta dosis tocaba el {{date}}.",
+    "now": "Ahora mismo",
+    "onSchedule": "A la hora programada",
+    "nextDoses": "Tus próximas dosis",
+    "keep": "Mantener mi calendario",
+    "moveWeekday": "Pasar a los {{weekday}}",
+    "moveInterval": "Contar desde hoy",
+    "nextOn": "Próxima dosis el {{date}}",
+    "confirm": "Registrar dosis",
+    "movedToast": "Dosis registrada. Tus próximas dosis se movieron."
+  },
   "cycle": {
     "offNextDose": "Semana de descanso · próxima dosis {{date}}",
     "summary": "{{on}} sem. activas / {{off}} de descanso",

@@ -177,6 +177,19 @@
     "deltoid-left": "Left deltoid",
     "deltoid-right": "Right deltoid"
   },
+  "late": {
+    "title": "When did you take it?",
+    "body": "This dose was due {{date}}.",
+    "now": "Just now",
+    "onSchedule": "On schedule",
+    "nextDoses": "Your next doses",
+    "keep": "Keep my schedule",
+    "moveWeekday": "Move to {{weekday}}s",
+    "moveInterval": "Count from today",
+    "nextOn": "Next dose {{date}}",
+    "confirm": "Log dose",
+    "movedToast": "Dose logged. Your next doses have moved."
+  },
   "cycle": {
     "offNextDose": "Off week · next dose {{date}}",
     "summary": "{{on}} wk on / {{off}} wk off",
