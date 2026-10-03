@@ -6,23 +6,22 @@ import { Card } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { AppHeader } from '../components/AppHeader'
 import { CheckInSheet } from '../components/CheckInSheet'
+import { ProgressTrends } from '../components/ProgressTrends'
 import { ResultsSettingsSheet } from '../components/ResultsSettingsSheet'
 import { WeightSheet } from '../components/WeightSheet'
 import { formatDate } from '../lib/dates'
 import { db } from '../lib/db'
 import {
   baselineWeights,
-  CHECK_IN_SCALES,
   deleteWeight,
   symptomList,
   todayKey,
   weightIn,
   weightProgress,
   weightUnitOf,
-  type CheckIn,
   type WeightUnit,
 } from '../lib/results'
-import { symptomName } from '../lib/resultsText'
+import { checkInSummary } from '../lib/resultsText'
 import { formatDecimal, type Locale } from '../lib/units'
 import { useLiveQuery } from '../lib/useLiveQuery'
 import { useSettings } from '../lib/useSettings'
@@ -118,7 +117,7 @@ export function ProgressScreen() {
           {t('progress.todayTitle')}
         </div>
         {todayCheckIn ? (
-          <p className="text-sm text-foreground">{summarize(todayCheckIn, symptoms, t)}</p>
+          <p className="text-sm text-foreground">{checkInSummary(todayCheckIn, symptoms, t)}</p>
         ) : (
           <p className="text-sm text-muted-foreground">{t('progress.noCheckIn')}</p>
         )}
@@ -126,6 +125,8 @@ export function ProgressScreen() {
           {todayCheckIn ? t('progress.editCheckIn') : t('progress.checkIn')}
         </Button>
       </Card>
+
+      <ProgressTrends unit={unit} goalGrams={progress.goalGrams} symptoms={symptoms} fmt={fmt} />
 
       {(checkIns ?? []).some((c) => c.date !== today) && (
         <section className="flex flex-col gap-2">
@@ -142,7 +143,7 @@ export function ProgressScreen() {
                   className="flex min-h-12 w-full flex-col items-start gap-0.5 px-4 py-2 text-left"
                 >
                   <span className="text-sm font-semibold text-foreground">{formatDate(new Date(`${c.date}T12:00:00`))}</span>
-                  <span className="text-xs text-muted-foreground">{summarize(c, symptoms, t)}</span>
+                  <span className="text-xs text-muted-foreground">{checkInSummary(c, symptoms, t)}</span>
                 </button>
               ))}
           </Card>
@@ -187,18 +188,4 @@ export function ProgressScreen() {
       )}
     </div>
   )
-}
-
-/** "Energy 4 · Mood 3 · Nausea (mild)" — what a check-in recorded, in one line. */
-function summarize(c: CheckIn, symptoms: ReturnType<typeof symptomList>, t: ReturnType<typeof useTranslation>['t']): string {
-  const parts: string[] = []
-  for (const scale of CHECK_IN_SCALES) {
-    if (c[scale]) parts.push(`${t(`checkIn.${scale}.label`)} ${c[scale]}`)
-  }
-  for (const [id, severity] of Object.entries(c.sideEffects ?? {})) {
-    const symptom = symptoms.find((s) => s.id === id) ?? { id, name: t('symptoms.removed') }
-    parts.push(`${symptomName(symptom, t)} (${t(`severity.${['', 'mild', 'moderate', 'severe'][severity]}`)})`)
-  }
-  if (c.note) parts.push(t('progress.hasNote'))
-  return parts.length ? parts.join(' · ') : t('progress.emptyCheckIn')
 }

@@ -1924,3 +1924,57 @@ symptom list come through settings. v1–v3 still import.
   - Switching to kg showed 95.3 kg. No console errors.
 - One fix came out of it: before any dose was taken, the start weight wasn't labelled "before your
   first dose", though it is.
+
+## Tier 1 (3 of 5): charts that connect results to doses (October 2026)
+
+Shotsy's "unique" charts, cheap here because the dose-step and site data already exist. They're
+a **Trends** section on Progress, under one filter row (1 mo / 3 mo / 6 mo / All, plus "Doses
+of …" when more than one protocol has doses). Everything below the filters follows them. Built
+with the dataviz skill's method; hand-rolled SVG, so no chart dependency is added to the bundle.
+
+**Views** (data in `src/lib/progressCharts.ts`, pure and tested; drawing in `ProgressCharts.tsx`):
+- **Weight by dose:** a 2px line whose segments, and ≥8px dots with a surface ring, take the
+  dose step in force when each weight was measured (`stepOn` → `doseOn`).
+  - Weights before the protocol started are "Before first dose", in the muted grey.
+  - Hairline solid grid with round ticks (`niceTicks`) and a goal line if it's in view.
+  - A crosshair and tooltip that snaps to the nearest point, with arrow keys on focus.
+  - A legend when there's more than one step, and "Show as a table".
+- **Results by dose:** a table. For each step across the whole protocol: weeks on it, weight
+  change (its last weight minus the last one before it), per week, and side-effect days out of
+  check-in days with mean worst severity.
+- **Side effects and doses:** a timeline with a dose-marker row and one severity row per symptom
+  that occurred (most frequent first, 8 shown, the rest in the table).
+  - Daily columns up to 60 days, then weekly bins (worst severity of the week), so cells stay
+    tappable at 320px.
+  - Each whole column is the hit target, with a tooltip and arrow keys.
+  - "Show as a table" lists the days and weeks that had anything.
+- **Results by injection site:** doses per site, and how many had a site reaction or pain
+  recorded that day (with mean severity).
+- **Calendar day:** History's month view now shows the selected day's weights and check-in
+  (summary and note), with "Add/Edit this day's check-in" opening the same sheet.
+
+**Colour:**
+- Dose steps use an **ordinal ramp in each brand's own hue** (`--chart-dose-1..4`), and severity
+  a shared amber ramp (`--chart-sev-1..3`), both in `tokens.css` for dark and light.
+- Each was run through `validate_palette.js --ordinal` against that mode's card surface; one light
+  severity step failed the 2:1 floor and was stepped darker.
+- Fewer than four steps **spread across the whole ramp** (two steps get the two ends). A first
+  render showed 2.5 mg and 5 mg as nearly the same green, because they'd taken the two lowest
+  shades.
+- Text never takes the series colour.
+
+**Verified:**
+- Typecheck, 347/347 tests (new: step naming and shading, weight points, results by step and by
+  site, daily and weekly timelines, focus choice, range starts, ticks), lint (known `App.tsx`
+  error only), i18n 553/553, UPD build.
+- Live on the UPD build, dark and light at 390px, with six weeks of seeded data:
+  - The legend showed Before first dose / 2.5 mg / 5 mg, and the line used two shades.
+  - Both steps were in the by-dose table, with the timeline and site table present.
+  - Hovering gave "94.8 kg · 02/10/2026 · 5 mg".
+  - The calendar day showed "Energy 4" and its note.
+  - No overflow and no console errors.
+- Fixed on the way:
+  - The chart never measured its width when its data arrived after the first render (now a
+    callback ref).
+  - "6 months" wrapped in the range control (now "6 mo").
+  - "Darker when more severe" was wrong on the dark theme, where severe is the brighter step.

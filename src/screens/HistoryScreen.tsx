@@ -1,4 +1,4 @@
-import { isSameDay, isToday, isYesterday } from 'date-fns'
+import { endOfDay, isSameDay, isToday, isYesterday, startOfDay } from 'date-fns'
 import { Check, History as HistoryIcon, Search, Trash2 } from 'lucide-react'
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
 import type { DayButtonProps } from 'react-day-picker'
@@ -23,6 +23,7 @@ import { Calendar } from '@/components/ui/calendar'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Segmented } from '@/components/ui/segmented'
+import { CheckInSheet } from '../components/CheckInSheet'
 import { DueCard } from '../components/DoseCard'
 import { EmptyState } from '../components/EmptyState'
 import { AppHeader } from '../components/AppHeader'
@@ -35,7 +36,10 @@ import { computeDaySlots, computeMonthMarks, type DayMarks } from '../lib/histor
 import { doseOn, formatDose } from '../lib/titration'
 import { SITE_IDS, SITES_BY_ROUTE, type SiteId } from '../lib/injectionSites'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { symptomList, weightIn, weightUnitOf } from '../lib/results'
+import { checkInSummary } from '../lib/resultsText'
 import { useLiveQuery } from '../lib/useLiveQuery'
+import { useSettings } from '../lib/useSettings'
 import {
   formatDecimal,
   iuFromMilliIU,
@@ -371,6 +375,7 @@ function HistoryMonth({
             ))}
           </Card>
         )}
+        <DayResults day={selected} />
         {/* Missed or just-due doses can be backfilled right here — the same card as Home's catch-up. */}
         {pastSlots.map((slot) => (
           <DueCard
@@ -409,6 +414,50 @@ function HistoryMonth({
   )
 }
 
+
+/**
+ * The selected day's results, under its doses: weights and the check-in, with
+ * the check-in editable from here (Shotsy's calendar day, Pep AI's timeline).
+ */
+function DayResults({ day }: { day: Date }) {
+  const { t, i18n } = useTranslation()
+  const locale = i18n.language as Locale
+  const settings = useSettings()
+  const unit = weightUnitOf(settings)
+  const key = toIsoDate(day)
+  const weights = useLiveQuery(
+    () => db.weights.where('measuredAt').between(startOfDay(day).toISOString(), endOfDay(day).toISOString(), true, true).toArray(),
+    [key],
+  )
+  const checkIn = useLiveQuery(() => db.checkIns.get(key), [key])
+  const [editing, setEditing] = useState(false)
+  const symptoms = symptomList(settings?.symptoms)
+  const isFuture = startOfDay(day) > new Date()
+
+  if (isFuture) return null
+  return (
+    <Card className="flex flex-col gap-2 p-4 text-sm">
+      {(weights ?? []).map((w) => (
+        <p key={w.id} className="flex justify-between gap-3">
+          <span className="text-muted-foreground">{t('progress.weightTitle')}</span>
+          <span className="font-semibold text-foreground">
+            {formatDecimal(weightIn(w.grams, unit), locale, 1)} {unit}
+          </span>
+        </p>
+      ))}
+      <p className="text-foreground">
+        {checkIn ? checkInSummary(checkIn, symptoms, t) : <span className="text-muted-foreground">{t('calendar.noCheckIn')}</span>}
+      </p>
+      {checkIn?.note && <p className="whitespace-pre-line text-muted-foreground">{checkIn.note}</p>}
+      <button type="button" onClick={() => setEditing(true)} className="min-h-11 self-start text-primary">
+        {checkIn ? t('calendar.editCheckIn') : t('calendar.addCheckIn')}
+      </button>
+      {editing && (
+        <CheckInSheet date={key} existing={checkIn} symptoms={symptoms} unit={unit} onClose={() => setEditing(false)} />
+      )}
+    </Card>
+  )
+}
 
 function HistoryEditForm({ log, onDone }: { log: DoseLog; onDone: () => void }) {
   const { t } = useTranslation()
