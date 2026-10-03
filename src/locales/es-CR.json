@@ -17,7 +17,8 @@
     "protocols": "Protocolos",
     "history": "Historial",
     "settings": "Ajustes",
-    "ariaLabel": "Navegación principal"
+    "ariaLabel": "Navegación principal",
+    "progress": "Progreso"
   },
   "calculator": {
     "title": "Calculadora de mezcla",
@@ -393,6 +394,14 @@
       "homeBody": "Mirá qué te toca hoy y registrá una dosis con un toque.",
       "historyTitle": "Historial",
       "historyBody": "Tu registro completo — buscá, editá, y exportalo cuando quieras."
+    },
+    "startingPoint": {
+      "title": "Tu punto de partida",
+      "body": "Opcional: tu peso de hoy y una meta, para ver tu avance desde aquí. Podés agregarlos o cambiarlos cuando quieras en Progreso.",
+      "weight": "Peso de hoy ({{unit}})",
+      "goal": "Peso meta ({{unit}}, opcional)",
+      "save": "Guardar y terminar",
+      "skip": "Omitir por ahora"
     }
   },
   "templates": {
@@ -531,5 +540,89 @@
     "legendScheduled": "Programada",
     "dayEmpty": "No hay nada registrado ni programado este día.",
     "upcomingTitle": "Programadas"
+  },
+  "progress": {
+    "settingsTitle": "Meta, unidades y síntomas",
+    "settingsBody": "Definí un peso meta, elegí kg o lb y qué efectos secundarios pregunta el registro diario.",
+    "weightTitle": "Peso",
+    "sinceStart": "{{change}} desde el inicio ({{pct}} %)",
+    "start": "Inicio: {{weight}} el {{date}}",
+    "startBaseline": "Inicio: {{weight}} el {{date}}, antes de tu primera dosis",
+    "goalProgressLabel": "Avance hacia tu meta",
+    "goalLine": "Meta {{goal}} · {{pct}} % del camino",
+    "noWeight": "Registrá tu peso para empezar. El primer registro es tu punto de partida.",
+    "logWeight": "Registrar peso",
+    "logWeightBody": "Elegí una fecha anterior para agregar un peso de antes de tu primera dosis.",
+    "weightLabel": "Peso ({{unit}})",
+    "weightInvalid": "Ingresá un peso entre 20 kg y 400 kg (44–880 lb).",
+    "weightSaved": "Peso guardado",
+    "todayTitle": "Hoy",
+    "noCheckIn": "¿Cómo te sentís? Registrá efectos secundarios, energía, ánimo, sueño y apetito.",
+    "checkIn": "Registrar el día",
+    "editCheckIn": "Editar el registro de hoy",
+    "checkInTitle": "Registro diario",
+    "checkInBody": "Para el {{date}}. Respondé solo lo que quieras; todo es opcional.",
+    "checkInSaved": "Registro guardado",
+    "sideEffects": "Efectos secundarios",
+    "measurements": "Medidas",
+    "addMeasurements": "Agregar medidas (cintura, grasa corporal)",
+    "waist": "Cintura ({{unit}})",
+    "bodyFat": "Grasa corporal (%)",
+    "note": "Nota",
+    "recentCheckIns": "Registros recientes",
+    "recentWeights": "Pesos recientes",
+    "deleteWeight": "Eliminar el peso {{weight}}",
+    "hasNote": "nota",
+    "emptyCheckIn": "Nada registrado",
+    "unit": "Unidad de peso",
+    "goalLabel": "Peso meta ({{unit}})",
+    "goalHint": "Opcional. Dejalo en blanco para no tener meta.",
+    "goalSaved": "Meta guardada",
+    "symptomsTitle": "Efectos secundarios por preguntar",
+    "symptomsHint": "Desactivá los que no aplican o agregá los tuyos.",
+    "removeSymptom": "Quitar {{name}}",
+    "addSymptom": "Agregar síntoma",
+    "addSymptomPlaceholder": "Agregá uno propio, p. ej. hipo",
+    "homePrompt": "¿Cómo estás hoy? Registrá tu peso o tu día."
+  },
+  "checkIn": {
+    "energy": {
+      "label": "Energía",
+      "low": "Baja",
+      "high": "Alta"
+    },
+    "mood": {
+      "label": "Ánimo",
+      "low": "Bajo",
+      "high": "Excelente"
+    },
+    "sleep": {
+      "label": "Sueño",
+      "low": "Malo",
+      "high": "Excelente"
+    },
+    "foodNoise": {
+      "label": "Apetito / antojos",
+      "low": "Tranquilo",
+      "high": "Intenso"
+    }
+  },
+  "symptoms": {
+    "nausea": "Náuseas",
+    "constipation": "Estreñimiento",
+    "diarrhea": "Diarrea",
+    "heartburn": "Acidez o reflujo",
+    "fatigue": "Cansancio",
+    "headache": "Dolor de cabeza",
+    "dizziness": "Mareo",
+    "injection-site-reaction": "Reacción en el sitio de inyección",
+    "injection-pain": "Dolor al inyectar",
+    "removed": "Síntoma eliminado"
+  },
+  "severity": {
+    "none": "Nada",
+    "mild": "Leve",
+    "moderate": "Moderado",
+    "severe": "Severo"
   }
 }

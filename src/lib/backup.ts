@@ -11,15 +11,18 @@ const SNAPSHOT_KEEP = 7
 export type BackupPayload = ValidBackup
 
 export async function buildBackupPayload(): Promise<BackupPayload> {
-  const [protocols, doseLogs, settings, vials, customCompounds, storeRows, userTemplates] = await Promise.all([
-    db.protocols.toArray(),
-    db.doseLogs.toArray(),
-    db.settings.get(SETTINGS_ID),
-    db.vials.toArray(),
-    db.compounds.filter((c) => c.isCustom === true).toArray(),
-    db.compounds.filter((c) => c.source === 'store').toArray(),
-    db.userTemplates.toArray(),
-  ])
+  const [protocols, doseLogs, settings, vials, customCompounds, storeRows, userTemplates, weights, checkIns] =
+    await Promise.all([
+      db.protocols.toArray(),
+      db.doseLogs.toArray(),
+      db.settings.get(SETTINGS_ID),
+      db.vials.toArray(),
+      db.compounds.filter((c) => c.isCustom === true).toArray(),
+      db.compounds.filter((c) => c.source === 'store').toArray(),
+      db.userTemplates.toArray(),
+      db.weights.toArray(),
+      db.checkIns.toArray(),
+    ])
   // The store catalogue isn't the user's data — only the entries their own
   // records use travel, so those still have names after a restore.
   const referenced = new Set([...protocols, ...doseLogs, ...vials, ...userTemplates].map((r) => r.compoundId))
@@ -33,6 +36,8 @@ export async function buildBackupPayload(): Promise<BackupPayload> {
     customCompounds,
     storeCompounds: storeRows.filter((c) => referenced.has(c.id)),
     userTemplates,
+    weights,
+    checkIns,
   }
 }
 
@@ -81,7 +86,7 @@ export function doseLogsToCsv(doseLogs: DoseLog[], vials: Vial[] = []): string {
 
 /**
  * Wipes and replaces all of the user's own data (protocols, dose logs,
- * settings, vials, custom compounds, user templates) from a previously
+ * settings, vials, custom compounds, user templates, weights, check-ins) from a previously
  * exported backup. Catalogue rows in `compounds` are never replaced: a store
  * compound from the file is only added where this device has no store row
  * for that id yet (its own synced one is newer).
@@ -90,12 +95,14 @@ export async function importBackupPayload(input: unknown): Promise<void> {
   // Re-validated here too, not only where a file is picked, so no caller can
   // put unchecked data into the database.
   const payload = parseBackup(input)
-  const tables = [db.protocols, db.doseLogs, db.settings, db.vials, db.compounds, db.userTemplates]
+  const tables = [db.protocols, db.doseLogs, db.settings, db.vials, db.compounds, db.userTemplates, db.weights, db.checkIns]
   await db.transaction('rw', tables, async () => {
     await db.protocols.clear()
     await db.doseLogs.clear()
     await db.vials.clear()
     await db.userTemplates.clear()
+    await db.weights.clear()
+    await db.checkIns.clear()
     const oldCustomIds = await db.compounds.filter((c) => c.isCustom === true).primaryKeys()
     await db.compounds.bulkDelete(oldCustomIds)
     if (payload.protocols.length) await db.protocols.bulkAdd(payload.protocols)
@@ -106,6 +113,8 @@ export async function importBackupPayload(input: unknown): Promise<void> {
     const missingStore = payload.storeCompounds.filter((c) => !syncedStoreIds.has(c.id))
     if (missingStore.length) await db.compounds.bulkPut(missingStore)
     if (payload.userTemplates.length) await db.userTemplates.bulkAdd(payload.userTemplates)
+    if (payload.weights.length) await db.weights.bulkAdd(payload.weights)
+    if (payload.checkIns.length) await db.checkIns.bulkAdd(payload.checkIns)
     if (payload.settings) await db.settings.put({ ...payload.settings, id: SETTINGS_ID })
   })
 

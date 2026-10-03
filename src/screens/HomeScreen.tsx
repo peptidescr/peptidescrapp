@@ -1,5 +1,5 @@
-import { isSameDay } from 'date-fns'
-import { AlertTriangle, Bell, Check, ChevronRight, ClipboardList, Clock3, Flame, Plus, X } from 'lucide-react'
+import { isSameDay, startOfDay } from 'date-fns'
+import { AlertTriangle, Bell, Check, ChevronRight, ClipboardList, Clock3, Flame, HeartPulse, Plus, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -29,6 +29,7 @@ import {
   type TodayStatus,
 } from '../lib/homeData'
 import { getNotificationCapability } from '../lib/notifications'
+import { todayKey } from '../lib/results'
 import { cyclePhase, wouldSettle, type Occurrence } from '../lib/schedule'
 import { useLiveQuery } from '../lib/useLiveQuery'
 import { updateSettings, useSettings } from '../lib/useSettings'
@@ -61,6 +62,7 @@ interface HomeScreenProps {
   onNavigateToProtocols: () => void
   onNavigateToHistory: () => void
   onNavigateToCalculator: () => void
+  onNavigateToProgress: () => void
   /** Tapping a specific protocol (a due/upcoming card): straight to its own edit page. */
   onOpenProtocol: (protocolId: string) => void
 }
@@ -70,6 +72,7 @@ export function HomeScreen({
   onNavigateToProtocols,
   onNavigateToHistory,
   onNavigateToCalculator,
+  onNavigateToProgress,
   onOpenProtocol,
 }: HomeScreenProps) {
   const { t } = useTranslation()
@@ -77,6 +80,14 @@ export function HomeScreen({
   const protocols = useLiveQuery(() => db.protocols.toArray(), [])
   const doseLogs = useLiveQuery(() => db.doseLogs.toArray(), [])
   const vials = useLiveQuery(() => db.vials.toArray(), [])
+  // Whether anything was recorded about today yet — a weight or a check-in.
+  const todayKeyValue = todayKey()
+  const resultsToday = useLiveQuery(
+    async () =>
+      (await db.checkIns.get(todayKeyValue)) !== undefined ||
+      (await db.weights.where('measuredAt').aboveOrEqual(startOfDay(new Date()).toISOString()).count()) > 0,
+    [todayKeyValue],
+  )
   const [now, setNow] = useState(() => new Date())
   const [notificationsOpen, setNotificationsOpen] = useState(false)
 
@@ -235,6 +246,18 @@ export function HomeScreen({
             <EmptyState icon={Clock3} title={t('home.noUpcomingTitle')} body={t('home.noUpcomingBody')} />
           )}
         </section>
+      )}
+
+      {activeProtocols.length > 0 && resultsToday === false && (
+        <button
+          type="button"
+          onClick={onNavigateToProgress}
+          className="flex min-h-11 w-full items-center gap-3 rounded-2xl bg-accent px-4 py-3 text-left text-sm text-foreground"
+        >
+          <HeartPulse aria-hidden className="size-4 shrink-0 text-primary" />
+          <span className="min-w-0 flex-1">{t('progress.homePrompt')}</span>
+          <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+        </button>
       )}
 
       {showGetStarted && (

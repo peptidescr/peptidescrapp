@@ -1867,3 +1867,60 @@ leftover logs, so a 400-day horizon against long histories stays cheap.
   offered logging a weekly dose two days early. Taken asked when; "Just now" plus "Move to
   Saturdays" logged at the real time, moved the schedule to today's weekday, and cleared Catch-up.
   No console errors.
+
+## Tier 1 (2 of 5): results tracking and the Progress tab (October 2026)
+
+Shotsy's core free layer, and present in every top app: what happens to the person, next to what
+they took. Lives in a new fifth tab, **Progress**, as the developer chose.
+
+**Data** (`src/lib/results.ts`, Dexie **v3**: two new tables, nothing to upgrade):
+- `weights`: any number per day, each with its own time, in whole grams. Switching kg/lb never
+  rounds a stored value. Accepted range is 20–400 kg, to catch typos and unit mix-ups.
+- `checkIns`: one per day, keyed by its date. It holds:
+  - energy, mood, sleep and appetite/"food noise" (1–5);
+  - side effects as symptom → severity (mild, moderate, severe; not felt means absent);
+  - optional waist (whole mm) and body fat %;
+  - a note.
+  `cleanCheckIn` keeps only what was answered, and clearing everything deletes the day.
+- Settings gains `weightUnit` (unset means the brand default: lb for USA Peptide Depot, kg for
+  Peptides CR), `goalWeightGrams`, and `symptoms`, which hides built-ins and adds the user's own
+  (up to 30).
+- The built-in symptom list includes injection-site reaction and pain when injecting, as the plan
+  asked.
+- **Start weight** is the earliest weight on record. It's labelled "before your first dose" when
+  it predates the first taken dose, which is Shotsy's baseline. An earlier date can be picked
+  when logging, so a pre-treatment weight can be added afterwards.
+
+**UI:**
+- **Progress tab:**
+  - A weight card with the latest weight, change since start (and %), the start line, and a goal
+    bar ("Goal 180 lb · 12% of the way").
+  - "Today" with the check-in summary or a prompt.
+  - Recent check-ins (tap to edit that day) and recent weights (delete).
+  - A sliders button opens goal, unit (kg/lb, converting what's typed) and the symptom list.
+- **Check-in sheet:** 1–5 chips (tap again to clear), a None/Mild/Moderate/Severe control per
+  symptom, measurements behind "Add measurements", and a note.
+- **Onboarding step 7, "Your starting point":** weight today and an optional goal. It's only
+  shown after a first protocol is saved ("once someone has a protocol"), is skippable, and has no
+  back button, since going back into the saved protocol's form invites a duplicate. The progress
+  bar is now out of 7.
+- **Home:** a quiet "How are you today?" card while there's an active protocol and nothing has been
+  recorded today.
+
+**Backup v4** carries weights and check-ins. Check-ins are rebuilt through `cleanCheckIn`, and
+implausible weights or duplicate days reject the file. The unit, a plausible goal and a cleaned
+symptom list come through settings. v1–v3 still import.
+
+**Verified:**
+- Typecheck, 337/337 tests (new: unit round-trips, progress maths, baseline, check-in cleaning,
+  the symptom list, backup v4), lint (known `App.tsx` error only), i18n 508/508, UPD build.
+- Live on the UPD build at 390px:
+  - Went through real onboarding to the new step, which saved 210 lb as 95,254 g with a 180 lb
+    goal.
+  - Five tabs with no overflow.
+  - Logged an earlier 214 lb weight, which became the start "before your first dose", with
+    "−4 lb since start (1.9%)" and "12% of the way".
+  - The check-in stored only energy 4 and nausea mild, and Today summarised it.
+  - Switching to kg showed 95.3 kg. No console errors.
+- One fix came out of it: before any dose was taken, the start weight wasn't labelled "before your
+  first dose", though it is.

@@ -17,7 +17,8 @@
     "protocols": "Protocols",
     "history": "History",
     "settings": "Settings",
-    "ariaLabel": "Main navigation"
+    "ariaLabel": "Main navigation",
+    "progress": "Progress"
   },
   "calculator": {
     "title": "Mixing calculator",
@@ -393,6 +394,14 @@
       "homeBody": "See what's due today and log a dose with one tap.",
       "historyTitle": "History",
       "historyBody": "Your full record — searchable, editable, and yours to export anytime."
+    },
+    "startingPoint": {
+      "title": "Your starting point",
+      "body": "Optional: your weight today and a goal, so you can see your progress from here. You can add or change these any time in Progress.",
+      "weight": "Weight today ({{unit}})",
+      "goal": "Goal weight ({{unit}}, optional)",
+      "save": "Save and finish",
+      "skip": "Skip for now"
     }
   },
   "templates": {
@@ -531,5 +540,89 @@
     "legendScheduled": "Scheduled",
     "dayEmpty": "Nothing logged or scheduled on this day.",
     "upcomingTitle": "Scheduled"
+  },
+  "progress": {
+    "settingsTitle": "Goal, units and symptoms",
+    "settingsBody": "Set a goal weight, pick kg or lb, and choose which side effects the daily check-in asks about.",
+    "weightTitle": "Weight",
+    "sinceStart": "{{change}} since start ({{pct}}%)",
+    "start": "Start: {{weight}} on {{date}}",
+    "startBaseline": "Start: {{weight}} on {{date}}, before your first dose",
+    "goalProgressLabel": "Progress toward your goal",
+    "goalLine": "Goal {{goal}} · {{pct}}% of the way",
+    "noWeight": "Log your weight to start tracking. Your first entry becomes your starting point.",
+    "logWeight": "Log weight",
+    "logWeightBody": "Pick an earlier date to add a weight from before your first dose.",
+    "weightLabel": "Weight ({{unit}})",
+    "weightInvalid": "Enter a weight between 20 kg and 400 kg (44–880 lb).",
+    "weightSaved": "Weight saved",
+    "todayTitle": "Today",
+    "noCheckIn": "How are you feeling? Record side effects, energy, mood, sleep and appetite.",
+    "checkIn": "Check in",
+    "editCheckIn": "Edit today's check-in",
+    "checkInTitle": "Daily check-in",
+    "checkInBody": "For {{date}}. Answer only what you want to; everything is optional.",
+    "checkInSaved": "Check-in saved",
+    "sideEffects": "Side effects",
+    "measurements": "Measurements",
+    "addMeasurements": "Add measurements (waist, body fat)",
+    "waist": "Waist ({{unit}})",
+    "bodyFat": "Body fat (%)",
+    "note": "Note",
+    "recentCheckIns": "Recent check-ins",
+    "recentWeights": "Recent weights",
+    "deleteWeight": "Delete weight {{weight}}",
+    "hasNote": "note",
+    "emptyCheckIn": "Nothing recorded",
+    "unit": "Weight unit",
+    "goalLabel": "Goal weight ({{unit}})",
+    "goalHint": "Optional. Leave blank to have no goal.",
+    "goalSaved": "Goal saved",
+    "symptomsTitle": "Side effects to ask about",
+    "symptomsHint": "Turn off the ones that don’t apply, or add your own.",
+    "removeSymptom": "Remove {{name}}",
+    "addSymptom": "Add symptom",
+    "addSymptomPlaceholder": "Add your own, e.g. hiccups",
+    "homePrompt": "How are you today? Log your weight or check in."
+  },
+  "checkIn": {
+    "energy": {
+      "label": "Energy",
+      "low": "Low",
+      "high": "High"
+    },
+    "mood": {
+      "label": "Mood",
+      "low": "Low",
+      "high": "Great"
+    },
+    "sleep": {
+      "label": "Sleep",
+      "low": "Poor",
+      "high": "Great"
+    },
+    "foodNoise": {
+      "label": "Appetite / food noise",
+      "low": "Quiet",
+      "high": "Loud"
+    }
+  },
+  "symptoms": {
+    "nausea": "Nausea",
+    "constipation": "Constipation",
+    "diarrhea": "Diarrhea",
+    "heartburn": "Heartburn or reflux",
+    "fatigue": "Fatigue",
+    "headache": "Headache",
+    "dizziness": "Dizziness",
+    "injection-site-reaction": "Injection-site reaction",
+    "injection-pain": "Pain when injecting",
+    "removed": "Removed symptom"
+  },
+  "severity": {
+    "none": "None",
+    "mild": "Mild",
+    "moderate": "Moderate",
+    "severe": "Severe"
   }
 }

@@ -124,7 +124,7 @@ describe('parseBackup', () => {
   it('rejects wrong versions, wrong shapes, duplicate ids and oversized lists', () => {
     expect(() => parseBackup(null)).toThrow()
     expect(() => parseBackup([])).toThrow()
-    expect(() => parseBackup(backup({ version: 4 }))).toThrow()
+    expect(() => parseBackup(backup({ version: 5 }))).toThrow()
     expect(() => parseBackup(backup({ version: '2' }))).toThrow()
     expect(() => parseBackup(backup({ protocols: 'x' }))).toThrow()
     expect(() => parseBackup(backup({ protocols: [protocol, protocol] }))).toThrow()
@@ -218,7 +218,7 @@ describe('parseBackup, format v2 (vials, custom compounds, user templates)', () 
 
   it('still imports a v1 file, with the newer collections empty', () => {
     const result = parseBackup(backup({ version: 1 }))
-    expect(result.version).toBe(3)
+    expect(result.version).toBe(4)
     expect(result.protocols).toHaveLength(1)
     expect(result.vials).toEqual([])
     expect(result.customCompounds).toEqual([])
@@ -366,5 +366,50 @@ describe('parseBackup, injection sites', () => {
   it('turns tracking off rather than failing when no known site is left', () => {
     const result = parseBackup(backup({ protocols: [{ ...protocol, siteTracking: { sites: ['knee'] } }] }))
     expect(result.protocols[0]?.siteTracking).toBeUndefined()
+  })
+})
+
+describe('parseBackup, format v4 (results tracking)', () => {
+  const weight = { id: 'w1', measuredAt: '2026-03-02T07:00:00.000Z', grams: 98_500, createdAt: '2026-03-02T07:00:00.000Z' }
+  const checkIn = {
+    date: '2026-03-02',
+    energy: 4,
+    foodNoise: 2,
+    sideEffects: { nausea: 2, 'custom-1': 1, bogus: 9 },
+    waistMm: 940,
+    note: 'Felt fine',
+    updatedAt: '2026-03-02T20:00:00.000Z',
+  }
+
+  it('round-trips weights and check-ins, cleaning invalid answers', () => {
+    const result = parseBackup(backup({ weights: [weight], checkIns: [checkIn, { date: '2026-03-03', energy: 9 }] }))
+    expect(result.weights).toEqual([weight])
+    expect(result.checkIns).toEqual([
+      { ...checkIn, sideEffects: { nausea: 2, 'custom-1': 1 } },
+    ]) // the second held nothing valid
+  })
+
+  it('rejects implausible weights and duplicate days', () => {
+    expect(() => parseBackup(backup({ weights: [{ ...weight, grams: 5 }] }))).toThrow()
+    expect(() => parseBackup(backup({ checkIns: [checkIn, checkIn] }))).toThrow()
+  })
+
+  it('keeps the unit, a plausible goal and the symptom list from settings', () => {
+    const result = parseBackup(
+      backup({
+        settings: {
+          locale: 'en',
+          syringeType: 'U-100',
+          weightUnit: 'lb',
+          goalWeightGrams: 80_000,
+          symptoms: { hidden: ['nausea', 'not-a-symptom'], custom: [{ id: 'custom-1', name: ' Hiccups ' }, { id: 'x', name: 'Bad' }] },
+        },
+      }),
+    )
+    expect(result.settings).toMatchObject({
+      weightUnit: 'lb',
+      goalWeightGrams: 80_000,
+      symptoms: { hidden: ['nausea'], custom: [{ id: 'custom-1', name: 'Hiccups' }] },
+    })
   })
 })

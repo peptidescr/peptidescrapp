@@ -1,8 +1,8 @@
-import { Calculator, ClipboardList, History, Home, Settings } from 'lucide-react'
+import { Calculator, ClipboardList, History, Home, Settings, TrendingUp } from 'lucide-react'
 import { motion } from 'motion/react'
 import type { ComponentType } from 'react'
 
-export type Tab = 'home' | 'calculator' | 'protocols' | 'history' | 'settings'
+export type Tab = 'home' | 'calculator' | 'protocols' | 'progress' | 'history' | 'settings'
 
 interface TabBarProps {
   active: Tab
@@ -15,12 +15,13 @@ interface TabBarProps {
 // (AppBar.tsx), per the client's explicit request to keep it pinned to the top
 // of the screen. `Tab` keeps 'settings' as a valid app screen; this bar just
 // doesn't offer a way to reach it.
-const TABS: Tab[] = ['home', 'calculator', 'protocols', 'history']
+const TABS: Tab[] = ['home', 'calculator', 'protocols', 'progress', 'history']
 
 const ICONS: Record<Tab, ComponentType<{ className?: string }>> = {
   home: Home,
   calculator: Calculator,
   protocols: ClipboardList,
+  progress: TrendingUp,
   history: History,
   settings: Settings,
 }

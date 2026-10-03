@@ -18,6 +18,7 @@ import { CalculatorScreen } from './screens/CalculatorScreen'
 import { LegalGate, OnboardingScreen } from './screens/OnboardingScreen'
 import { ProtocolsScreen } from './screens/ProtocolsScreen'
 import { HistoryScreen } from './screens/HistoryScreen'
+import { ProgressScreen } from './screens/ProgressScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 
 type Gate = 'loading' | 'onboarding' | 'legalReaccept' | 'app'
@@ -207,6 +208,7 @@ function App() {
     home: t('nav.home'),
     calculator: t('nav.calculator'),
     protocols: t('nav.protocols'),
+    progress: t('nav.progress'),
     history: t('nav.history'),
     settings: t('nav.settings'),
   }
@@ -255,6 +257,7 @@ function App() {
               onNavigateToProtocols={() => goToTab('protocols')}
               onNavigateToHistory={() => goToTab('history')}
               onNavigateToCalculator={() => goToTab('calculator')}
+              onNavigateToProgress={() => goToTab('progress')}
               onOpenProtocol={openProtocolEditor}
             />
           )}
@@ -268,6 +271,7 @@ function App() {
               initialProtocolId={editProtocolId}
             />
           )}
+          {tab === 'progress' && <ProgressScreen />}
           {tab === 'history' && <HistoryScreen onOpenProtocol={openProtocolEditor} />}
           {tab === 'settings' && <SettingsScreen />}
         </motion.div>

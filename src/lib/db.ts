@@ -2,6 +2,7 @@ import Dexie, { type EntityTable } from 'dexie'
 import { COMPOUNDS, type Compound } from '../content/compounds'
 import type { Schedule } from './schedule'
 import type { SiteId } from './injectionSites'
+import type { CheckIn, SymptomPrefs, WeightEntry, WeightUnit } from './results'
 import type { Titration } from './titration'
 import type { Locale, SyringeType, ThemeMode } from './units'
 
@@ -127,6 +128,12 @@ export interface Settings {
    * Missing/undefined means 'system' — see src/lib/theme.ts for resolution.
    */
   theme?: ThemeMode
+  /** Results tracking (src/lib/results.ts): display unit for weight; unset = the brand's default. */
+  weightUnit?: WeightUnit
+  /** Goal weight in whole grams, if the user set one. */
+  goalWeightGrams?: number
+  /** The user's edits to the side-effect symptom list. */
+  symptoms?: SymptomPrefs
 }
 
 export type VialStatus = 'active' | 'finished' | 'discarded'
@@ -206,6 +213,8 @@ class PeptidesDB extends Dexie {
   snapshots!: EntityTable<Snapshot, 'id'>
   vials!: EntityTable<Vial, 'id'>
   userTemplates!: EntityTable<UserTemplate, 'id'>
+  weights!: EntityTable<WeightEntry, 'id'>
+  checkIns!: EntityTable<CheckIn, 'date'>
 
   constructor() {
     super('peptidescr')
@@ -225,6 +234,12 @@ class PeptidesDB extends Dexie {
     this.version(2).stores({
       vials: 'id, compoundId, protocolId',
       userTemplates: 'id',
+    })
+    // v3: results tracking — weights (any number a day) and one check-in per
+    // day, keyed by its date. New tables only, nothing to upgrade.
+    this.version(3).stores({
+      weights: 'id, measuredAt',
+      checkIns: 'date',
     })
   }
 }

@@ -14,7 +14,8 @@
  * Format versions: 1 (Phase 1: protocols, dose logs, settings), 2 (adds
  * vials, custom compounds and user templates) and 3 (adds the store
  * compounds the user's records refer to, so a restore onto a fresh device
- * doesn't show bare ids before its first catalogue sync). All import; an
+ * doesn't show bare ids before its first catalogue sync) and 4 (adds results
+ * tracking: weights and daily check-ins). All import; an
  * older file simply restores without the newer collections. Exports are
  * always the latest.
  */
@@ -32,10 +33,24 @@ import {
 } from './sanitize'
 import type { CycleInnerSchedule, Schedule, Weekday } from './schedule'
 import { isSiteId, type SiteId } from './injectionSites'
+import {
+  BUILT_IN_SYMPTOMS,
+  cleanCheckIn,
+  isEmptyCheckIn,
+  isPlausibleWeight,
+  MAX_CUSTOM_SYMPTOMS,
+  MAX_WEIGHT_GRAMS,
+  MIN_WEIGHT_GRAMS,
+  type CheckIn,
+  type Rating,
+  type Severity,
+  type SymptomPrefs,
+  type WeightEntry,
+} from './results'
 import { MAX_TITRATION_STEPS, type Titration } from './titration'
 
-export const BACKUP_VERSION = 3
-const SUPPORTED_VERSIONS: readonly unknown[] = [1, 2, 3]
+export const BACKUP_VERSION = 4
+const SUPPORTED_VERSIONS: readonly unknown[] = [1, 2, 3, 4]
 export const MAX_BACKUP_BYTES = 20 * 1024 * 1024
 const MAX_PROTOCOLS = 1000
 const MAX_DOSE_LOGS = 200_000
@@ -46,6 +61,9 @@ const MAX_USER_TEMPLATES = 500
 const MAX_VIAL_SIZES = 20
 const MAX_STORE_TEXT = 200
 const MAX_ALIASES = 10
+const MAX_WEIGHTS = 50_000
+const MAX_CHECK_INS = 20_000
+const MAX_SIDE_EFFECTS_PER_DAY = 60
 export const MAX_LOT_LENGTH = 40
 const MAX_ID_LENGTH = 100
 const MAX_REMINDER_TIMES = 12
@@ -61,6 +79,8 @@ export interface ValidBackup {
   customCompounds: Compound[]
   storeCompounds: Compound[]
   userTemplates: UserTemplate[]
+  weights: WeightEntry[]
+  checkIns: CheckIn[]
 }
 
 class InvalidBackupError extends Error {}
@@ -360,6 +380,62 @@ function storeCompound(value: unknown): Compound {
   return result
 }
 
+function weightEntry(value: unknown): WeightEntry {
+  if (!isRecord(value)) fail('weight')
+  const grams = finiteNumber(value.grams, 'weight.grams', MIN_WEIGHT_GRAMS, MAX_WEIGHT_GRAMS)
+  return {
+    id: str(value.id, 'weight.id'),
+    measuredAt: isoDateTime(value.measuredAt, 'weight.measuredAt'),
+    grams: Math.round(grams),
+    createdAt: isoDateTime(value.createdAt ?? value.measuredAt, 'weight.createdAt'),
+  }
+}
+
+/** Rebuilt through the same cleaner the app saves with, so only valid answers survive. */
+function checkIn(value: unknown): CheckIn {
+  if (!isRecord(value)) fail('check-in')
+  const date = isoDate(value.date, 'checkIn.date')
+  const rating = (v: unknown) => (typeof v === 'number' ? (v as Rating) : undefined)
+  let sideEffects: Record<string, Severity> | undefined
+  if (isRecord(value.sideEffects)) {
+    sideEffects = {}
+    for (const [id, severity] of Object.entries(value.sideEffects).slice(0, MAX_SIDE_EFFECTS_PER_DAY)) {
+      if (id.length <= MAX_ID_LENGTH && typeof severity === 'number') sideEffects[id] = severity as Severity
+    }
+  }
+  return cleanCheckIn(
+    {
+      date,
+      energy: rating(value.energy),
+      mood: rating(value.mood),
+      sleep: rating(value.sleep),
+      foodNoise: rating(value.foodNoise),
+      sideEffects,
+      waistMm: typeof value.waistMm === 'number' ? value.waistMm : undefined,
+      bodyFatPct: typeof value.bodyFatPct === 'number' ? value.bodyFatPct : undefined,
+      note: typeof value.note === 'string' ? value.note : undefined,
+    },
+    isoDateTime(value.updatedAt ?? `${date}T00:00:00.000Z`, 'checkIn.updatedAt'),
+  )
+}
+
+/** Symptom list edits are a preference: anything malformed is dropped, not fatal. */
+function symptomPrefs(value: unknown): SymptomPrefs | undefined {
+  if (!isRecord(value)) return undefined
+  const builtIns: readonly string[] = BUILT_IN_SYMPTOMS
+  const hidden = Array.isArray(value.hidden)
+    ? value.hidden.filter((id): id is string => typeof id === 'string' && builtIns.includes(id))
+    : []
+  const custom = Array.isArray(value.custom)
+    ? value.custom
+        .slice(0, MAX_CUSTOM_SYMPTOMS)
+        .filter(isRecord)
+        .map((c) => ({ id: String(c.id ?? ''), name: sanitizeText(String(c.name ?? ''), MAX_NAME_LENGTH).trim() }))
+        .filter((c) => c.id.startsWith('custom-') && c.id.length <= MAX_ID_LENGTH && c.name)
+    : []
+  return { hidden: [...new Set(hidden)], custom }
+}
+
 function userTemplate(value: unknown): UserTemplate {
   if (!isRecord(value)) fail('template')
   // Same field rules as a protocol — reuse its validator on a protocol-shaped view.
@@ -404,6 +480,12 @@ function settings(value: unknown): Settings | undefined {
     if (value[key] !== undefined) result[key] = isoDateTime(value[key], `settings.${key}`)
   }
   if (typeof value.hasUsedCalculator === 'boolean') result.hasUsedCalculator = value.hasUsedCalculator
+  if (value.weightUnit === 'kg' || value.weightUnit === 'lb') result.weightUnit = value.weightUnit
+  if (typeof value.goalWeightGrams === 'number' && isPlausibleWeight(value.goalWeightGrams)) {
+    result.goalWeightGrams = Math.round(value.goalWeightGrams)
+  }
+  const symptoms = symptomPrefs(value.symptoms)
+  if (symptoms) result.symptoms = symptoms
   return result
 }
 
@@ -423,9 +505,12 @@ export function parseBackup(input: unknown): ValidBackup {
   const customCompounds = optionalList(input.customCompounds, MAX_CUSTOM_COMPOUNDS, customCompound, 'custom compounds')
   const storeCompounds = optionalList(input.storeCompounds, MAX_STORE_COMPOUNDS, storeCompound, 'store compounds')
   const userTemplates = optionalList(input.userTemplates, MAX_USER_TEMPLATES, userTemplate, 'templates')
-  for (const list of [protocols, doseLogs, vials, customCompounds, storeCompounds, userTemplates]) {
+  const weights = optionalList(input.weights, MAX_WEIGHTS, weightEntry, 'weights')
+  const checkIns = optionalList(input.checkIns, MAX_CHECK_INS, checkIn, 'check-ins')
+  for (const list of [protocols, doseLogs, vials, customCompounds, storeCompounds, userTemplates, weights]) {
     if (new Set(list.map((r) => r.id)).size !== list.length) fail('duplicate ids')
   }
+  if (new Set(checkIns.map((c) => c.date)).size !== checkIns.length) fail('duplicate check-in dates')
 
   // A link to a vial that isn't in the file is dropped, not fatal: the dose
   // itself is still a true record, it just no longer counts against a vial.
@@ -444,5 +529,8 @@ export function parseBackup(input: unknown): ValidBackup {
     customCompounds,
     storeCompounds,
     userTemplates,
+    weights,
+    // A check-in that held nothing valid is dropped rather than restored empty.
+    checkIns: checkIns.filter((c) => !isEmptyCheckIn(c)),
   }
 }
