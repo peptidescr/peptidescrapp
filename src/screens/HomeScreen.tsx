@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { DoseCard, DueCard } from '../components/DoseCard'
+import { DoseChangeCard } from '../components/DoseChangeCard'
 import { EmptyState } from '../components/EmptyState'
 import { NotificationPanel } from '../components/NotificationPanel'
 import { VialAlertCard } from '../components/VialAlertCard'
@@ -13,6 +14,7 @@ import { getCompoundById } from '../content/compounds'
 import { formatDate, formatTime } from '../lib/dates'
 import { db, type DoseLog, type Protocol } from '../lib/db'
 import {
+  computeDoseChanges,
   computeDueItems,
   computeGetStartedSteps,
   computeOverallAdherence,
@@ -111,6 +113,7 @@ export function HomeScreen({
     () => computeVialAlerts(vials ?? [], protocols ?? [], doseLogs ?? [], now),
     [vials, protocols, doseLogs, now],
   )
+  const doseChanges = useMemo(() => computeDoseChanges(protocols ?? [], now), [protocols, now])
   const adherence = useMemo(
     () => computeOverallAdherence(protocols ?? [], doseLogs ?? [], now),
     [protocols, doseLogs, now],
@@ -135,7 +138,8 @@ export function HomeScreen({
   // inside the panel it opens.
   const capability = getNotificationCapability()
   const notifNudgeCount = capability.supported && (capability.requiresInstallOnIOS || capability.permission === 'default') ? 1 : 0
-  const notificationCount = dueItems.length + vialAlerts.length + (showBackupNudge ? 1 : 0) + notifNudgeCount
+  const notificationCount =
+    dueItems.length + vialAlerts.length + doseChanges.length + (showBackupNudge ? 1 : 0) + notifNudgeCount
 
   return (
     <div className="flex flex-col gap-7 px-4 pb-6 pt-2">
@@ -156,6 +160,7 @@ export function HomeScreen({
         protocols={protocols ?? []}
         doseLogs={doseLogs ?? []}
         vialAlerts={vialAlerts}
+        doseChanges={doseChanges}
         settings={settings}
         now={now}
         onNavigateToSettings={onNavigateToSettings}
@@ -187,6 +192,15 @@ export function HomeScreen({
           <SectionTitle>{t('vialAlerts.title')}</SectionTitle>
           {vialAlerts.map((alert) => (
             <VialAlertCard key={vialAlertKey(alert)} alert={alert} onOpenProtocol={onOpenProtocol} />
+          ))}
+        </section>
+      )}
+
+      {doseChanges.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <SectionTitle>{t('doseChange.title')}</SectionTitle>
+          {doseChanges.map((item) => (
+            <DoseChangeCard key={item.protocol.id} item={item} now={now} onOpenProtocol={onOpenProtocol} />
           ))}
         </section>
       )}

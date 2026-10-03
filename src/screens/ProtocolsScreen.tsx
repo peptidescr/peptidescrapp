@@ -44,11 +44,12 @@ import { ProtocolSavedPrompt } from '../components/ProtocolSavedPrompt'
 import { CustomCompoundSheet } from '../components/CustomCompoundSheet'
 import { SyringeGraphic } from '../components/SyringeGraphic'
 import { TemplatePicker } from '../components/TemplatePicker'
+import { TitrationEditor } from '../components/TitrationEditor'
 import { VialStrip } from '../components/VialStrip'
 import { compareAlphabetical, getCompoundById } from '../content/compounds'
 import { toCompoundOptions, useSelectableCompounds } from '../lib/customCompounds'
 import { PROTOCOL_TEMPLATES, type ProtocolTemplate } from '../content/protocolTemplates'
-import { formatDateTime, toIsoDate } from '../lib/dates'
+import { formatDate, formatDateTime, toIsoDate } from '../lib/dates'
 import { db, type DoseLog, type Protocol, type Route, type Vial } from '../lib/db'
 import { computeAdherence, computeProtocolStats } from '../lib/homeData'
 import { scheduleUpcomingReminders } from '../lib/notifications'
@@ -64,6 +65,8 @@ import {
 } from '../lib/sanitize'
 import { cyclePhase, type CycleInnerSchedule, type Schedule, type Weekday } from '../lib/schedule'
 import { parseScheduleFields, scheduleFields, type ScheduleFields } from '../lib/scheduleForm'
+import { parseTitrationFields, titrationFields, type TitrationFields } from '../lib/titrationForm'
+import { doseOn, formatDose, nextDoseChange, sameDose } from '../lib/titration'
 import { cyclePhaseText } from '../lib/cycleText'
 import { useLiveQuery } from '../lib/useLiveQuery'
 import { formatDecimal, type Locale, type MassUnit } from '../lib/units'
@@ -221,6 +224,7 @@ export function ProtocolsScreen({ onReconstitute, initialCompoundId, initialProt
                         doseLogs={doseLogs ?? []}
                         vials={vials ?? []}
                         onEdit={() => setMode({ kind: 'form', protocolId: protocol.id })}
+                        onReconstitute={onReconstitute}
                       />
                     </motion.div>
                   ))}
@@ -239,11 +243,13 @@ function ProtocolRow({
   doseLogs,
   vials,
   onEdit,
+  onReconstitute,
 }: {
   protocol: Protocol
   doseLogs: DoseLog[]
   vials: Vial[]
   onEdit: () => void
+  onReconstitute: (protocolId: string) => void
 }) {
   const { t, i18n } = useTranslation()
   const locale = i18n.language as Locale
@@ -254,6 +260,14 @@ function ProtocolRow({
   const stats = useMemo(() => computeProtocolStats(protocol, doseLogs, new Date()), [protocol, doseLogs])
   const adherence = useMemo(() => computeAdherence(protocol, doseLogs, new Date()), [protocol, doseLogs])
   const phase = protocol.isActive ? cyclePhase(protocol, new Date()) : null
+  const today = new Date()
+  const currentDose = doseOn(protocol, today)
+  const nextChange = protocol.isActive ? nextDoseChange(protocol, today) : null
+  // A titration step can move today's dose away from the one the saved mix was
+  // worked out for. Only flagged then: a fixed-dose protocol's mix may be for
+  // another dose on purpose, and its summary already says which.
+  const mix = protocol.reconstitution
+  const mixIsForOtherDose = currentDose.stepIndex !== null && mix !== undefined && !sameDose(mix, currentDose)
 
   async function toggleActive() {
     setMenuOpen(false)
@@ -331,7 +345,16 @@ function ProtocolRow({
           {protocol.schedule.kind === 'cycleWeeks'
             ? t('cycle.summary', { on: protocol.schedule.weeksOn, off: protocol.schedule.weeksOff })
             : t(`schedule.${protocol.schedule.kind}`)}{' '}
-          · <span className="whitespace-nowrap">{protocol.doseAmount} {protocol.doseUnit}</span>
+          · <span className="whitespace-nowrap">{formatDose(currentDose)}</span>
+          {nextChange && (
+            <span className="whitespace-nowrap text-muted-foreground">
+              {' → '}
+              {t('protocols.doseNext', {
+                dose: formatDose({ amount: nextChange.to, unit: nextChange.unit }),
+                date: formatDate(nextChange.on),
+              })}
+            </span>
+          )}
         </span>
         {!protocol.isActive && <Badge variant="outline">{t('protocols.pausedBadge')}</Badge>}
         {stats.missedCount > 0 && (
@@ -374,6 +397,19 @@ function ProtocolRow({
             drawUnits={protocol.reconstitution.drawSyringeUnits}
             syringeType={protocol.reconstitution.syringeType}
           />
+          {mixIsForOtherDose && (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2">
+              <span className="min-w-0 flex-1 text-xs text-brand-warn">
+                {t('protocols.mixForOtherDose', {
+                  saved: formatDose({ amount: protocol.reconstitution.doseAmount, unit: protocol.reconstitution.doseUnit }),
+                  current: formatDose(currentDose),
+                })}
+              </span>
+              <Button size="sm" variant="secondary" onClick={() => onReconstitute(protocol.id)}>
+                {t('protocols.recalculate')}
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
@@ -520,6 +556,8 @@ export function ProtocolForm({
   const [hasEndDate, setHasEndDate] = useState(false)
   const [endDate, setEndDate] = useState('')
   const [route, setRoute] = useState<Route>(template?.route ?? 'subcutaneous')
+  const [titrationState, setTitrationState] = useState<TitrationFields>(() => titrationFields())
+  const setTitration = (patch: Partial<TitrationFields>) => setTitrationState((f) => ({ ...f, ...patch }))
 
   if (existing && !loaded) {
     setName(existing.name)
@@ -532,6 +570,7 @@ export function ProtocolForm({
     setHasEndDate(Boolean(existing.endDate))
     setEndDate(existing.endDate ?? '')
     setRoute(existing.route)
+    setTitrationState(titrationFields(existing.titration))
     setLoaded(true)
   }
 
@@ -550,6 +589,7 @@ export function ProtocolForm({
   const doseValue = parsePositiveAmount(doseAmount)
   const parsed = parseScheduleFields(fields)
   const schedule = parsed.schedule
+  const parsedTitration = parseTitrationFields(titrationState, doseValue)
   const showsEveryN = scheduleKind === 'everyNDays' || (scheduleKind === 'cycleWeeks' && fields.cycleInner === 'everyNDays')
   const showsWeekdays = scheduleKind === 'weekdays' || (scheduleKind === 'cycleWeeks' && fields.cycleInner === 'weekdays')
 
@@ -559,10 +599,11 @@ export function ProtocolForm({
     doseValue !== null &&
     reminderTimes.length > 0 &&
     !needsCustomDays &&
-    schedule !== null
+    schedule !== null &&
+    parsedTitration.titration !== null
 
   async function handleSave() {
-    if (!compound || doseValue === null || schedule === null) return
+    if (!compound || doseValue === null || schedule === null || parsedTitration.titration === null) return
     // A hand-picked schedule has no meaningful start/end of its own — its
     // first and last picked days are the start and end, which also keeps
     // "ongoing" and "next dose" logic elsewhere honest without special cases.
@@ -596,6 +637,7 @@ export function ProtocolForm({
       // A saved mix is for one specific compound; carrying it across a change
       // of compound would show the wrong draw volume.
       reconstitution: existing?.compoundId === compound.id ? existing.reconstitution : undefined,
+      titration: parsedTitration.titration,
     }
     await db.protocols.put(protocol)
     void rescheduleReminders()
@@ -670,7 +712,7 @@ export function ProtocolForm({
         />
       </FormField>
 
-      <FormField label={t('protocols.doseAmount')}>
+      <FormField label={titrationState.on ? t('protocols.startingDose') : t('protocols.doseAmount')}>
         <div className="flex gap-2">
           <NumericInput
             kind="decimal"
@@ -695,6 +737,21 @@ export function ProtocolForm({
           )}
         </div>
       </FormField>
+
+      <label className="-mt-2 flex min-h-11 items-center justify-between gap-3">
+        <span className="text-sm font-medium text-foreground">{t('protocols.titrationToggle')}</span>
+        <Switch checked={titrationState.on} onCheckedChange={(on) => setTitration({ on })} />
+      </label>
+
+      {titrationState.on && (
+        <TitrationEditor
+          fields={titrationState}
+          parsed={parsedTitration}
+          firstDose={doseValue}
+          unit={doseUnit}
+          onChange={setTitration}
+        />
+      )}
 
       <FormField label={t('protocols.schedule')}>
         <Select value={scheduleKind} onValueChange={(v) => setField('kind', v as Schedule['kind'])}>

@@ -319,3 +319,30 @@ describe('parseBackup, format v3 (store compounds the records use)', () => {
     expect(parseBackup(backup({ version: 2 })).storeCompounds).toEqual([])
   })
 })
+
+describe('parseBackup, titration', () => {
+  const steps = [
+    { doseAmount: 2.5, weeks: 4 },
+    { doseAmount: 5, weeks: 4 },
+  ]
+
+  it('keeps a titration, with the plain dose held to its first step', () => {
+    const result = parseBackup(backup({ protocols: [{ ...protocol, doseAmount: 99, titration: { steps } }] }))
+    expect(result.protocols[0]?.titration).toEqual({ steps })
+    expect(result.protocols[0]?.doseAmount).toBe(2.5)
+  })
+
+  it('rejects one with too few or bad steps', () => {
+    const bad = [
+      { steps: [steps[0]] },
+      { steps: [steps[0], { doseAmount: 0, weeks: 4 }] },
+      { steps: [steps[0], { doseAmount: 5, weeks: 0 }] },
+      { steps: [steps[0], { doseAmount: 5, weeks: 1.5 }] },
+      { steps: Array.from({ length: 13 }, () => steps[0]) },
+      'steps',
+    ]
+    for (const titration of bad) {
+      expect(() => parseBackup(backup({ protocols: [{ ...protocol, titration }] }))).toThrow()
+    }
+  })
+})

@@ -1682,3 +1682,63 @@ crafted file can't nest cycles inside cycles. It drops a washout that has no cyc
   - No overflow and no console errors.
   - Two 320px Spanish layout defects were found and fixed: the paired week inputs misaligned when
     one label wrapped, and "250 mcg" split across lines on the card.
+
+## Phase 2, batch 2 (3 of 5): titration, moved up from Phase 4 (October 2026)
+
+The proposal moves titration into Phase 2 if GLP-1s are a big part of the business. Both stores
+list many GLP-1 sizes, so the developer chose to include it. Decided with them: steps advance **by
+themselves** on their dates, with a heads-up a few days ahead, and the last step holds.
+
+**Model** (`src/lib/titration.ts`): `Protocol.titration = { steps: [{ doseAmount, weeks }] }`, at
+least 2 and at most 12 steps, all in the protocol's `doseUnit`. It's optional and unindexed, so
+there's no Dexie bump.
+- Steps run in **calendar weeks from the start date**; off weeks in a weeks cycle count. That makes
+  each change a fixed date that can be announced ahead, rather than one that drifts with every off
+  or paused stretch. The form says so.
+- `doseAmount` is kept equal to step 1, so anything not taught about titration still reads a real
+  dose. Backup import enforces that too.
+- `doseOn(protocol, day)` gives the dose in force on a day; `nextDoseChange` and `doseChangeNotice`
+  give the next change and whether to announce it (3 days ahead, and on the day itself).
+
+**Every dose read is now date-aware:**
+- Logging (`logProtocolDose` records the dose on the day administered, so a backfill gets that
+  day's step).
+- Dose cards, History's calendar rows, the protocol card ("2.5 mg → 5 mg from 04/10/2026"), the
+  calculator prefill (today's step) and the "next step: reconstitute" prompt.
+- Foreground notifications, and the service worker's closed-app text. The service worker carries
+  a plain-JS `doseOnDay`. A test lifts it out of the file (`?raw` import) and checks it against
+  `doseOn` for every day of a year, at 07:00 and 23:00, including across DST.
+- **Vials:** with a titration, doses-left walks the upcoming doses at each one's own amount, so a
+  step up shortens the run. In the test, 10 mg covers 3 doses where a fixed 2.5 mg would cover 4.
+  A vial that outlasts the 400-day look-ahead counts the rest at the latest step and shows no
+  run-out date, the same as the fixed-dose case.
+- `formatDose` uses a non-breaking space, so "2.5 mg" never splits across lines at 320px.
+
+**Heads-up:** `computeDoseChanges` (`homeData.ts`) feeds a "Dose changes" section on Home and the
+bell panel from one list, and the bell count includes it. `DoseChangeCard` uses the calm accent
+tint; a planned change isn't a warning. It isn't pushed.
+
+**Saved mix:** when today's step differs from the dose a saved mix was worked out for, the mix panel
+says so and offers **Recalculate**, which opens the calculator at today's dose. This only happens for
+titrated protocols. A fixed-dose protocol's mix may be for another dose on purpose, and its summary
+already says which.
+
+**Form:** a "Change the dose over time" switch under the dose, which becomes "Starting dose". The
+editor (`TitrationEditor`, logic in `src/lib/titrationForm.ts`) shows step 1 from the dose field
+plus its weeks. Later steps each have a dose and weeks, except the last ("Then holds until the
+end"). There's add/remove, a 12-step cap, and invalid input disables Save.
+
+**Verified:**
+- Typecheck, 306/306 tests (new: step boundaries, before-start, single-step, change notices, the
+  service-worker parity check, the vial walk, form round-trips and refusals, backup validation),
+  lint (known `App.tsx` error only), i18n 379/379, both builds.
+- Live in headless Chrome on Peptides CR at 390px and 320px:
+  - Heads-ups for a change in 2 days and one today, on Home and in the bell.
+  - The due card showed the new step's 5 mg, and Taken logged 5000 mcg.
+  - The card showed "→ 5 mg from …", and the vial read 3 doses, enough until the step day.
+  - The saved-mix notice's Recalculate opened the calculator at 5.
+  - The plan loaded back into the edit form, with no overflow and no console errors.
+- A tooling slip was caught by lint: escape sequences typed into tool calls become literal
+  characters, so a raw NBSP landed in `formatDose`. It's now `String.fromCharCode(0xa0)`, and a
+  test pins the output. The batch-1 store test's right-to-left override character is now explicit
+  too.

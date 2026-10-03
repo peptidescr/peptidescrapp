@@ -34,6 +34,7 @@ import {
   type MassUnit,
   type SyringeType,
 } from '../lib/units'
+import { doseOn } from '../lib/titration'
 import { useLiveQuery } from '../lib/useLiveQuery'
 import { updateSettings, useSettings } from '../lib/useSettings'
 import { activeVialFor } from '../lib/vials'
@@ -87,8 +88,10 @@ export function CalculatorScreen({ protocolId, onCreateProtocol }: CalculatorScr
     const linkedCompound = selectable.find((c) => c.id === linked.compoundId)
     setCompoundId(linked.compoundId)
     setVialSize(linked.reconstitution?.vialSize ?? linkedCompound?.vialSizes[0] ?? 0)
-    setDoseInput(String(linked.doseAmount).replace('.', ','))
-    if (linked.doseUnit !== 'IU') setDoseUnit(linked.doseUnit)
+    // Today's dose: for a titration, the step in force now, not the first one.
+    const dose = doseOn(linked, new Date())
+    setDoseInput(String(dose.amount).replace('.', ','))
+    if (dose.unit !== 'IU') setDoseUnit(dose.unit)
     if (linked.reconstitution?.diluentMl !== undefined) {
       setDiluentMl(String(linked.reconstitution.diluentMl).replace('.', ','))
     }

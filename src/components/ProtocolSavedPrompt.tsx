@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { getNotificationCapability, requestNotificationPermission } from '../lib/notifications'
 import type { Protocol } from '../lib/db'
+import { doseOn, formatDose } from '../lib/titration'
 import { getCompoundById } from '../content/compounds'
 
 interface ProtocolSavedPromptProps {
@@ -25,7 +26,8 @@ export function ProtocolSavedPrompt({ protocol, onReconstitute, onSkip }: Protoc
   const [capability, setCapability] = useState(() => getNotificationCapability())
   const compound = getCompoundById(protocol.compoundId)
   const isSolution = compound?.form === 'solution'
-  const dose = `${protocol.doseAmount} ${protocol.doseUnit}`
+  // The dose to mix for first: today's, which for a titration is its first step.
+  const dose = formatDose(doseOn(protocol, new Date()))
 
   const canAskForReminders =
     capability.supported && !capability.requiresInstallOnIOS && capability.permission === 'default'

@@ -9,6 +9,7 @@ import { getCompoundById } from '../content/compounds'
 import { formatDate, formatTime } from '../lib/dates'
 import type { Protocol } from '../lib/db'
 import { logProtocolDose } from '../lib/doseLog'
+import { doseOn, formatDose } from '../lib/titration'
 import type { DueItem } from '../lib/homeData'
 
 export function LogButtons({
@@ -129,7 +130,7 @@ export function DoseCard({
               {protocol.name || compoundName}
             </span>
             <span className="mt-0.5 block text-sm text-muted-foreground">
-              {protocol.doseAmount} {protocol.doseUnit} · {t(`route.${protocol.route}`)}
+              {formatDose(doseOn(protocol, time))} · {t(`route.${protocol.route}`)}
             </span>
           </span>
           <ChevronRight aria-hidden className="size-5 shrink-0 text-muted-foreground" />

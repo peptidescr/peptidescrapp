@@ -67,6 +67,26 @@ function formatTime(iso) {
   return (hours % 12 === 0 ? 12 : hours % 12) + ':' + String(date.getMinutes()).padStart(2, '0') + ' ' + (hours < 12 ? 'AM' : 'PM')
 }
 
+// The dose in force on the day of `iso`: a plain-JS copy of doseOn in
+// src/lib/titration.ts (titration.test.ts checks the two agree). A titrated
+// protocol steps through its doses by calendar weeks from its start date.
+function doseOnDay(protocol, iso) {
+  const steps = protocol.titration && protocol.titration.steps
+  const at = new Date(iso)
+  if (!Array.isArray(steps) || steps.length < 2 || Number.isNaN(at.getTime())) return protocol.doseAmount
+  const start = String(protocol.startDate).split('-').map(Number)
+  const startDay = new Date(start[0], start[1] - 1, start[2])
+  const day = new Date(at.getFullYear(), at.getMonth(), at.getDate())
+  // Rounded: a day across a daylight-saving change is 23 or 25 hours long.
+  const offset = Math.round((day.getTime() - startDay.getTime()) / 86400000)
+  let stepEnd = 0
+  for (let i = 0; i < steps.length - 1; i++) {
+    stepEnd += steps[i].weeks * 7
+    if (offset < stepEnd) return steps[i].doseAmount
+  }
+  return steps[steps.length - 1].doseAmount
+}
+
 // dd/MM/yyyy, matching formatDate in src/lib/dates.ts.
 function formatDay(isoDay) {
   const parts = String(isoDay || '').split('-')
@@ -121,7 +141,7 @@ async function buildReminder(tag) {
   if (!protocol) return { title: 'peptidescr', body: text.generic }
   return {
     title: protocol.name || (compound && compound.name) || 'peptidescr',
-    body: text.body(protocol.doseAmount + ' ' + protocol.doseUnit, formatTime(iso)),
+    body: text.body(doseOnDay(protocol, iso) + ' ' + protocol.doseUnit, formatTime(iso)),
   }
 }
 

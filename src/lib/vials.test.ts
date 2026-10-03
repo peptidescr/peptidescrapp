@@ -98,8 +98,31 @@ describe('computeVialState', () => {
     expect(state.kind).toBe('iu')
     expect(state.remaining).toBe(10_000)
     expect(state.dosesLeft).toBe(5)
-    expect(protocolDoseInVialUnit(protocol, 'iu')).toBeNull()
-    expect(protocolDoseInVialUnit(iuProtocol, 'mass')).toBeNull()
+    expect(protocolDoseInVialUnit(protocol, 'iu', now)).toBeNull()
+    expect(protocolDoseInVialUnit(iuProtocol, 'mass', now)).toBeNull()
+  })
+
+  describe('with a stepped (titrated) dose', () => {
+    // Started Mar 1: 250 mcg through Mar 7, then 500 mcg from Mar 8 on.
+    const stepped: Protocol = {
+      ...protocol,
+      titration: { steps: [{ doseAmount: 250, weeks: 1 }, { doseAmount: 500, weeks: 1 }] },
+    }
+
+    it('counts upcoming doses at the amount each will be, so a step up shortens the run', () => {
+      // 2000 mcg from Mar 4 (20:00 daily): Mar 4–7 at 250 = 1000, then Mar 8 and 9 at 500.
+      const state = computeVialState({ ...vial, totalMcg: 2000 }, stepped, [], now)
+      expect(state.dosesLeft).toBe(6)
+      expect(state.lastDoseOn).toEqual(new Date(2026, 2, 9))
+      // A fixed 250 mcg would have read 8 doses, to Mar 11.
+      expect(computeVialState({ ...vial, totalMcg: 2000 }, protocol, [], now).dosesLeft).toBe(8)
+    })
+
+    it('counts what lasts beyond the look-ahead at the latest step, with no run-out date', () => {
+      const big = computeVialState({ ...vial, totalMcg: 1_000_000 }, stepped, [], now)
+      expect(big.lastDoseOn).toBeNull()
+      expect(big.dosesLeft).toBeGreaterThan(400) // ~401 days walked, the rest at 500 mcg
+    })
   })
 })
 

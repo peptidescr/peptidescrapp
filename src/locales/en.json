@@ -118,7 +118,20 @@
     "cycleCount": "Number of cycles",
     "washoutWeeks": "Washout after the last cycle, in weeks (optional)",
     "invalidWeeks": "Enter a whole number of weeks, up to {{max}}.",
-    "invalidCycles": "Enter a whole number of cycles, up to {{max}}."
+    "invalidCycles": "Enter a whole number of cycles, up to {{max}}.",
+    "startingDose": "Starting dose",
+    "titrationToggle": "Change the dose over time",
+    "titrationHint": "Each step lasts a number of weeks, counted on the calendar from the start date (off weeks count too). The last step holds until the protocol ends.",
+    "step": "Step {{n}}",
+    "stepDose": "Dose ({{unit}})",
+    "stepWeeks": "Weeks",
+    "stepHolds": "Then holds until the end",
+    "addStep": "Add a step",
+    "removeStep": "Remove step {{n}}",
+    "invalidStep": "Each step needs a dose above 0 and a whole number of weeks, up to {{max}}.",
+    "doseNext": "{{dose}} from {{date}}",
+    "mixForOtherDose": "This mix was worked out for {{saved}}. Today's dose is {{current}}.",
+    "recalculate": "Recalculate"
   },
   "schedule": {
     "daily": "Daily",
@@ -127,6 +140,11 @@
     "cycle": "Cycle (days on/off)",
     "custom": "Custom days",
     "cycleWeeks": "Cycle (weeks on/off)"
+  },
+  "doseChange": {
+    "title": "Dose changes",
+    "upcoming": "{{name}}: dose goes from {{from}} to {{to}} on {{date}}",
+    "today": "{{name}}: dose goes from {{from}} to {{to}} starting today"
   },
   "cycle": {
     "offNextDose": "Off week · next dose {{date}}",

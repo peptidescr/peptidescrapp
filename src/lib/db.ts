@@ -1,6 +1,7 @@
 import Dexie, { type EntityTable } from 'dexie'
 import { COMPOUNDS, type Compound } from '../content/compounds'
 import type { Schedule } from './schedule'
+import type { Titration } from './titration'
 import type { Locale, SyringeType, ThemeMode } from './units'
 
 export type DoseStatus = 'taken' | 'skipped'
@@ -26,6 +27,12 @@ export interface Protocol {
   trackingStartsAt?: string
   /** The last mixing-calculator result the user saved to this protocol. */
   reconstitution?: SavedReconstitution
+  /**
+   * Stepped doses (see src/lib/titration.ts). When present, `doseAmount` is
+   * kept equal to the first step; ask `doseOn(protocol, day)` for the dose on
+   * a given day. Optional and unindexed — no Dexie bump.
+   */
+  titration?: Titration
 }
 
 /**
@@ -169,6 +176,7 @@ export interface UserTemplate {
   schedule: Schedule
   reminderTimes: string[]
   route: Route
+  titration?: Titration
   createdAt: string // ISO datetime
 }
 

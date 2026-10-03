@@ -118,7 +118,20 @@
     "cycleCount": "Cantidad de ciclos",
     "washoutWeeks": "Período de lavado después del último ciclo, en semanas (opcional)",
     "invalidWeeks": "Ingresá un número entero de semanas, hasta {{max}}.",
-    "invalidCycles": "Ingresá un número entero de ciclos, hasta {{max}}."
+    "invalidCycles": "Ingresá un número entero de ciclos, hasta {{max}}.",
+    "startingDose": "Dosis inicial",
+    "titrationToggle": "Cambiar la dosis con el tiempo",
+    "titrationHint": "Cada paso dura cierta cantidad de semanas, contadas en el calendario desde la fecha de inicio (las semanas de descanso también cuentan). El último paso se mantiene hasta que termine el protocolo.",
+    "step": "Paso {{n}}",
+    "stepDose": "Dosis ({{unit}})",
+    "stepWeeks": "Semanas",
+    "stepHolds": "Luego se mantiene hasta el final",
+    "addStep": "Agregar un paso",
+    "removeStep": "Quitar el paso {{n}}",
+    "invalidStep": "Cada paso necesita una dosis mayor que 0 y un número entero de semanas, hasta {{max}}.",
+    "doseNext": "{{dose}} desde el {{date}}",
+    "mixForOtherDose": "Esta mezcla se calculó para {{saved}}. La dosis de hoy es {{current}}.",
+    "recalculate": "Recalcular"
   },
   "schedule": {
     "daily": "Diario",
@@ -127,6 +140,11 @@
     "cycle": "Ciclo (días activos/descanso)",
     "custom": "Días personalizados",
     "cycleWeeks": "Ciclo (semanas activas/descanso)"
+  },
+  "doseChange": {
+    "title": "Cambios de dosis",
+    "upcoming": "{{name}}: la dosis pasa de {{from}} a {{to}} el {{date}}",
+    "today": "{{name}}: la dosis pasa de {{from}} a {{to}} desde hoy"
   },
   "cycle": {
     "offNextDose": "Semana de descanso · próxima dosis {{date}}",

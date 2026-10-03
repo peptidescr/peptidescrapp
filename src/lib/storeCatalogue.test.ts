@@ -122,11 +122,13 @@ describe('parseCatalogueResponse', () => {
   })
 
   it('skips malformed products, cleans text and drops unsafe links', () => {
+    // A right-to-left override, which would make text display as something else.
+    const RLO = String.fromCharCode(0x202e)
     const parsed = parseCatalogueResponse(
       {
         ...good,
         products: [
-          { name: 'Ok‮ 5mg', slug: 'ok-5mg', inStock: true, url: 'javascript:alert(1)' },
+          { name: `Ok${RLO} 5mg`, slug: 'ok-5mg', inStock: true, url: 'javascript:alert(1)' },
           { name: '', slug: 'blank' },
           'nope',
         ],

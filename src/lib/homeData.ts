@@ -3,7 +3,7 @@
  * both Home's Catch-up section and the notification panel, so the two never
  * disagree about what counts as due/missed or how a streak is computed.
  */
-import { addDays, endOfDay, isSameDay, startOfDay } from 'date-fns'
+import { addDays, endOfDay, isSameDay, parseISO, startOfDay } from 'date-fns'
 import type { DoseLog, Protocol, Settings } from './db'
 import {
   findUnloggedOccurrences,
@@ -15,6 +15,7 @@ import {
   type Occurrence,
   type ScheduleContext,
 } from './schedule'
+import { doseChangeNotice, type DoseChange } from './titration'
 
 export const MISSED_THRESHOLD_HOURS = 12
 export const BACKUP_NUDGE_DAYS = 14
@@ -346,4 +347,24 @@ function withPercent(counts: Omit<Adherence, 'percent'>): Adherence {
     ...counts,
     percent: counts.scheduled > 0 ? Math.round((counts.taken / counts.scheduled) * 100) : null,
   }
+}
+
+export interface DoseChangeItem {
+  protocol: Protocol
+  change: DoseChange
+}
+
+/**
+ * Titration steps about to change an active protocol's dose (or changing it
+ * today), soonest first — shown on Home and in the bell, from this one list,
+ * so the bell's count matches the panel.
+ */
+export function computeDoseChanges(protocols: Protocol[], now: Date): DoseChangeItem[] {
+  return protocols
+    .filter((p) => p.isActive && (!p.endDate || startOfDay(now) <= parseISO(p.endDate)))
+    .flatMap((protocol) => {
+      const change = doseChangeNotice(protocol, now)
+      return change ? [{ protocol, change }] : []
+    })
+    .sort((a, b) => a.change.on.getTime() - b.change.on.getTime())
 }

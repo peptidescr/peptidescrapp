@@ -21,6 +21,7 @@ import { db, type DoseLog, type Protocol, type Vial } from './db'
 import { contextOf, loggedTimesFor } from './homeData'
 import { requestPushSync } from './push'
 import { findUnloggedOccurrences, getOccurrencesInRange } from './schedule'
+import { doseOn } from './titration'
 import { microgramsFromMass, milliIUFromIU, type MassUnit } from './units'
 
 /** A vial is "low" at this many doses left or fewer… */
@@ -69,12 +70,14 @@ function logAmount(log: DoseLog, kind: VialKind): number {
   return (kind === 'iu' ? log.doseIU : log.doseMcg) ?? 0
 }
 
-/** The protocol's dose, in the vial's storage unit; null if the two don't measure the same way (mass vs IU). */
-export function protocolDoseInVialUnit(protocol: Protocol, kind: VialKind): number | null {
-  if (kind === 'iu') return protocol.doseUnit === 'IU' ? milliIUFromIU(protocol.doseAmount) : null
-  return protocol.doseUnit === 'IU'
-    ? null
-    : microgramsFromMass(protocol.doseAmount, protocol.doseUnit as MassUnit)
+/**
+ * The protocol's dose on a given day (titration can change it), in the vial's
+ * storage unit; null if the two don't measure the same way (mass vs IU).
+ */
+export function protocolDoseInVialUnit(protocol: Protocol, kind: VialKind, day: Date): number | null {
+  const dose = doseOn(protocol, day)
+  if (kind === 'iu') return dose.unit === 'IU' ? milliIUFromIU(dose.amount) : null
+  return dose.unit === 'IU' ? null : microgramsFromMass(dose.amount, dose.unit as MassUnit)
 }
 
 export function computeVialState(
@@ -89,17 +92,45 @@ export function computeVialState(
     .filter((log) => log.vialId === vial.id)
     .reduce((sum, log) => sum + logAmount(log, kind), 0)
   const remaining = Math.max(0, total - used)
-  const doseSize = protocol ? protocolDoseInVialUnit(protocol, kind) : null
-  const dosesLeft = doseSize && doseSize > 0 ? Math.floor(remaining / doseSize) : null
+  const doseSize = protocol ? protocolDoseInVialUnit(protocol, kind, now) : null
 
+  let dosesLeft: number | null = doseSize && doseSize > 0 ? Math.floor(remaining / doseSize) : null
   let lastDoseOn: Date | null = null
   if (protocol?.isActive && dosesLeft !== null && dosesLeft > 0) {
     const upcoming = findUnloggedOccurrences(
       getOccurrencesInRange(contextOf(protocol), now, addDays(now, RUN_OUT_HORIZON_DAYS)),
       loggedTimesFor(protocol, doseLogs),
     )
-    const last = upcoming[dosesLeft - 1]
-    if (last) lastDoseOn = startOfDay(last.scheduledAt)
+    if (protocol.titration) {
+      // A stepped dose: walk the upcoming doses at the amount each will
+      // actually be, so a step up shortens the vial's run rather than being
+      // counted at today's (smaller) dose.
+      let left = remaining
+      let count = 0
+      let ranOut = false
+      for (const occurrence of upcoming) {
+        const size = protocolDoseInVialUnit(protocol, kind, occurrence.scheduledAt) ?? 0
+        if (size <= 0 || size > left) {
+          ranOut = true
+          break
+        }
+        left -= size
+        count += 1
+        lastDoseOn = startOfDay(occurrence.scheduledAt)
+      }
+      if (ranOut) {
+        dosesLeft = count
+      } else {
+        // Outlasts the horizon: the rest counts at the latest step's dose, and
+        // there's no run-out date to show — the same as the fixed-dose case.
+        const laterSize = protocolDoseInVialUnit(protocol, kind, addDays(now, RUN_OUT_HORIZON_DAYS)) ?? 0
+        dosesLeft = count + (laterSize > 0 ? Math.floor(left / laterSize) : 0)
+        lastDoseOn = null
+      }
+    } else {
+      const last = upcoming[dosesLeft - 1]
+      if (last) lastDoseOn = startOfDay(last.scheduledAt)
+    }
   }
 
   return {

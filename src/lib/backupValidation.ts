@@ -31,6 +31,7 @@ import {
   sanitizeText,
 } from './sanitize'
 import type { CycleInnerSchedule, Schedule, Weekday } from './schedule'
+import { MAX_TITRATION_STEPS, type Titration } from './titration'
 
 export const BACKUP_VERSION = 3
 const SUPPORTED_VERSIONS: readonly unknown[] = [1, 2, 3]
@@ -182,6 +183,19 @@ function reconstitution(value: unknown): SavedReconstitution | undefined {
   }
 }
 
+function titration(value: unknown): Titration {
+  if (!isRecord(value) || !Array.isArray(value.steps)) fail('protocol.titration')
+  if (value.steps.length < 2 || value.steps.length > MAX_TITRATION_STEPS) fail('protocol.titration.steps')
+  return {
+    steps: value.steps.map((step) => {
+      if (!isRecord(step)) fail('protocol.titration.step')
+      const doseAmount = finiteNumber(step.doseAmount, 'titration.doseAmount', 0, MAX_DOSE_AMOUNT)
+      if (doseAmount === 0) fail('titration.doseAmount')
+      return { doseAmount, weeks: wholeNumber(step.weeks, 'titration.weeks', 1, MAX_WEEK_COUNT) }
+    }),
+  }
+}
+
 function protocol(value: unknown): Protocol {
   if (!isRecord(value)) fail('protocol')
   if (!Array.isArray(value.reminderTimes) || value.reminderTimes.length === 0 || value.reminderTimes.length > MAX_REMINDER_TIMES) {
@@ -207,6 +221,11 @@ function protocol(value: unknown): Protocol {
   if (value.trackingStartsAt !== undefined) result.trackingStartsAt = isoDateTime(value.trackingStartsAt, 'protocol.trackingStartsAt')
   const mix = reconstitution(value.reconstitution)
   if (mix) result.reconstitution = mix
+  if (value.titration !== undefined) {
+    result.titration = titration(value.titration)
+    // The app keeps the plain dose equal to the first step (see titration.ts); a file can't break that.
+    result.doseAmount = result.titration.steps[0]!.doseAmount
+  }
   return result
 }
 
@@ -332,7 +351,7 @@ function userTemplate(value: unknown): UserTemplate {
   const asProtocol = protocol({ ...value, startDate: '2000-01-01', isActive: true })
   const name = sanitizeText(String(value.name ?? ''), MAX_NAME_LENGTH).trim()
   if (!name) fail('template.name')
-  return {
+  const result: UserTemplate = {
     id: asProtocol.id,
     name,
     compoundId: asProtocol.compoundId,
@@ -343,6 +362,8 @@ function userTemplate(value: unknown): UserTemplate {
     route: asProtocol.route,
     createdAt: isoDateTime(value.createdAt, 'template.createdAt'),
   }
+  if (asProtocol.titration) result.titration = asProtocol.titration
+  return result
 }
 
 /** A v2 collection: absent in a v1 file (→ empty), otherwise an array within its size limit. */

@@ -32,6 +32,7 @@ import { MAX_NOTES_LENGTH, parsePositiveAmount, sanitizeMultiline } from '../lib
 import { NumericInput } from '@/components/ui/numeric-input'
 import { db, type DoseLog, type DoseStatus, type Protocol } from '../lib/db'
 import { computeDaySlots, computeMonthMarks, type DayMarks } from '../lib/historyData'
+import { doseOn, formatDose } from '../lib/titration'
 import { useLiveQuery } from '../lib/useLiveQuery'
 import {
   formatDecimal,
@@ -390,7 +391,7 @@ function HistoryMonth({
                     {slot.protocol.name || getCompoundById(slot.protocol.compoundId)?.name}
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    {formatTime(slot.occurrence.scheduledAt)} · {slot.protocol.doseAmount} {slot.protocol.doseUnit}
+                    {formatTime(slot.occurrence.scheduledAt)} · {formatDose(doseOn(slot.protocol, slot.occurrence.scheduledAt))}
                   </span>
                 </span>
                 <span className="shrink-0 text-xs font-medium text-muted-foreground">

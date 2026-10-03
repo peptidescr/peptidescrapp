@@ -7,6 +7,7 @@ import { isIOS, isStandalone } from './platform'
 import { isPushActive, requestPushSync, syncPushSchedule } from './push'
 import { reminderTag } from './pushSchedule'
 import { findUnloggedOccurrences, getOccurrencesInRange, type Occurrence } from './schedule'
+import { doseOn, formatDose } from './titration'
 import { describeVialAlert } from './vialText'
 import { computeVialAlerts, vialAlertKey, type VialAlertKind } from './vials'
 
@@ -107,7 +108,7 @@ function contentFor(protocol: Protocol, occurrence: Occurrence): ReminderContent
   return {
     title: name,
     body: i18n.t('notifications.doseDueBody', {
-      dose: `${protocol.doseAmount} ${protocol.doseUnit}`,
+      dose: formatDose(doseOn(protocol, occurrence.scheduledAt)),
       time: formatClock(occurrence.time),
     }),
     tag: reminderTag(protocol.id, occurrence.scheduledAt),
