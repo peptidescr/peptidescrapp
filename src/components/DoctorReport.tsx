@@ -16,6 +16,7 @@ import { symptomName } from '../lib/resultsText'
 import { doseOn, formatDose } from '../lib/titration'
 import { formatDecimal, iuFromMilliIU, type Locale, type MilliIU } from '../lib/units'
 import { useLiveQuery } from '../lib/useLiveQuery'
+import { useBackLayer } from '../lib/useBackLayer'
 import { useSettings } from '../lib/useSettings'
 import { WeightDoseChart } from './ProgressCharts'
 
@@ -33,6 +34,8 @@ import { WeightDoseChart } from './ProgressCharts'
  */
 export function DoctorReport({ unit, onClose }: { unit: WeightUnit; onClose: () => void }) {
   const { t, i18n } = useTranslation()
+  // Full-screen over the app, so back closes it like a sheet.
+  useBackLayer(true, onClose)
   const locale = i18n.language as Locale
   const settings = useSettings()
   const protocols = useLiveQuery(() => db.protocols.toArray(), [])

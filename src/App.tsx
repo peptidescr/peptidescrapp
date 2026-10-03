@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AnimatePresence, motion } from 'motion/react'
 import { APP_BAR_HEIGHT, AppBar } from './components/AppBar'
-import { TabBar, type Tab } from './components/TabBar'
+import { TabBar } from './components/TabBar'
 import { Toaster } from './components/ui/sonner'
 import { LEGAL_VERSION } from './content/legal'
 import { maybeCreateDailySnapshot } from './lib/backup'
+import { backStack } from './lib/backStack'
+import { HOME, popPage, pushPage, tabPage, type Page } from './lib/pages'
 import { db, ensureCompoundsSeeded, ensureSettingsRow } from './lib/db'
 import { useCustomCompoundsLoaded } from './lib/customCompounds'
 import { startStoreCatalogueRefresh, syncStoreCatalogue, useStoreCompoundsLoaded } from './lib/storeCatalogue'
@@ -25,47 +27,66 @@ type Gate = 'loading' | 'onboarding' | 'legalReaccept' | 'app'
 
 function App() {
   const { t, i18n } = useTranslation()
-  const [tab, setTab] = useState<Tab>('home')
   const settings = useSettings()
 
-  // One-shot navigation hand-offs between tabs. Each is consumed by the screen
-  // it opens (as its initial state) and cleared by the next ordinary tab
-  // change, so a stale one can never re-apply itself later.
-  const [calculatorProtocolId, setCalculatorProtocolId] = useState<string | undefined>()
-  const [newProtocolCompoundId, setNewProtocolCompoundId] = useState<string | undefined>()
-  const [editProtocolId, setEditProtocolId] = useState<string | undefined>()
+  // Every page visited, newest last; the last one is what's showing. Back
+  // (the app bar's arrow, or the phone's or browser's own back, through
+  // backStack) returns to the one before. See src/lib/pages.ts.
+  const [pages, setPages] = useState<Page[]>([HOME])
+  const page = pages[pages.length - 1]!
+  const tab = page.tab
 
-  function clearOneShotNav() {
-    setCalculatorProtocolId(undefined)
-    setNewProtocolCompoundId(undefined)
-    setEditProtocolId(undefined)
+  // Where each page in the history was scrolled to when it was left, so back
+  // returns to the same spot. Indexed like `pages`.
+  const scrollMemory = useRef<number[]>([])
+  const lastMove = useRef<'push' | 'pop' | null>(null)
+
+  function navigate(next: Page, leaving?: (page: Page) => boolean) {
+    scrollMemory.current[pages.length - 1] = window.scrollY
+    lastMove.current = 'push'
+    setPages((current) => pushPage(current, next, leaving))
   }
 
-  function goToTab(next: Tab) {
-    clearOneShotNav()
-    setTab(next)
-  }
+  const goBack = useCallback((skipping?: (page: Page) => boolean) => {
+    lastMove.current = 'pop'
+    setPages((current) => popPage(current, skipping))
+  }, [])
+
+  const canGoBack = pages.length > 1
+  useEffect(() => {
+    backStack.setPageBack(canGoBack ? () => goBack() : null)
+  }, [canGoBack, goBack])
+
+  // A new page starts at the top; going back restores where that page was
+  // left. Its content loads a beat after it mounts, so the restore retries for
+  // a few frames until the page is tall enough to scroll that far.
+  useLayoutEffect(() => {
+    const move = lastMove.current
+    lastMove.current = null
+    if (move === 'push') window.scrollTo(0, 0)
+    if (move !== 'pop') return
+    const target = scrollMemory.current[pages.length - 1] ?? 0
+    let frames = 0
+    let raf = 0
+    const tryScroll = () => {
+      window.scrollTo(0, target)
+      if (Math.abs(window.scrollY - target) > 1 && ++frames < 30) raf = requestAnimationFrame(tryScroll)
+    }
+    tryScroll()
+    return () => cancelAnimationFrame(raf)
+  }, [pages])
 
   /** "Next step: reconstitute" — open the calculator prefilled for a protocol. */
-  function openCalculatorFor(protocolId: string) {
-    clearOneShotNav()
-    setCalculatorProtocolId(protocolId)
-    setTab('calculator')
+  function openCalculatorFor(protocolId: string, leaving?: (page: Page) => boolean) {
+    navigate({ tab: 'calculator', protocolId }, leaving)
   }
 
-  /** The calculator's "create a protocol" — open a new-protocol form for that compound. */
-  function openNewProtocolFor(compoundId: string) {
-    clearOneShotNav()
-    setNewProtocolCompoundId(compoundId)
-    setTab('protocols')
-  }
-
-  /** Tapping a protocol on Home (a due/upcoming card) — straight to that protocol's own edit page. */
+  /** Tapping a protocol on Home or in History — straight to that protocol's own edit page. */
   function openProtocolEditor(protocolId: string) {
-    clearOneShotNav()
-    setEditProtocolId(protocolId)
-    setTab('protocols')
+    navigate({ tab: 'protocols', view: { kind: 'form', protocolId } })
   }
+
+  const goToTab = (next: Page['tab']) => navigate(tabPage(next))
 
   // Two separate questions used to be conflated into one comparison
   // (`legalAcceptedVersion !== LEGAL_VERSION`, treated as "needs onboarding"):
@@ -239,6 +260,7 @@ function App() {
     >
       <Toaster />
       <AppBar
+        onBack={canGoBack ? () => backStack.back() : undefined}
         showActions={tab !== 'settings'}
         resolvedTheme={resolvedTheme}
         onToggleTheme={() => void toggleTheme()}
@@ -246,12 +268,13 @@ function App() {
       />
       <AnimatePresence mode="wait">
         <motion.div
-          key={tab}
+          // The calculator opened for a different protocol is a fresh calculator.
+          key={page.tab === 'calculator' ? `calculator:${page.protocolId ?? ''}` : tab}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.15 }}
         >
-          {tab === 'home' && (
+          {page.tab === 'home' && (
             <HomeScreen
               onNavigateToSettings={() => goToTab('settings')}
               onNavigateToProtocols={() => goToTab('protocols')}
@@ -261,19 +284,30 @@ function App() {
               onOpenProtocol={openProtocolEditor}
             />
           )}
-          {tab === 'calculator' && (
-            <CalculatorScreen protocolId={calculatorProtocolId} onCreateProtocol={openNewProtocolFor} />
-          )}
-          {tab === 'protocols' && (
-            <ProtocolsScreen
-              onReconstitute={openCalculatorFor}
-              initialCompoundId={newProtocolCompoundId}
-              initialProtocolId={editProtocolId}
+          {page.tab === 'calculator' && (
+            <CalculatorScreen
+              protocolId={page.protocolId}
+              onCreateProtocol={(compoundId) => navigate({ tab: 'protocols', view: { kind: 'form', compoundId } })}
             />
           )}
-          {tab === 'progress' && <ProgressScreen />}
-          {tab === 'history' && <HistoryScreen onOpenProtocol={openProtocolEditor} />}
-          {tab === 'settings' && <SettingsScreen />}
+          {page.tab === 'protocols' && (
+            <ProtocolsScreen
+              view={page.view}
+              onNavigate={(view, leaving) => navigate({ tab: 'protocols', view }, leaving)}
+              onBack={goBack}
+              onReconstitute={openCalculatorFor}
+            />
+          )}
+          {page.tab === 'progress' && <ProgressScreen />}
+          {page.tab === 'history' && (
+            <HistoryScreen
+              editingId={page.editLogId}
+              onEditLog={(editLogId) => navigate({ tab: 'history', editLogId })}
+              onBack={() => goBack()}
+              onOpenProtocol={openProtocolEditor}
+            />
+          )}
+          {page.tab === 'settings' && <SettingsScreen />}
         </motion.div>
       </AnimatePresence>
       <TabBar active={tab} onChange={goToTab} labels={labels} navLabel={t('nav.ariaLabel')} />

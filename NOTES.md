@@ -2083,3 +2083,67 @@ at 390×844, 375×667 and 320×568/640:
 - the dose is logged at the chosen site, and there are no console errors.
 
 An intramuscular protocol (deltoids, glutes, thighs) and a front-only set were also checked.
+
+## Back navigation (October 2026)
+
+Asked for: a back step to whatever the previous page was. Before this, tabs were plain state, so
+the phone's or browser's back left the app, and the in-screen chevrons only went "up" (a
+protocol opened from Home went back to the protocol list, never to Home). Chosen with the
+developer:
+- a **back arrow at the top-left of the app bar**, shown whenever there's a previous page;
+- the **logo moved to the centre** of the bar, so it never shifts as the arrow comes and goes;
+- **system back does the same**;
+- back **closes an open sheet or dialog first**.
+
+- **Pages** (`src/lib/pages.ts`, pure and tested). A page is a tab plus its sub-page:
+  - the protocol list, the template picker, or a protocol form (new, from a template, for a
+    compound, or editing one);
+  - the calculator for a protocol;
+  - a dose being edited in History.
+
+  App keeps every page visited (capped at 50) and renders the last. This replaces the old tab
+  state and its one-shot hand-offs (`calculatorProtocolId`, `newProtocolCompoundId`,
+  `editProtocolId`); `ProtocolsScreen`'s mode and History's `editingId` now come from the page.
+  Two rules make flows read right:
+  - **Saving a new protocol** goes back past the template picker (`popPage(…, isProtocolPicker)`).
+    Cancelling is ordinary back, so it returns to the picker to choose again.
+  - **"Reconstitute now"** after saving drops the finished form and picker
+    (`pushPage(…, isProtocolFlow)`), so back from the calculator never reopens an empty
+    "new protocol" form.
+- **One back path** (`src/lib/backStack.ts`, tested with a fake history). The app bar's arrow
+  and `popstate` both take one step: close the newest open layer, else go back a page.
+  - The browser sees a single extra history entry while there's anything to go back from. It's
+    put back after each step if more remain, and taken off when nothing is left, so back from the
+    first screen still leaves the app.
+  - The URL never changes, so there's nothing for Netlify routing or the service worker to
+    handle.
+  - Our own `history.back()` (taking the entry off) is told apart from the person's, and a new
+    entry waits for it to land, so a sheet closing as the next opens can't knock the history out
+    of step.
+- **Sheets and dialogs** register themselves while open: `Dialog`, `Sheet` and `AlertDialog` in
+  `components/ui` now wrap Radix's root with `useBackClosable`, including the one uncontrolled
+  `AlertDialog` (with a Trigger). Every existing sheet and dialog picked this up with no change at
+  the call site. The doctor's report (a full-screen portal) uses `useBackLayer` directly.
+- **Scroll**: a new page starts at the top, and back restores where the page was left. Data loads
+  a beat after mount, so the restore retries for up to 30 frames.
+- The in-screen back chevrons (template picker, protocol form, History's dose edit) are gone,
+  because they would duplicate the app bar's arrow. `AppHeader`'s `onBack` remains for
+  onboarding, which has no app bar. `ProtocolForm` shows a chevron only when given `onCancel`,
+  which only onboarding passes.
+- Not included: onboarding's steps, which have their own back buttons and sit before the app
+  (system back there leaves, as before). Dropdowns and pickers also aren't layers; back from
+  inside a sheet closes the whole sheet.
+
+**Verified:**
+- Typecheck, 369/369 tests (new: page push/pop rules, the back stack's history handling), lint
+  (known `App.tsx` error only), both builds.
+- Live (`check-back`, 23 checks) on UPD at 390px and Peptides CR at 320px, no console errors:
+  - the first screen has no arrow, a centred logo and no extra history entry;
+  - tab → back → Home, and the entry is removed again;
+  - the list's scroll position is restored after visiting the picker;
+  - system back walks form → picker → list → Home;
+  - a protocol opened from Home goes back to Home;
+  - Settings goes back to the page it was opened from;
+  - system back closes the weight sheet and the report first, staying on Progress;
+  - a dose edit goes back to History;
+  - saving a new protocol lands on the list, not the picker.

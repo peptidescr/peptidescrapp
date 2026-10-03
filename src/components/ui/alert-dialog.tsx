@@ -1,9 +1,13 @@
 import * as AlertDialogPrimitive from '@radix-ui/react-alert-dialog'
 import type { ComponentProps } from 'react'
 import { cn } from '@/lib/utils'
+import { useBackClosable } from '@/lib/useBackLayer'
 import { buttonVariants } from './button-variants'
 
-export const AlertDialog = AlertDialogPrimitive.Root
+/** Closes on back (the phone's, the browser's or the app bar's) while open; see useBackClosable. */
+export function AlertDialog(props: ComponentProps<typeof AlertDialogPrimitive.Root>) {
+  return <AlertDialogPrimitive.Root {...useBackClosable(props)} />
+}
 export const AlertDialogTrigger = AlertDialogPrimitive.Trigger
 
 export function AlertDialogOverlay({

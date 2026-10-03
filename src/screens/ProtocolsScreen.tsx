@@ -52,6 +52,7 @@ import { compareAlphabetical, getCompoundById } from '../content/compounds'
 import { toCompoundOptions, useSelectableCompounds } from '../lib/customCompounds'
 import { PROTOCOL_TEMPLATES } from '../content/protocolTemplates'
 import type { ProtocolPrefill } from '../lib/userTemplates'
+import { isProtocolFlow, isProtocolPicker, type Page, type ProtocolsView } from '../lib/pages'
 import { formatDate, formatDateTime, toIsoDate } from '../lib/dates'
 import { db, type DoseLog, type Protocol, type Route, type Vial } from '../lib/db'
 import { computeAdherence, computeProtocolStats } from '../lib/homeData'
@@ -89,42 +90,33 @@ const SCHEDULE_KINDS: Schedule['kind'][] = ['daily', 'everyNDays', 'weekdays', '
 const CYCLE_INNER_KINDS: CycleInnerSchedule['kind'][] = ['daily', 'everyNDays', 'weekdays']
 const ROUTES: Route[] = ['subcutaneous', 'intramuscular', 'other']
 
-type Mode =
-  | { kind: 'list' }
-  | { kind: 'picker' }
-  | { kind: 'form'; protocolId?: string; template?: ProtocolPrefill; compoundId?: string }
-
 /** Mirrors the "My Protocols / Templates" tabs pattern from reference peptide-tracker
  * apps — templates are browsable any time, not just at the moment of creation. */
 type ListTab = 'mine' | 'templates'
 
 interface ProtocolsScreenProps {
+  /** Which sub-page is showing. It lives in App's page history, so back returns through it. */
+  view: ProtocolsView
+  /** Opens a sub-page; `leaving` drops pages that back shouldn't return to (see pushPage). */
+  onNavigate: (view: ProtocolsView, leaving?: (page: Page) => boolean) => void
+  /** Back a page, skipping any `skipping` matches (see popPage). */
+  onBack: (skipping?: (page: Page) => boolean) => void
   /** Opens the calculator for a protocol — the "next step" offered right after saving a new one. */
-  onReconstitute: (protocolId: string) => void
-  /** Open straight into a new-protocol form for this compound (from the calculator's "create a protocol"). */
-  initialCompoundId?: string
-  /** Open straight into an existing protocol's edit form (tapping it from Home). */
-  initialProtocolId?: string
+  onReconstitute: (protocolId: string, leaving?: (page: Page) => boolean) => void
 }
 
-export function ProtocolsScreen({ onReconstitute, initialCompoundId, initialProtocolId }: ProtocolsScreenProps) {
+export function ProtocolsScreen({ view: mode, onNavigate, onBack, onReconstitute }: ProtocolsScreenProps) {
   const { t } = useTranslation()
   const protocols = useLiveQuery(() => db.protocols.toArray(), [])
   const doseLogs = useLiveQuery(() => db.doseLogs.toArray(), [])
   const vials = useLiveQuery(() => db.vials.toArray(), [])
-  const [mode, setMode] = useState<Mode>(
-    initialProtocolId
-      ? { kind: 'form', protocolId: initialProtocolId }
-      : initialCompoundId
-        ? { kind: 'form', compoundId: initialCompoundId }
-        : { kind: 'list' },
-  )
+  const setMode = (view: ProtocolsView) => onNavigate(view)
   const [listTab, setListTab] = useState<ListTab>('mine')
 
   if (mode.kind === 'picker') {
     return (
       <div className="flex flex-col gap-6 px-4 pb-6 pt-2">
-        <AppHeader title={t('templates.pickerTitle')} onBack={() => setMode({ kind: 'list' })} />
+        <AppHeader title={t('templates.pickerTitle')} />
         <TemplatePicker
           onSelectTemplate={(template) => setMode({ kind: 'form', template })}
           onSelectCustom={() => setMode({ kind: 'form' })}
@@ -136,11 +128,15 @@ export function ProtocolsScreen({ onReconstitute, initialCompoundId, initialProt
   if (mode.kind === 'form') {
     return (
       <ProtocolForm
+        // A fresh form for each page, so back from one form to another never carries edits across.
+        key={JSON.stringify(mode)}
         protocolId={mode.protocolId}
         template={mode.template}
         initialCompoundId={mode.compoundId}
-        onDone={() => setMode({ kind: 'list' })}
-        onReconstitute={onReconstitute}
+        // Saved (or the next-step offer skipped): back to before the template picker, not into it.
+        onDone={() => onBack(isProtocolPicker)}
+        // Saved, then on to mixing: the finished form and picker aren't pages to come back to.
+        onReconstitute={(protocolId) => onReconstitute(protocolId, isProtocolFlow)}
       />
     )
   }
@@ -229,7 +225,7 @@ export function ProtocolsScreen({ onReconstitute, initialCompoundId, initialProt
                         doseLogs={doseLogs ?? []}
                         vials={vials ?? []}
                         onEdit={() => setMode({ kind: 'form', protocolId: protocol.id })}
-                        onReconstitute={onReconstitute}
+                        onReconstitute={(protocolId) => onReconstitute(protocolId)}
                       />
                     </motion.div>
                   ))}
@@ -520,11 +516,10 @@ interface ProtocolFormProps {
   initialCompoundId?: string
   onDone: () => void
   /**
-   * Where the header's back button goes. Defaults to `onDone` — fine for the
-   * real Protocols screen, where "cancel" and "saved" both just return to the
-   * list. Onboarding passes a distinct value: cancelling out of protocol
-   * creation there needs to return to the template picker, not finish the
-   * entire wizard (which is what `onDone` means in that context).
+   * Shows a back chevron in the form's header that goes here. Only onboarding
+   * passes it: cancelling out of protocol creation there returns to its
+   * template picker. In the app, the app bar's back arrow does this job
+   * through the page history, so the form shows no second one.
    */
   onCancel?: () => void
   /**
@@ -722,7 +717,7 @@ export function ProtocolForm({
     <div className="flex flex-col gap-5 px-4 pb-6 pt-2">
       <AppHeader
         title={protocolId ? t('protocols.editTitle') : t('protocols.newTitle')}
-        onBack={onCancel ?? onDone}
+        onBack={onCancel}
       />
 
       <FormField label={t('protocols.compound')}>

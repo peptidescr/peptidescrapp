@@ -75,7 +75,18 @@ function dayHeading(date: Date, t: (key: string) => string): string {
 type StatusFilter = 'all' | DoseStatus
 type HistoryView = 'list' | 'month'
 
-export function HistoryScreen({ onOpenProtocol }: { onOpenProtocol: (protocolId: string) => void }) {
+export function HistoryScreen({
+  editingId,
+  onEditLog,
+  onBack,
+  onOpenProtocol,
+}: {
+  /** The dose being edited, if any. It's a page in App's history, so back returns to the list as it was. */
+  editingId?: string
+  onEditLog: (logId: string) => void
+  onBack: () => void
+  onOpenProtocol: (protocolId: string) => void
+}) {
   const { t, i18n } = useTranslation()
   const locale = i18n.language as Locale
   const logs = useLiveQuery(() => db.doseLogs.toArray(), [])
@@ -83,7 +94,6 @@ export function HistoryScreen({ onOpenProtocol }: { onOpenProtocol: (protocolId:
   const [view, setView] = useState<HistoryView>('list')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
-  const [editingId, setEditingId] = useState<string | null>(null)
 
   const sorted = useMemo(() => {
     return [...(logs ?? [])].sort(
@@ -118,7 +128,7 @@ export function HistoryScreen({ onOpenProtocol }: { onOpenProtocol: (protocolId:
   if (editingId) {
     const log = (logs ?? []).find((l) => l.id === editingId)
     if (log) {
-      return <HistoryEditForm log={log} onDone={() => setEditingId(null)} />
+      return <HistoryEditForm log={log} onDone={onBack} />
     }
   }
 
@@ -140,7 +150,7 @@ export function HistoryScreen({ onOpenProtocol }: { onOpenProtocol: (protocolId:
         <HistoryMonth
           protocols={protocols ?? []}
           logs={logs ?? []}
-          onEditLog={setEditingId}
+          onEditLog={onEditLog}
           onOpenProtocol={onOpenProtocol}
         />
       ) : (
@@ -152,7 +162,7 @@ export function HistoryScreen({ onOpenProtocol }: { onOpenProtocol: (protocolId:
           onStatusFilterChange={setStatusFilter}
           groups={groups}
           locale={locale}
-          onEditLog={setEditingId}
+          onEditLog={onEditLog}
         />
       )}
     </div>
@@ -521,7 +531,7 @@ function HistoryEditForm({ log, onDone }: { log: DoseLog; onDone: () => void }) 
 
   return (
     <div className="flex flex-col gap-5 px-4 pb-6 pt-2">
-      <AppHeader title={compound?.name ?? t('history.unknownCompound')} onBack={onDone} />
+      <AppHeader title={compound?.name ?? t('history.unknownCompound')} />
 
       <FormField label={t('history.date')}>
         <DatePicker value={date} onChange={setDate} />
