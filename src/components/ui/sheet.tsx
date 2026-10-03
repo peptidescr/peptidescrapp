@@ -2,6 +2,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { X } from 'lucide-react'
 import type { ComponentProps } from 'react'
 import { cn } from '@/lib/utils'
+import { useBackClosable } from '@/lib/useBackLayer'
 
 /**
  * A bottom sheet for browsing/editing a list of things — distinct from
@@ -16,7 +17,10 @@ import { cn } from '@/lib/utils'
  * focus trapping, scroll locking, and Escape handling rather than
  * reimplementing them.
  */
-export const Sheet = DialogPrimitive.Root
+/** Closes on back (the phone's, the browser's or the app bar's) while open; see useBackClosable. */
+export function Sheet(props: ComponentProps<typeof DialogPrimitive.Root>) {
+  return <DialogPrimitive.Root {...useBackClosable(props)} />
+}
 export const SheetTrigger = DialogPrimitive.Trigger
 export const SheetClose = DialogPrimitive.Close
 

@@ -1470,3 +1470,680 @@ English, with a welcome step, no language row, UPD contact, legal v3 and green p
 is Spanish, with language cards, the language row, restored CR contact with WhatsApp, legal
 v4 and navy palette. Lint has one pre-existing error (`react-hooks/set-state-in-effect`
 in `App.tsx`'s theme effect), untouched here.
+
+## Phase 2, batch 1: the vial layer (September 2026)
+
+Scope decided with the developer after re-reviewing Phase 2 of CR-TRK-2608-A: build the
+vial layer first (none of it depends on the client, and Phase 3's reorder prompt hangs off
+it). The catalogue sync, cycling in weeks, "save as template" and site rotation come next.
+**Email fallback is dropped.** Push is already live, and email would mean storing identities
+server-side, contradicting the "no identity collected" legal text. **The dosed protocol
+templates stay** (the developer's call, overriding the proposal's dose-free guidance), with
+"save my protocol as a template" to be added in batch 2. The `userTemplates` table already
+exists (schema v2) for that.
+
+**Built:**
+- **Custom compounds.** These are stored in the same `compounds` table (`isCustom`, ids
+  `custom-…`), so the service worker's notification text needed no change.
+  `getCompoundById`/`listSelectableCompounds` also answer for them through an in-memory
+  mirror (`compounds.ts` bottom, kept in sync by `lib/customCompounds.ts`). Writes update
+  the mirror synchronously, so a picker can select a compound the moment it's created. The
+  App's loading gate waits for the first sync. An "Add your own compound" footer appears on
+  both compound pickers; Settings → Your compounds handles edit and delete (delete only when
+  unused).
+- **Vials** (`lib/vials.ts`), with lot, batch, printed expiry and the user's own discard-by
+  date. A protocol has at most one active vial. What's left is **derived, never stored**:
+  the starting amount minus the `taken` logs carrying the vial's `vialId`, which
+  `logProtocolDose` stamps. Editing or deleting history therefore corrects the vial by
+  itself. Doses left are floored. "Enough until" walks the schedule. The discard-by date is
+  never defaulted: `BrandConfig.defaultDiscardDays` exists but stays unset unless the client
+  supplies a figure. Entry points are "Start a vial with this mix" in the calculator and
+  the vial strip on each protocol card (gauge, finish/discard/start next, edit details).
+- **Alerts:** low stock (3 or fewer doses left, or the last dose within 7 days), empty,
+  discard-by and printed expiry (3 days ahead, then passed). They appear on Home, in the
+  bell (same computed list, so the count and panel agree), and as notifications.
+  Notifications work two ways:
+  - Foreground: once per alert, forgotten when the alert clears.
+  - Closed app: date alerts are pushed at 09:00 on the notice day and on the date itself,
+    tagged `vial|<id>|<kind>|<day>`. The service worker reads the vial's current dates from
+    IndexedDB, so the server still learns nothing.
+
+  There's no reorder button: that's Phase 3. `VialAlertCard` has an empty action slot for it.
+- **Visual syringe** (`lib/syringe.ts` + `SyringeGraphic`). It uses the smallest real barrel
+  for the type that holds the draw (U-100: 30/50/100 units, 2-unit marks on the 100), with
+  theme tokens only. It appears in the calculator result (hero tone) and on a protocol's
+  saved mix.
+- **Adherence**: taken ÷ settled scheduled doses over 30 days. Skipped doses are shown
+  separately, and doses still inside the 12-hour missed window aren't counted yet. Paused
+  protocols report nothing. It shows on protocol cards and on the Home hero.
+  `schedule.ts`'s matching rule was generalised to `matchLogsToOccurrences` (and
+  `findUnloggedOccurrences` wraps it unchanged), so adherence can tell taken from skipped
+  without a second copy of the rule.
+- **Month calendar** on History (List | Month): taken, skipped, missed and scheduled day
+  markers, drawn by a custom react-day-picker `DayButton` that reads them from a context.
+  Tapping a day lists its logs; missed or just-due doses can be backfilled with the same card
+  as Home's catch-up.
+- **Backup format v2** (vials, custom compounds, user templates). v1 files still import. A
+  dose-to-vial link whose vial isn't in the file is dropped rather than failing the import.
+  The CSV gains lot and batch columns.
+
+**Fixed along the way:**
+- On the English-only build, an older install could still have `es-CR` saved. The app now
+  saves the corrected locale, because the service worker reads `settings.locale` directly
+  and would otherwise send closed-app reminders in Spanish.
+
+**Verified:**
+- Typecheck, 224/224 tests (new: vials, adherence, syringe geometry, registry, backup v2,
+  push vial tags, month marks), and both brand builds. The upd bundle has no Spanish vial
+  strings and neither brand's name leaks into the other's.
+- In headless Edge over CDP, on both brands:
+  1. Added a custom compound in Settings.
+  2. Seeded a protocol with mixed history: 76% adherence and 3 missed.
+  3. Started a vial: 20 doses left.
+  4. Backfilled a missed dose from Month view: 19 left, which shows the vial link works.
+  5. Backdated the discard-by date: the Home alert appeared and the bell went from 5 to 6.
+  6. The calculator drew a 10-unit syringe and offered "start a vial".
+  7. Exported a backup, wiped the vial and compound, and imported it: both restored, still
+     19 left.
+  8. A v1 backup imported.
+  9. Light and dark themes both checked.
+- Lint still shows the one pre-existing `set-state-in-effect` error in `App.tsx`.
+
+## Phase 2, batch 2 (1 of 5): store catalogue sync (October 2026)
+
+The rest of Phase 2 was planned with the developer as five features, each committed separately:
+catalogue sync, cycling in weeks, titration (pulled forward from Phase 4, because both stores
+sell many GLP-1 sizes), injection-site rotation, and "save as template". This entry covers the first.
+
+**Both stores can be read, so both brands sync:**
+- **Peptides CR** is WooCommerce. Its public Store API
+  (`peptidescostarica.net/wp-json/wc/store/v1/products`) lists all 79 products, one per vial size.
+  It sends no `Access-Control-Allow-Origin` header, so the app can't fetch it directly.
+- **USA Peptide Depot** is a custom Next.js site. Its own `/api/products` (bare domain
+  308-redirects to `www.`) currently returns **7 of the 20 products on `/shop`**. It's
+  undocumented and ignores paging parameters. Decided: build on it as-is, ask the client to make it
+  return everything (HANDOVER), and don't scrape `/shop`.
+
+**Server:** `netlify/lib/catalogue.ts`, plus a thin wrapper in `netlify/functions/catalogue.ts`
+(`GET /api/catalogue`).
+- It picks the store from the site's `VITE_BRAND`, fetches it (Woo is paged by `X-WP-TotalPages`),
+  and flattens each product to `{ name, slug, sku, category, inStock, url }`. Woo's HTML entities
+  (`&amp;`) are decoded.
+- It takes no input, and the upstream URLs are constants.
+- The edge caches it for an hour (`Netlify-CDN-Cache-Control`, stale-while-revalidate a day).
+  An empty or failed upstream response is a 502 and isn't cached.
+- `vite.config.ts` mounts the same handler for `vite` and `vite preview`, so local runs hit the
+  real store.
+
+**App:** `src/lib/storeCatalogue.ts` does the interpretation, because the app is what knows its
+own compounds.
+- Sizes are parsed out of names. The parser handles "10mg", "5 mg", "75 IU", "10,000 IU", "10ml",
+  "1.5mg", and "KissPeptin-10 10mg" (read as 10 mg).
+- Products are grouped by name, with the size and any parenthetical removed.
+- A group whose name slugs to a built-in id, or that's in the brand's alias table
+  (`src/content/storeAliases.ts`), **keeps the built-in id**. Templates, maths and existing records
+  therefore still resolve, while the name and category shown are the store's. The built-in name
+  becomes a searchable alias, so typing "Retatrutide" finds "GLP-1". How it's measured (unit, form,
+  blend/diluent flags) stays the built-in's, since the maths depends on it.
+- Everything else gets a `store-` id and is measured from its sizes. mL means a ready solution,
+  IU means IU-dosed, and "water", "diluent" or "reconstitution solution" means a diluent.
+- Alias tables are per brand ("GLP-1" is Retatrutide at Peptides CR). They contain only certain
+  equivalents: UPD's "CJC-1295 (No DAC)" is **not** "CJC with DAC". Like `src/brand/index.ts`,
+  each build keeps only its own table (checked by grepping both `dist/`s).
+- On the real data, Peptides CR's 79 products become 48 compounds. All 38 built-ins match; 10 are
+  new, e.g. AHK-Cu, VIP, SNAP-8, HMG, GHRP-6, oxytocin, TB-500 (separate from TB-4 at this
+  store) and AA water. UPD's 7 become 7.
+- Woo lists a product's categories alphabetically, so "first category" is the alphabetical first
+  (GHK-CU shows as "Collagen Peptides").
+
+**Storage:** store rows live in the Dexie `compounds` table (`source: 'store'`). The service
+worker's notification text therefore needs no change.
+- `ensureCompoundsSeeded` now skips ids that have a store row, inside one transaction, so a re-seed
+  can't undo a rename.
+- A product the store drops keeps its row with `listed: false`, so existing records keep their
+  name.
+- An in-memory mirror (like custom compounds) feeds the synchronous lookups. The App's loading gate
+  waits for it, so a built-in name never flashes before the store's.
+- The app syncs on open (after seeding) and on return to the foreground, at most hourly
+  (localStorage timestamp). Offline, a 502, or an odd response changes nothing.
+
+**Picker:** "From the {{appName}} store" first, then "Other compounds", in one alphabetical group
+each (`listSelectableCompounds`, `toCompoundOptions`).
+- `Combobox` gained `group` headings and search-only `keywords`.
+- Its rows now put the hint (category) **under** the name. At 320px, store names like "GLP-1 / GIP
+  / Glucagon" and long store categories couldn't both fit side by side.
+- The calculator's diluent quick-fill is one row per diluent with size chips. The store's longer
+  names had wrapped the old "name + size" chips onto three lines.
+
+**Backup v3** carries the store compounds the user's records refer to, so a restore onto a fresh
+device shows names before its first sync. They're restored unlisted and without store products, and
+only where the device has no store row of its own. v1 and v2 files still import.
+
+**Verified:**
+- Typecheck, 265/265 tests, and lint (only the pre-existing `App.tsx` theme-effect error).
+- Tests cover the server with fixtures trimmed from both real responses, and the app's mapping run
+  over every real product from both stores (passed through the server's own normalizer).
+- Both brand builds, with no alias-table or brand leakage across them.
+- Live in headless Chrome over CDP against `vite preview` and the real stores. Peptides CR at 390px:
+  48 store rows, store heading first, no "Other" section (it sells every built-in). UPD at 320px: 7
+  store rows plus 33 built-ins under "Other". On both:
+  - "Retatrutide" finds the store-named compound.
+  - With `/api/catalogue` blocked, the synced list stays and nothing is unlisted.
+  - There were no console errors.
+- Not verified: the function on Netlify itself (edge caching, `process.env.VITE_BRAND` there).
+
+## Phase 2, batch 2 (2 of 5): cycling in weeks (October 2026)
+
+New schedule kind `cycleWeeks` (`src/lib/schedule.ts`): one of the plain patterns (daily, every N
+days, set weekdays) runs for N weeks on, then nothing for M weeks off, repeating from the start
+date ("Mon/Wed/Fri for 8 weeks, 4 off"). This is the shape the developer picked. The old
+day-based `cycle` is unchanged; its label is now "Cycle (days on/off)" to tell the two apart.
+- **Every N days restarts at each on-block**, so every block opens with a dose. Weekdays follow
+  the calendar.
+- **Optional fixed run:** `cycles` stops it after that many on-blocks. `washoutWeeks` (only
+  meaningful with `cycles`) is the rest after the last block; it replaces that block's off weeks,
+  and then the protocol is complete. A washout schedules nothing, so `isScheduledDay` only has to
+  stop after the last block. `getNextOccurrence` is then null, and Home and the reminders simply
+  run out.
+- **`cyclePhase(ctx, day)`** reports on / off / washout / done, which week of how many, and when
+  the next phase starts. It's for display only: what's scheduled always comes from
+  `isScheduledDay`. The protocol card shows it ("Off · week 2 of 4 · resumes 03/11/2026",
+  "Washout · week 1 of 2 · ends …", "All cycles complete"). It also replaces the long kind name
+  with "8 wk on / 4 wk off".
+- **Home:** an upcoming card in the off weeks says "Off week · next dose <date>". It uses the
+  dose's own date, not the day the on-block starts, because a weekday pattern may not dose on
+  that day.
+- Occurrences, missed doses, adherence, the month calendar and push reminders all go through
+  `isScheduledDay`, so they needed no change.
+
+**Form:** the schedule state is now one `ScheduleFields` object (`src/lib/scheduleForm.ts`)
+instead of eleven `useState`s.
+- `scheduleFields(schedule)` prefills it, from an existing protocol or a template.
+- `parseScheduleFields` reads it back, one value per field, so the form flags exactly which field
+  is wrong. The schedule is `null` until everything it needs is valid.
+- One behaviour change: "Specific weekdays" with no day picked no longer saves as Monday; Save
+  stays disabled instead ("validated, not coerced").
+- The weeks-cycle fields reuse the every-N input and weekday chips under a "While on, dose" select.
+  A select rather than a segmented control, because three Spanish labels don't fit at 320px.
+- Weeks are capped at 104, cycles at 52 (`sanitize.ts`).
+
+**Backups:** validation accepts `cycleWeeks`, checking the inner kind *before* parsing it, so a
+crafted file can't nest cycles inside cycles. It drops a washout that has no cycle count.
+
+**Verified:**
+- Typecheck, 287/287 tests (new: block boundaries, both inner kinds, the restart rule, fixed runs
+  ending, every `cyclePhase` state, form round-trips and refusals, backup validation), lint (only
+  the known `App.tsx` error), i18n 363/363, and both brand builds.
+- Live in headless Chrome on the Peptides CR build, English at 390px and Spanish at 320px:
+  - Seeded protocols mid-off-week and mid-washout showed the right phase and dates on the cards
+    and on Home.
+  - A weekday weeks-cycle with 3 cycles built through the real form saved exactly what was
+    entered.
+  - No overflow and no console errors.
+  - Two 320px Spanish layout defects were found and fixed: the paired week inputs misaligned when
+    one label wrapped, and "250 mcg" split across lines on the card.
+
+## Phase 2, batch 2 (3 of 5): titration, moved up from Phase 4 (October 2026)
+
+The proposal moves titration into Phase 2 if GLP-1s are a big part of the business. Both stores
+list many GLP-1 sizes, so the developer chose to include it. Decided with them: steps advance **by
+themselves** on their dates, with a heads-up a few days ahead, and the last step holds.
+
+**Model** (`src/lib/titration.ts`): `Protocol.titration = { steps: [{ doseAmount, weeks }] }`, at
+least 2 and at most 12 steps, all in the protocol's `doseUnit`. It's optional and unindexed, so
+there's no Dexie bump.
+- Steps run in **calendar weeks from the start date**; off weeks in a weeks cycle count. That makes
+  each change a fixed date that can be announced ahead, rather than one that drifts with every off
+  or paused stretch. The form says so.
+- `doseAmount` is kept equal to step 1, so anything not taught about titration still reads a real
+  dose. Backup import enforces that too.
+- `doseOn(protocol, day)` gives the dose in force on a day; `nextDoseChange` and `doseChangeNotice`
+  give the next change and whether to announce it (3 days ahead, and on the day itself).
+
+**Every dose read is now date-aware:**
+- Logging (`logProtocolDose` records the dose on the day administered, so a backfill gets that
+  day's step).
+- Dose cards, History's calendar rows, the protocol card ("2.5 mg → 5 mg from 04/10/2026"), the
+  calculator prefill (today's step) and the "next step: reconstitute" prompt.
+- Foreground notifications, and the service worker's closed-app text. The service worker carries
+  a plain-JS `doseOnDay`. A test lifts it out of the file (`?raw` import) and checks it against
+  `doseOn` for every day of a year, at 07:00 and 23:00, including across DST.
+- **Vials:** with a titration, doses-left walks the upcoming doses at each one's own amount, so a
+  step up shortens the run. In the test, 10 mg covers 3 doses where a fixed 2.5 mg would cover 4.
+  A vial that outlasts the 400-day look-ahead counts the rest at the latest step and shows no
+  run-out date, the same as the fixed-dose case.
+- `formatDose` uses a non-breaking space, so "2.5 mg" never splits across lines at 320px.
+
+**Heads-up:** `computeDoseChanges` (`homeData.ts`) feeds a "Dose changes" section on Home and the
+bell panel from one list, and the bell count includes it. `DoseChangeCard` uses the calm accent
+tint; a planned change isn't a warning. It isn't pushed.
+
+**Saved mix:** when today's step differs from the dose a saved mix was worked out for, the mix panel
+says so and offers **Recalculate**, which opens the calculator at today's dose. This only happens for
+titrated protocols. A fixed-dose protocol's mix may be for another dose on purpose, and its summary
+already says which.
+
+**Form:** a "Change the dose over time" switch under the dose, which becomes "Starting dose". The
+editor (`TitrationEditor`, logic in `src/lib/titrationForm.ts`) shows step 1 from the dose field
+plus its weeks. Later steps each have a dose and weeks, except the last ("Then holds until the
+end"). There's add/remove, a 12-step cap, and invalid input disables Save.
+
+**Verified:**
+- Typecheck, 306/306 tests (new: step boundaries, before-start, single-step, change notices, the
+  service-worker parity check, the vial walk, form round-trips and refusals, backup validation),
+  lint (known `App.tsx` error only), i18n 379/379, both builds.
+- Live in headless Chrome on Peptides CR at 390px and 320px:
+  - Heads-ups for a change in 2 days and one today, on Home and in the bell.
+  - The due card showed the new step's 5 mg, and Taken logged 5000 mcg.
+  - The card showed "→ 5 mg from …", and the vial read 3 doses, enough until the step day.
+  - The saved-mix notice's Recalculate opened the calculator at 5.
+  - The plan loaded back into the edit form, with no overflow and no console errors.
+- A tooling slip was caught by lint: escape sequences typed into tool calls become literal
+  characters, so a raw NBSP landed in `formatDose`. It's now `String.fromCharCode(0xa0)`, and a
+  test pins the output. The batch-1 store test's right-to-left override character is now explicit
+  too.
+
+## Phase 2, batch 2 (4 of 5): injection-site rotation (October 2026)
+
+Opt-in per protocol, as decided with the developer: when it's on, tapping **Taken** opens a picker
+with the most-rested site preselected, one more tap to confirm. Protocols without it log exactly as
+before. Skipped never asks.
+
+**Sites** (`src/lib/injectionSites.ts`), the developer's "standard set, editable":
+- Subcutaneous: the 4 abdomen quadrants, thighs L/R, backs of the upper arms L/R, glutes L/R.
+- Intramuscular: deltoids, glutes, thighs L/R.
+- Route "other" has none, and the option isn't offered.
+- Thigh and glute ids are shared between the two routes. It's the same area of the body, so they
+  share rest tracking.
+
+**Rest:** counted across **all** protocols (same patch of skin, whatever went into it), from taken
+doses that recorded a site.
+- The suggestion is never-used first, then the least recently used; ties go to the fixed order.
+- The app shows days ("rested 9 days", "used today", "not used yet") and makes no claim about how
+  long a site should rest.
+
+**Data:** `Protocol.siteTracking = { sites }` (present means on) and `DoseLog.site`. Both are
+optional and unindexed, so there's no Dexie bump. `logProtocolDose` takes the site; only a taken
+dose stores one.
+
+**UI:**
+- **Picker:** `SitePickerSheet` shows a Front/Back toggle when the sites span both views, the body
+  map, and a full-width row per site with its rest days. A "Log at <site>" button confirms; Cancel
+  logs nothing. It's mounted only while open, so each opening starts from a fresh suggestion.
+- **Body map:** `BodyMap` is an inline SVG drawn as a **mirror**, so the body's left is on the
+  screen's left in both views, marked L/R. Zones are focusable and labelled, but the rows are the
+  primary touch targets.
+- **Protocol card:** "Next site: Left thigh · rested 9 days".
+- **Form:** a "Track injection sites" switch plus chips for the route's sites. Changing the route
+  resets the chips to the new route's set, and an empty selection disables Save.
+- **History:** rows show the site, and the edit form has a site select (for taken doses whose
+  protocol tracks sites, or that already have one).
+- The CSV gains an `injectionSite` column.
+
+**Backups:** known site ids are kept; unknown ones are dropped rather than failing the restore.
+A tracking list left with no known site turns tracking off.
+
+**Verified:**
+- Typecheck, 315/315 tests (new: suggestion order, cross-protocol rest, skipped doses ignored, rest
+  days, route filtering, backup handling), lint (known `App.tsx` error only), i18n 410/410, both
+  builds.
+- Live in headless Chrome on Peptides CR, English at 390px and Spanish at 320px:
+  - Taken opened the picker with the longest-rested site preselected; another protocol's use of
+    the upper-left quadrant counted.
+  - The back view showed the arm and glute sites.
+  - Confirming logged the site.
+  - The card named the next site and History showed it.
+  - The form loaded tracking back, and switching to intramuscular swapped in the IM sites.
+  - No overflow and no console errors.
+- Two defects were found that way and fixed:
+  - With ten sites the sheet's flex column squashed the map to nearly nothing (`shrink-0`, and a
+    check now asserts its size).
+  - "upper right" + "suggested" read as one word, because only a margin separated them.
+
+## Phase 2, batch 2 (5 of 5): save a protocol as a template (October 2026)
+
+Added to Phase 2 in batch 1, alongside keeping the built-in dosed templates (the developer's call).
+The `userTemplates` table has existed since schema v2.
+- **Save:** a protocol card's menu has "Save as template". It asks for a name (prefilled from the
+  protocol) and stores the compound, dose, schedule, reminder times, route, titration and site set.
+  It doesn't store dates, history, the vial or the saved mix: a template is a copy, not a link
+  (`src/lib/userTemplates.ts`).
+- **Use:** the template picker (the Protocols tab's Templates, "New", and onboarding) shows "My
+  templates" above "Starter templates". Search and category chips apply to both, and saved ones
+  can be deleted, which never touches protocols made from them.
+- **One way into the form:** built-in and saved templates both become a `ProtocolPrefill` before
+  reaching `ProtocolForm`. Its `template` prop no longer takes the built-in shape, and onboarding
+  uses the same type. Hand-picked custom days already in the past are dropped from a saved template
+  when it's used.
+- Template rows use `scheduleSummary` ("6 wk on / 2 wk off") and mark a titration "(stepped)". The
+  protocol card uses the same helper.
+
+**Verified:**
+- Typecheck, 319/319 tests (new: what a template keeps and leaves out, the name rule, both prefill
+  paths giving the same shape, past custom days dropped), lint (known `App.tsx` error only), i18n
+  parity, both builds.
+- Live in headless Chrome on Peptides CR at 390px:
+  - Saved a weeks-cycle, titrated, site-tracked protocol under a new name.
+  - It appeared under "My templates" as "(stepped) · 6 wk on / 2 wk off".
+  - Creating from it prefilled everything, and saving produced an identical plan.
+  - Deleting it left both protocols in place, with no console errors.
+
+## Tier 1 (1 of 5): late and early doses (October 2026)
+
+From the competitor review (Shotsy handles this; we didn't). Before this, a dose only counted on its
+scheduled calendar day. A weekly shot taken a day late read as missed, and its log matched nothing.
+
+**Matching** (`matchLogsToOccurrences`, `src/lib/schedule.ts`) now has two passes:
+1. **Same day, nearest in time.** Unchanged.
+2. **Late or early, only between doses at least two days apart.** A leftover log pairs with the
+   nearest unmatched dose within half the gap to its neighbours, capped at 3½ days, closest pairs
+   first. A weekly dose gets ±3½ days and an every-other-day dose ±1 day. Daily doses stay
+   same-day only, so an extra evening log can't stand in for the next morning's dose (an existing
+   adherence test pinned that).
+
+**Range helpers:** the gap is measured within the list given, and a log just outside a range has to
+be seen. So every caller now goes through `matchLogsInRange` / `findUnloggedInRange`, which match
+over ±4 extra days and then trim to the range. That covers due/missed/next, adherence, Home's
+today, History's calendar, vial run-out, push and foreground reminders. Pass 2 binary-searches the
+leftover logs, so a 400-day horizon against long histories stays cheap.
+
+**UI:**
+- **Next up** offers Taken/Skipped whenever logging now would settle the dose (`wouldSettle`), e.g.
+  a Monday weekly dose on Saturday, not only on its own day.
+- **Catch-up:** Taken on a dose from an earlier day, where logging now still counts for it, opens
+  `LateDoseSheet`: **Just now** (the default) or **On schedule** (the old behaviour). With "just
+  now", a once-a-week weekday or every-N-days schedule (`shiftScheduleTo`, `src/lib/lateDose.ts`)
+  can **keep the schedule** or **move future doses** to that weekday or count from today. Each
+  choice shows its resulting next dose.
+- Moving restarts tracking at the start of that day, like any schedule edit. Moving an every-N
+  schedule moves its start date, so a titration shifts with it.
+- If the protocol tracks sites, the site picker follows.
+
+**Verified:**
+- Typecheck, 328/328 tests (new: weekly late and early, the 3½-day cap, daily staying strict, logs
+  just outside a range, `wouldSettle`, every `shiftScheduleTo` case), lint (known `App.tsx` error
+  only), i18n parity.
+- Live on the UPD build at 390px. A weekly dose missed two days ago appeared in Catch-up. Next up
+  offered logging a weekly dose two days early. Taken asked when; "Just now" plus "Move to
+  Saturdays" logged at the real time, moved the schedule to today's weekday, and cleared Catch-up.
+  No console errors.
+
+## Tier 1 (2 of 5): results tracking and the Progress tab (October 2026)
+
+Shotsy's core free layer, and present in every top app: what happens to the person, next to what
+they took. Lives in a new fifth tab, **Progress**, as the developer chose.
+
+**Data** (`src/lib/results.ts`, Dexie **v3**: two new tables, nothing to upgrade):
+- `weights`: any number per day, each with its own time, in whole grams. Switching kg/lb never
+  rounds a stored value. Accepted range is 20–400 kg, to catch typos and unit mix-ups.
+- `checkIns`: one per day, keyed by its date. It holds:
+  - energy, mood, sleep and appetite/"food noise" (1–5);
+  - side effects as symptom → severity (mild, moderate, severe; not felt means absent);
+  - optional waist (whole mm) and body fat %;
+  - a note.
+  `cleanCheckIn` keeps only what was answered, and clearing everything deletes the day.
+- Settings gains `weightUnit` (unset means the brand default: lb for USA Peptide Depot, kg for
+  Peptides CR), `goalWeightGrams`, and `symptoms`, which hides built-ins and adds the user's own
+  (up to 30).
+- The built-in symptom list includes injection-site reaction and pain when injecting, as the plan
+  asked.
+- **Start weight** is the earliest weight on record. It's labelled "before your first dose" when
+  it predates the first taken dose, which is Shotsy's baseline. An earlier date can be picked
+  when logging, so a pre-treatment weight can be added afterwards.
+
+**UI:**
+- **Progress tab:**
+  - A weight card with the latest weight, change since start (and %), the start line, and a goal
+    bar ("Goal 180 lb · 12% of the way").
+  - "Today" with the check-in summary or a prompt.
+  - Recent check-ins (tap to edit that day) and recent weights (delete).
+  - A sliders button opens goal, unit (kg/lb, converting what's typed) and the symptom list.
+- **Check-in sheet:** 1–5 chips (tap again to clear), a None/Mild/Moderate/Severe control per
+  symptom, measurements behind "Add measurements", and a note.
+- **Onboarding step 7, "Your starting point":** weight today and an optional goal. It's only
+  shown after a first protocol is saved ("once someone has a protocol"), is skippable, and has no
+  back button, since going back into the saved protocol's form invites a duplicate. The progress
+  bar is now out of 7.
+- **Home:** a quiet "How are you today?" card while there's an active protocol and nothing has been
+  recorded today.
+
+**Backup v4** carries weights and check-ins. Check-ins are rebuilt through `cleanCheckIn`, and
+implausible weights or duplicate days reject the file. The unit, a plausible goal and a cleaned
+symptom list come through settings. v1–v3 still import.
+
+**Verified:**
+- Typecheck, 337/337 tests (new: unit round-trips, progress maths, baseline, check-in cleaning,
+  the symptom list, backup v4), lint (known `App.tsx` error only), i18n 508/508, UPD build.
+- Live on the UPD build at 390px:
+  - Went through real onboarding to the new step, which saved 210 lb as 95,254 g with a 180 lb
+    goal.
+  - Five tabs with no overflow.
+  - Logged an earlier 214 lb weight, which became the start "before your first dose", with
+    "−4 lb since start (1.9%)" and "12% of the way".
+  - The check-in stored only energy 4 and nausea mild, and Today summarised it.
+  - Switching to kg showed 95.3 kg. No console errors.
+- One fix came out of it: before any dose was taken, the start weight wasn't labelled "before your
+  first dose", though it is.
+
+## Tier 1 (3 of 5): charts that connect results to doses (October 2026)
+
+Shotsy's "unique" charts, cheap here because the dose-step and site data already exist. They're
+a **Trends** section on Progress, under one filter row (1 mo / 3 mo / 6 mo / All, plus "Doses
+of …" when more than one protocol has doses). Everything below the filters follows them. Built
+with the dataviz skill's method; hand-rolled SVG, so no chart dependency is added to the bundle.
+
+**Views** (data in `src/lib/progressCharts.ts`, pure and tested; drawing in `ProgressCharts.tsx`):
+- **Weight by dose:** a 2px line whose segments, and ≥8px dots with a surface ring, take the
+  dose step in force when each weight was measured (`stepOn` → `doseOn`).
+  - Weights before the protocol started are "Before first dose", in the muted grey.
+  - Hairline solid grid with round ticks (`niceTicks`) and a goal line if it's in view.
+  - A crosshair and tooltip that snaps to the nearest point, with arrow keys on focus.
+  - A legend when there's more than one step, and "Show as a table".
+- **Results by dose:** a table. For each step across the whole protocol: weeks on it, weight
+  change (its last weight minus the last one before it), per week, and side-effect days out of
+  check-in days with mean worst severity.
+- **Side effects and doses:** a timeline with a dose-marker row and one severity row per symptom
+  that occurred (most frequent first, 8 shown, the rest in the table).
+  - Daily columns up to 60 days, then weekly bins (worst severity of the week), so cells stay
+    tappable at 320px.
+  - Each whole column is the hit target, with a tooltip and arrow keys.
+  - "Show as a table" lists the days and weeks that had anything.
+- **Results by injection site:** doses per site, and how many had a site reaction or pain
+  recorded that day (with mean severity).
+- **Calendar day:** History's month view now shows the selected day's weights and check-in
+  (summary and note), with "Add/Edit this day's check-in" opening the same sheet.
+
+**Colour:**
+- Dose steps use an **ordinal ramp in each brand's own hue** (`--chart-dose-1..4`), and severity
+  a shared amber ramp (`--chart-sev-1..3`), both in `tokens.css` for dark and light.
+- Each was run through `validate_palette.js --ordinal` against that mode's card surface; one light
+  severity step failed the 2:1 floor and was stepped darker.
+- Fewer than four steps **spread across the whole ramp** (two steps get the two ends). A first
+  render showed 2.5 mg and 5 mg as nearly the same green, because they'd taken the two lowest
+  shades.
+- Text never takes the series colour.
+
+**Verified:**
+- Typecheck, 347/347 tests (new: step naming and shading, weight points, results by step and by
+  site, daily and weekly timelines, focus choice, range starts, ticks), lint (known `App.tsx`
+  error only), i18n 553/553, UPD build.
+- Live on the UPD build, dark and light at 390px, with six weeks of seeded data:
+  - The legend showed Before first dose / 2.5 mg / 5 mg, and the line used two shades.
+  - Both steps were in the by-dose table, with the timeline and site table present.
+  - Hovering gave "94.8 kg · 02/10/2026 · 5 mg".
+  - The calendar day showed "Energy 4" and its note.
+  - No overflow and no console errors.
+- Fixed on the way:
+  - The chart never measured its width when its data arrived after the first render (now a
+    callback ref).
+  - "6 months" wrapped in the range control (now "6 mo").
+  - "Darker when more severe" was wrong on the dark theme, where severe is the brighter step.
+
+## Tier 1 (4 of 5): reorder loop and unopened vials (October 2026)
+
+The first piece of Phase 3, and the client-ROI item: a nudge at the moment a customer would
+otherwise go looking for a supplier.
+
+- **Reorder button** in `VialAlertCard`'s empty action slot (Home and the bell). It shows on a
+  low-stock or empty alert when there's nothing unopened left.
+  - It's a plain link to the product on the brand's own store, taken from the catalogue sync's
+    stored links (`Compound.storeProducts`). It prefers the same vial size in stock, then the
+    same size, then anything in stock (`reorderProduct`, `src/lib/reorder.ts`).
+  - Nothing is written to the store and nothing about the customer leaves the device.
+  - No button when the store doesn't sell it.
+- **Unopened vials on hand** (`Protocol.spareVials`, a −/+ on the protocol's vial strip). While
+  there are some, the alert says "N unopened vials on hand." and doesn't nudge. Starting the next
+  vial (`startVial`) uses one up.
+- **"Order by <date>"** = the vial's "enough until" date minus `BrandConfig.shippingDays`. As the
+  developer chose, it's **unset for both brands until the client confirms shipping times**
+  (HANDOVER question 5), so no date shows. Setting the number turns it on.
+- Fixed on the way: the alert card didn't re-render when a catalogue sync landed, so the button
+  only appeared on Home's next minute tick. It now subscribes (`useCompound`).
+
+**Verified:**
+- Typecheck, 352/352 tests (new: product choice, the nudge rule, order-by), lint (known `App.tsx`
+  error only), i18n 563/563, PCR build.
+- Live on the PCR build against the real store. A tirzepatide vial with one dose left showed
+  Reorder, linking to `peptidescostarica.net/product/tirzepatide-10mg/`, with no order-by date.
+  Adding one unopened vial switched the alert to "1 unopened vial on hand." with no button. No
+  console errors.
+- Not exercised live: the spare count dropping when the next vial is started. That's a one-line
+  update inside `startVial`'s transaction.
+
+## Tier 1 (5 of 5): report for a doctor (October 2026)
+
+Shotsy's "feel prepared at every appointment". **Report** on Progress opens a full-screen
+summary for a chosen period (1 mo / 3 mo / 6 mo / All). **Print or save as PDF** hands it to the
+browser's print dialog, which saves a PDF or shares it on a phone. There's no PDF library, and
+nothing leaves the device unless the person sends it.
+
+**Content** (`buildReport`, `src/lib/report.ts`, pure and tested). It's a record, not an
+interpretation:
+- **Protocols:** active ones, plus any that logged a dose in the period. Each shows compound,
+  route, start, today's dose and schedule, titration steps, and adherence over the same period
+  (taken / skipped / missed).
+- **Weight:** start → latest (change), and the weight-by-dose chart with **dose markers**: a tick
+  along the bottom for each taken dose (a new `doseMarks` option on `WeightDoseChart`).
+- **Side effects reported:** per symptom, days reported out of days checked in, worst and mean
+  severity.
+- **Dose log:** date and time, compound, dose, status and site.
+- Notes are left out on purpose. They can be private, and the person can add context themselves.
+
+**Printing:** the view is portalled to the end of `<body>`. An `@media print` block in `index.css`
+hides `#root` only while the report exists (`body:has(.report-portal)`), un-fixes the overlay so it
+flows across pages, and hides controls (`.no-print`, including the charts' "Show as a table").
+`beforeprint`/`afterprint` switch the page to the light theme and back, so it prints dark on white
+in either theme.
+
+**Verified:**
+- Typecheck, 355/355 tests (new: period filtering, protocols included, adherence over the period,
+  the symptom summary), lint (known `App.tsx` error only), i18n 592/592, PCR build.
+- Live on the PCR build with six weeks of seeded data. The report showed all four sections, the
+  titration steps ("2.5 mg × 3 weeks → 5 mg") and 7 dose ticks.
+- `Page.printToPDF` (the real print path) produced a two-page A4 PDF: light, everything legible,
+  the line in two dose shades with ticks, and the dose log with sites.
+- The theme was back to dark afterwards. No console errors.
+
+## Site picker redesign (October 2026)
+
+The developer found the Phase 2 site picker clunky and its figure cartoonish: rounded boxes for a
+body, a Front/Back toggle, and a 10-row list that pushed the button off-screen. Chosen with them:
+**front and back side by side with no list**, a **realistic gender-neutral figure**, and **recently
+used sites faded**.
+
+- **Figure** (`BodyMap.tsx`). One outline path, used for both views. It's built from a list of
+  points for the right half (`HALF_OUTLINE`), mirrored, and smoothed as a closed Catmull-Rom
+  spline, so it stays symmetric and is easy to adjust. Proportions are roughly 8 heads tall. The
+  back view adds a faint spine and gluteal folds, the front a navel. It's cropped below the calves
+  (the lowest site is the thigh) and fades out there, so it can be drawn larger.
+- **Sites** stay as zones on the body. The abdomen quadrants are kept clear of the navel. Each tap
+  area is larger than the drawn zone, filling the space up to the next site: about 33×35 px for
+  an abdomen quadrant at 390px wide, 31×33 at 320. The chosen site is filled with a soft halo,
+  and the suggested one gets a dashed outline once something else is picked. The keyboard focus
+  ring outlines the tap area.
+- **Fading** (`restEmphasis`, `src/lib/injectionSites.ts`, tested). It's relative: 0 is the site
+  used most recently, 1 the one rested longest (never used counts as one day more than the longest
+  rest), so it ranks sites against each other without claiming how long one *should* rest. "Faded
+  sites were used more recently." explains it once anything has been used.
+- **Sheet** (`SitePickerSheet.tsx`). The map scrolls. A card naming the chosen site with
+  "Suggested" and its rest, and the **Log dose** button, are pinned below it, so on a short phone
+  the button never scrolls away. The button no longer repeats the site name, because "Registrar
+  en Abdomen, arriba a la derecha" was cut off at 320px. Each zone's accessible name now carries
+  the rest ("Left thigh, rested 3 days"), since the list that showed it is gone.
+- Figure width is `min(8.5rem, 40vw, 22dvh)`. A view with none of the protocol's sites is left
+  out, so an abdomen-only protocol shows just the front.
+
+**Verified:** typecheck, 357/357 tests, lint (known `App.tsx` error only), i18n 594/594, both
+builds. Checked live (`check-bodymap`) on both brands, in dark and light, English and Spanish,
+at 390×844, 375×667 and 320×568/640:
+- both figures and all 10 zones drawn, with the suggested site preselected;
+- recently used sites fainter;
+- tapping the body or pressing Enter on a focused zone picks the site;
+- the Log button is in view and nothing is clipped or overflowing;
+- the dose is logged at the chosen site, and there are no console errors.
+
+An intramuscular protocol (deltoids, glutes, thighs) and a front-only set were also checked.
+
+## Back navigation (October 2026)
+
+Asked for: a back step to whatever the previous page was. Before this, tabs were plain state, so
+the phone's or browser's back left the app, and the in-screen chevrons only went "up" (a
+protocol opened from Home went back to the protocol list, never to Home). Chosen with the
+developer:
+- a **back arrow at the top-left of the app bar**, shown whenever there's a previous page;
+- the **logo moved to the centre** of the bar, so it never shifts as the arrow comes and goes;
+- **system back does the same**;
+- back **closes an open sheet or dialog first**.
+
+- **Pages** (`src/lib/pages.ts`, pure and tested). A page is a tab plus its sub-page:
+  - the protocol list, the template picker, or a protocol form (new, from a template, for a
+    compound, or editing one);
+  - the calculator for a protocol;
+  - a dose being edited in History.
+
+  App keeps every page visited (capped at 50) and renders the last. This replaces the old tab
+  state and its one-shot hand-offs (`calculatorProtocolId`, `newProtocolCompoundId`,
+  `editProtocolId`); `ProtocolsScreen`'s mode and History's `editingId` now come from the page.
+  Two rules make flows read right:
+  - **Saving a new protocol** goes back past the template picker (`popPage(…, isProtocolPicker)`).
+    Cancelling is ordinary back, so it returns to the picker to choose again.
+  - **"Reconstitute now"** after saving drops the finished form and picker
+    (`pushPage(…, isProtocolFlow)`), so back from the calculator never reopens an empty
+    "new protocol" form.
+- **One back path** (`src/lib/backStack.ts`, tested with a fake history). The app bar's arrow
+  and `popstate` both take one step: close the newest open layer, else go back a page.
+  - The browser sees a single extra history entry while there's anything to go back from. It's
+    put back after each step if more remain, and taken off when nothing is left, so back from the
+    first screen still leaves the app.
+  - The URL never changes, so there's nothing for Netlify routing or the service worker to
+    handle.
+  - Our own `history.back()` (taking the entry off) is told apart from the person's, and a new
+    entry waits for it to land, so a sheet closing as the next opens can't knock the history out
+    of step.
+- **Sheets and dialogs** register themselves while open: `Dialog`, `Sheet` and `AlertDialog` in
+  `components/ui` now wrap Radix's root with `useBackClosable`, including the one uncontrolled
+  `AlertDialog` (with a Trigger). Every existing sheet and dialog picked this up with no change at
+  the call site. The doctor's report (a full-screen portal) uses `useBackLayer` directly.
+- **Scroll**: a new page starts at the top, and back restores where the page was left. Data loads
+  a beat after mount, so the restore retries for up to 30 frames.
+- The in-screen back chevrons (template picker, protocol form, History's dose edit) are gone,
+  because they would duplicate the app bar's arrow. `AppHeader`'s `onBack` remains for
+  onboarding, which has no app bar. `ProtocolForm` shows a chevron only when given `onCancel`,
+  which only onboarding passes.
+- Not included: onboarding's steps, which have their own back buttons and sit before the app
+  (system back there leaves, as before). Dropdowns and pickers also aren't layers; back from
+  inside a sheet closes the whole sheet.
+
+**Verified:**
+- Typecheck, 369/369 tests (new: page push/pop rules, the back stack's history handling), lint
+  (known `App.tsx` error only), both builds.
+- Live (`check-back`, 23 checks) on UPD at 390px and Peptides CR at 320px, no console errors:
+  - the first screen has no arrow, a centred logo and no extra history entry;
+  - tab → back → Home, and the entry is removed again;
+  - the list's scroll position is restored after visiting the picker;
+  - system back walks form → picker → list → Home;
+  - a protocol opened from Home goes back to Home;
+  - Settings goes back to the page it was opened from;
+  - system back closes the weight sheet and the report first, staying on Progress;
+  - a dose edit goes back to History;
+  - saving a new protocol lands on the list, not the picker.

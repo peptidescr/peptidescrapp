@@ -10,22 +10,62 @@
  * are dropped, types and ranges are checked, free text is sanitized, and any
  * record that isn't valid rejects the whole file (before anything is written)
  * rather than restoring a quietly partial history.
+ *
+ * Format versions: 1 (Phase 1: protocols, dose logs, settings), 2 (adds
+ * vials, custom compounds and user templates) and 3 (adds the store
+ * compounds the user's records refer to, so a restore onto a fresh device
+ * doesn't show bare ids before its first catalogue sync) and 4 (adds results
+ * tracking: weights and daily check-ins). All import; an
+ * older file simply restores without the newer collections. Exports are
+ * always the latest.
  */
-import type { DoseLog, Protocol, SavedReconstitution, Settings } from './db'
+import { CUSTOM_CATEGORY, type Compound } from '../content/compounds'
+import type { DoseLog, Protocol, SavedReconstitution, Settings, UserTemplate, Vial } from './db'
 import {
+  MAX_CYCLES,
   MAX_DAY_COUNT,
   MAX_DOSE_AMOUNT,
+  MAX_WEEK_COUNT,
   MAX_NAME_LENGTH,
   MAX_NOTES_LENGTH,
   sanitizeMultiline,
   sanitizeText,
 } from './sanitize'
-import type { Schedule, Weekday } from './schedule'
+import type { CycleInnerSchedule, Schedule, Weekday } from './schedule'
+import { isSiteId, type SiteId } from './injectionSites'
+import { MAX_SPARE_VIALS } from './reorder'
+import {
+  BUILT_IN_SYMPTOMS,
+  cleanCheckIn,
+  isEmptyCheckIn,
+  isPlausibleWeight,
+  MAX_CUSTOM_SYMPTOMS,
+  MAX_WEIGHT_GRAMS,
+  MIN_WEIGHT_GRAMS,
+  type CheckIn,
+  type Rating,
+  type Severity,
+  type SymptomPrefs,
+  type WeightEntry,
+} from './results'
+import { MAX_TITRATION_STEPS, type Titration } from './titration'
 
-export const BACKUP_VERSION = 1
+export const BACKUP_VERSION = 4
+const SUPPORTED_VERSIONS: readonly unknown[] = [1, 2, 3, 4]
 export const MAX_BACKUP_BYTES = 20 * 1024 * 1024
 const MAX_PROTOCOLS = 1000
 const MAX_DOSE_LOGS = 200_000
+const MAX_VIALS = 10_000
+const MAX_CUSTOM_COMPOUNDS = 500
+const MAX_STORE_COMPOUNDS = 1000
+const MAX_USER_TEMPLATES = 500
+const MAX_VIAL_SIZES = 20
+const MAX_STORE_TEXT = 200
+const MAX_ALIASES = 10
+const MAX_WEIGHTS = 50_000
+const MAX_CHECK_INS = 20_000
+const MAX_SIDE_EFFECTS_PER_DAY = 60
+export const MAX_LOT_LENGTH = 40
 const MAX_ID_LENGTH = 100
 const MAX_REMINDER_TIMES = 12
 const MAX_CUSTOM_DATES = 500
@@ -36,6 +76,12 @@ export interface ValidBackup {
   protocols: Protocol[]
   doseLogs: DoseLog[]
   settings?: Settings
+  vials: Vial[]
+  customCompounds: Compound[]
+  storeCompounds: Compound[]
+  userTemplates: UserTemplate[]
+  weights: WeightEntry[]
+  checkIns: CheckIn[]
 }
 
 class InvalidBackupError extends Error {}
@@ -109,9 +155,34 @@ function schedule(value: unknown): Schedule {
       }
       return { kind: 'custom', dates: [...new Set(value.dates.map((d) => isoDate(d, 'schedule.dates')))].sort() }
     }
+    case 'cycleWeeks': {
+      // Checked before parsing, so a file can't nest cycles inside cycles.
+      if (!isRecord(value.inner) || !['daily', 'everyNDays', 'weekdays'].includes(String(value.inner.kind))) {
+        fail('schedule.inner')
+      }
+      const inner = schedule(value.inner) as CycleInnerSchedule
+      const result: Schedule = {
+        kind: 'cycleWeeks',
+        inner,
+        weeksOn: wholeNumber(value.weeksOn, 'schedule.weeksOn', 1, MAX_WEEK_COUNT),
+        weeksOff: wholeNumber(value.weeksOff, 'schedule.weeksOff', 0, MAX_WEEK_COUNT),
+      }
+      if (value.cycles !== undefined) result.cycles = wholeNumber(value.cycles, 'schedule.cycles', 1, MAX_CYCLES)
+      // A washout only means something after a fixed number of cycles.
+      if (value.washoutWeeks !== undefined && result.cycles !== undefined) {
+        result.washoutWeeks = wholeNumber(value.washoutWeeks, 'schedule.washoutWeeks', 1, MAX_WEEK_COUNT)
+      }
+      return result
+    }
     default:
       return fail('schedule.kind')
   }
+}
+
+function wholeNumber(value: unknown, what: string, min: number, max: number): number {
+  const n = finiteNumber(value, what, min, max)
+  if (!Number.isInteger(n)) fail(what)
+  return n
 }
 
 /** Saved mixes are derived, convenience data: a bad one is dropped rather than failing the whole restore. */
@@ -132,6 +203,29 @@ function reconstitution(value: unknown): SavedReconstitution | undefined {
   } catch {
     return undefined
   }
+}
+
+function titration(value: unknown): Titration {
+  if (!isRecord(value) || !Array.isArray(value.steps)) fail('protocol.titration')
+  if (value.steps.length < 2 || value.steps.length > MAX_TITRATION_STEPS) fail('protocol.titration.steps')
+  return {
+    steps: value.steps.map((step) => {
+      if (!isRecord(step)) fail('protocol.titration.step')
+      const doseAmount = finiteNumber(step.doseAmount, 'titration.doseAmount', 0, MAX_DOSE_AMOUNT)
+      if (doseAmount === 0) fail('titration.doseAmount')
+      return { doseAmount, weeks: wholeNumber(step.weeks, 'titration.weeks', 1, MAX_WEEK_COUNT) }
+    }),
+  }
+}
+
+/**
+ * Site rotation is a preference, so a malformed one is dropped rather than
+ * failing the restore; unknown site ids are dropped, and none left means off.
+ */
+function siteTracking(value: unknown): { sites: SiteId[] } | undefined {
+  if (!isRecord(value) || !Array.isArray(value.sites)) return undefined
+  const sites = [...new Set(value.sites.filter(isSiteId))]
+  return sites.length > 0 ? { sites } : undefined
 }
 
 function protocol(value: unknown): Protocol {
@@ -159,6 +253,16 @@ function protocol(value: unknown): Protocol {
   if (value.trackingStartsAt !== undefined) result.trackingStartsAt = isoDateTime(value.trackingStartsAt, 'protocol.trackingStartsAt')
   const mix = reconstitution(value.reconstitution)
   if (mix) result.reconstitution = mix
+  if (typeof value.spareVials === 'number' && Number.isInteger(value.spareVials)) {
+    result.spareVials = Math.min(Math.max(value.spareVials, 0), MAX_SPARE_VIALS)
+  }
+  const tracking = siteTracking(value.siteTracking)
+  if (tracking) result.siteTracking = tracking
+  if (value.titration !== undefined) {
+    result.titration = titration(value.titration)
+    // The app keeps the plain dose equal to the first step (see titration.ts); a file can't break that.
+    result.doseAmount = result.titration.steps[0]!.doseAmount
+  }
   return result
 }
 
@@ -174,6 +278,9 @@ function doseLog(value: unknown): DoseLog {
     updatedAt: isoDateTime(value.updatedAt ?? value.administeredAt, 'doseLog.updatedAt'),
   }
   if (value.protocolId !== undefined) result.protocolId = str(value.protocolId, 'doseLog.protocolId')
+  if (value.vialId !== undefined) result.vialId = str(value.vialId, 'doseLog.vialId')
+  // An unknown site is dropped, not fatal: the dose itself is still a true record.
+  if (result.status === 'taken' && isSiteId(value.site)) result.site = value.site
   if (value.doseMcg !== undefined) result.doseMcg = finiteNumber(value.doseMcg, 'doseLog.doseMcg', 0, 1e12)
   if (value.doseIU !== undefined) result.doseIU = finiteNumber(value.doseIU, 'doseLog.doseIU', 0, 1e12)
   if (typeof value.notes === 'string') {
@@ -181,6 +288,185 @@ function doseLog(value: unknown): DoseLog {
     if (notes) result.notes = notes
   }
   return result
+}
+
+/** Optional short free text (lot, batch): sanitized, and dropped rather than stored when empty. */
+function optionalText(value: unknown, maxLength: number): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const text = sanitizeText(value, maxLength).trim()
+  return text || undefined
+}
+
+function vial(value: unknown): Vial {
+  if (!isRecord(value)) fail('vial')
+  const result: Vial = {
+    id: str(value.id, 'vial.id'),
+    compoundId: str(value.compoundId, 'vial.compoundId'),
+    openedOn: isoDate(value.openedOn, 'vial.openedOn'),
+    status: oneOf(value.status, ['active', 'finished', 'discarded'] as const, 'vial.status'),
+    createdAt: isoDateTime(value.createdAt ?? value.updatedAt, 'vial.createdAt'),
+    updatedAt: isoDateTime(value.updatedAt ?? value.createdAt, 'vial.updatedAt'),
+  }
+  // Same rule as DoseLog: exactly one of the two amounts.
+  const hasMcg = value.totalMcg !== undefined
+  const hasIU = value.totalMilliIU !== undefined
+  if (hasMcg === hasIU) fail('vial amount')
+  if (hasMcg) result.totalMcg = finiteNumber(value.totalMcg, 'vial.totalMcg', 1, 1e12)
+  if (hasIU) result.totalMilliIU = finiteNumber(value.totalMilliIU, 'vial.totalMilliIU', 1, 1e12)
+  if (value.protocolId !== undefined) result.protocolId = str(value.protocolId, 'vial.protocolId')
+  if (value.diluentMl !== undefined) result.diluentMl = finiteNumber(value.diluentMl, 'vial.diluentMl', 0, 1e6)
+  if (value.expiresOn !== undefined) result.expiresOn = isoDate(value.expiresOn, 'vial.expiresOn')
+  if (value.discardOn !== undefined) result.discardOn = isoDate(value.discardOn, 'vial.discardOn')
+  if (value.closedAt !== undefined) result.closedAt = isoDateTime(value.closedAt, 'vial.closedAt')
+  const lot = optionalText(value.lot, MAX_LOT_LENGTH)
+  if (lot) result.lot = lot
+  const batch = optionalText(value.batch, MAX_LOT_LENGTH)
+  if (batch) result.batch = batch
+  if (typeof value.notes === 'string') {
+    const notes = sanitizeMultiline(value.notes, MAX_NOTES_LENGTH).trim()
+    if (notes) result.notes = notes
+  }
+  return result
+}
+
+/** Only user-created compounds travel in a backup — the catalogue comes from the app itself. */
+function customCompound(value: unknown): Compound {
+  if (!isRecord(value)) fail('compound')
+  const id = str(value.id, 'compound.id')
+  if (!id.startsWith('custom-')) fail('compound.id')
+  const name = sanitizeText(String(value.name ?? ''), MAX_NAME_LENGTH).trim()
+  if (!name) fail('compound.name')
+  if (!Array.isArray(value.vialSizes) || value.vialSizes.length > MAX_VIAL_SIZES) fail('compound.vialSizes')
+  return {
+    id,
+    name,
+    category: CUSTOM_CATEGORY,
+    defaultUnit: oneOf(value.defaultUnit, ['mg', 'mcg', 'IU'] as const, 'compound.defaultUnit'),
+    vialSizes: value.vialSizes.map((size) => finiteNumber(size, 'compound.vialSizes', 0, 1e9)),
+    form: oneOf(value.form, ['powder', 'solution'] as const, 'compound.form'),
+    isBlend: false,
+    isDiluent: false,
+    isCustom: true,
+  }
+}
+
+/**
+ * A store compound a record refers to, carried for its name and measure only.
+ * Restored unlisted and without its store products — the next catalogue sync
+ * on the restoring device is what says whether its store sells it.
+ */
+function storeCompound(value: unknown): Compound {
+  if (!isRecord(value)) fail('store compound')
+  const id = str(value.id, 'storeCompound.id')
+  if (id.startsWith('custom-')) fail('storeCompound.id')
+  const name = sanitizeText(String(value.name ?? ''), MAX_STORE_TEXT).trim()
+  if (!name) fail('storeCompound.name')
+  if (!Array.isArray(value.vialSizes) || value.vialSizes.length > MAX_VIAL_SIZES) fail('storeCompound.vialSizes')
+  const result: Compound = {
+    id,
+    name,
+    category: typeof value.category === 'string' ? sanitizeText(value.category, MAX_STORE_TEXT).trim() : '',
+    defaultUnit: oneOf(value.defaultUnit, ['mg', 'mcg', 'IU'] as const, 'storeCompound.defaultUnit'),
+    vialSizes: value.vialSizes.map((size) => finiteNumber(size, 'storeCompound.vialSizes', 0, 1e9)),
+    form: oneOf(value.form, ['powder', 'solution'] as const, 'storeCompound.form'),
+    isBlend: value.isBlend === true,
+    isDiluent: value.isDiluent === true,
+    source: 'store',
+    listed: false,
+  }
+  if (Array.isArray(value.aliases)) {
+    const aliases = value.aliases
+      .slice(0, MAX_ALIASES)
+      .map((a) => (typeof a === 'string' ? sanitizeText(a, MAX_STORE_TEXT).trim() : ''))
+      .filter(Boolean)
+    if (aliases.length) result.aliases = aliases
+  }
+  return result
+}
+
+function weightEntry(value: unknown): WeightEntry {
+  if (!isRecord(value)) fail('weight')
+  const grams = finiteNumber(value.grams, 'weight.grams', MIN_WEIGHT_GRAMS, MAX_WEIGHT_GRAMS)
+  return {
+    id: str(value.id, 'weight.id'),
+    measuredAt: isoDateTime(value.measuredAt, 'weight.measuredAt'),
+    grams: Math.round(grams),
+    createdAt: isoDateTime(value.createdAt ?? value.measuredAt, 'weight.createdAt'),
+  }
+}
+
+/** Rebuilt through the same cleaner the app saves with, so only valid answers survive. */
+function checkIn(value: unknown): CheckIn {
+  if (!isRecord(value)) fail('check-in')
+  const date = isoDate(value.date, 'checkIn.date')
+  const rating = (v: unknown) => (typeof v === 'number' ? (v as Rating) : undefined)
+  let sideEffects: Record<string, Severity> | undefined
+  if (isRecord(value.sideEffects)) {
+    sideEffects = {}
+    for (const [id, severity] of Object.entries(value.sideEffects).slice(0, MAX_SIDE_EFFECTS_PER_DAY)) {
+      if (id.length <= MAX_ID_LENGTH && typeof severity === 'number') sideEffects[id] = severity as Severity
+    }
+  }
+  return cleanCheckIn(
+    {
+      date,
+      energy: rating(value.energy),
+      mood: rating(value.mood),
+      sleep: rating(value.sleep),
+      foodNoise: rating(value.foodNoise),
+      sideEffects,
+      waistMm: typeof value.waistMm === 'number' ? value.waistMm : undefined,
+      bodyFatPct: typeof value.bodyFatPct === 'number' ? value.bodyFatPct : undefined,
+      note: typeof value.note === 'string' ? value.note : undefined,
+    },
+    isoDateTime(value.updatedAt ?? `${date}T00:00:00.000Z`, 'checkIn.updatedAt'),
+  )
+}
+
+/** Symptom list edits are a preference: anything malformed is dropped, not fatal. */
+function symptomPrefs(value: unknown): SymptomPrefs | undefined {
+  if (!isRecord(value)) return undefined
+  const builtIns: readonly string[] = BUILT_IN_SYMPTOMS
+  const hidden = Array.isArray(value.hidden)
+    ? value.hidden.filter((id): id is string => typeof id === 'string' && builtIns.includes(id))
+    : []
+  const custom = Array.isArray(value.custom)
+    ? value.custom
+        .slice(0, MAX_CUSTOM_SYMPTOMS)
+        .filter(isRecord)
+        .map((c) => ({ id: String(c.id ?? ''), name: sanitizeText(String(c.name ?? ''), MAX_NAME_LENGTH).trim() }))
+        .filter((c) => c.id.startsWith('custom-') && c.id.length <= MAX_ID_LENGTH && c.name)
+    : []
+  return { hidden: [...new Set(hidden)], custom }
+}
+
+function userTemplate(value: unknown): UserTemplate {
+  if (!isRecord(value)) fail('template')
+  // Same field rules as a protocol — reuse its validator on a protocol-shaped view.
+  const asProtocol = protocol({ ...value, startDate: '2000-01-01', isActive: true })
+  const name = sanitizeText(String(value.name ?? ''), MAX_NAME_LENGTH).trim()
+  if (!name) fail('template.name')
+  const result: UserTemplate = {
+    id: asProtocol.id,
+    name,
+    compoundId: asProtocol.compoundId,
+    doseAmount: asProtocol.doseAmount,
+    doseUnit: asProtocol.doseUnit,
+    schedule: asProtocol.schedule,
+    reminderTimes: asProtocol.reminderTimes,
+    route: asProtocol.route,
+    createdAt: isoDateTime(value.createdAt, 'template.createdAt'),
+  }
+  if (asProtocol.titration) result.titration = asProtocol.titration
+  if (asProtocol.siteTracking) result.siteTracking = asProtocol.siteTracking
+  return result
+}
+
+/** A v2 collection: absent in a v1 file (→ empty), otherwise an array within its size limit. */
+function optionalList<T>(value: unknown, max: number, parse: (item: unknown) => T, what: string): T[] {
+  if (value === undefined) return []
+  if (!Array.isArray(value) || value.length > max) fail(what)
+  return value.map(parse)
 }
 
 function settings(value: unknown): Settings | undefined {
@@ -198,6 +484,12 @@ function settings(value: unknown): Settings | undefined {
     if (value[key] !== undefined) result[key] = isoDateTime(value[key], `settings.${key}`)
   }
   if (typeof value.hasUsedCalculator === 'boolean') result.hasUsedCalculator = value.hasUsedCalculator
+  if (value.weightUnit === 'kg' || value.weightUnit === 'lb') result.weightUnit = value.weightUnit
+  if (typeof value.goalWeightGrams === 'number' && isPlausibleWeight(value.goalWeightGrams)) {
+    result.goalWeightGrams = Math.round(value.goalWeightGrams)
+  }
+  const symptoms = symptomPrefs(value.symptoms)
+  if (symptoms) result.symptoms = symptoms
   return result
 }
 
@@ -207,14 +499,28 @@ function settings(value: unknown): Settings | undefined {
  */
 export function parseBackup(input: unknown): ValidBackup {
   if (!isRecord(input)) fail('not an object')
-  if (input.version !== BACKUP_VERSION) fail(`unsupported version ${String(input.version)}`)
+  if (!SUPPORTED_VERSIONS.includes(input.version)) fail(`unsupported version ${String(input.version)}`)
   if (!Array.isArray(input.protocols) || !Array.isArray(input.doseLogs)) fail('missing protocols or dose logs')
   if (input.protocols.length > MAX_PROTOCOLS || input.doseLogs.length > MAX_DOSE_LOGS) fail('too many records')
 
   const protocols = input.protocols.map(protocol)
   const doseLogs = input.doseLogs.map(doseLog)
-  for (const list of [protocols, doseLogs]) {
+  const vials = optionalList(input.vials, MAX_VIALS, vial, 'vials')
+  const customCompounds = optionalList(input.customCompounds, MAX_CUSTOM_COMPOUNDS, customCompound, 'custom compounds')
+  const storeCompounds = optionalList(input.storeCompounds, MAX_STORE_COMPOUNDS, storeCompound, 'store compounds')
+  const userTemplates = optionalList(input.userTemplates, MAX_USER_TEMPLATES, userTemplate, 'templates')
+  const weights = optionalList(input.weights, MAX_WEIGHTS, weightEntry, 'weights')
+  const checkIns = optionalList(input.checkIns, MAX_CHECK_INS, checkIn, 'check-ins')
+  for (const list of [protocols, doseLogs, vials, customCompounds, storeCompounds, userTemplates, weights]) {
     if (new Set(list.map((r) => r.id)).size !== list.length) fail('duplicate ids')
+  }
+  if (new Set(checkIns.map((c) => c.date)).size !== checkIns.length) fail('duplicate check-in dates')
+
+  // A link to a vial that isn't in the file is dropped, not fatal: the dose
+  // itself is still a true record, it just no longer counts against a vial.
+  const vialIds = new Set(vials.map((v) => v.id))
+  for (const log of doseLogs) {
+    if (log.vialId !== undefined && !vialIds.has(log.vialId)) delete log.vialId
   }
 
   return {
@@ -223,5 +529,12 @@ export function parseBackup(input: unknown): ValidBackup {
     protocols,
     doseLogs,
     settings: settings(input.settings),
+    vials,
+    customCompounds,
+    storeCompounds,
+    userTemplates,
+    weights,
+    // A check-in that held nothing valid is dropped rather than restored empty.
+    checkIns: checkIns.filter((c) => !isEmptyCheckIn(c)),
   }
 }

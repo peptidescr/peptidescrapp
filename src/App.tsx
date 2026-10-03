@@ -1,12 +1,16 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AnimatePresence, motion } from 'motion/react'
 import { APP_BAR_HEIGHT, AppBar } from './components/AppBar'
-import { TabBar, type Tab } from './components/TabBar'
+import { TabBar } from './components/TabBar'
 import { Toaster } from './components/ui/sonner'
 import { LEGAL_VERSION } from './content/legal'
 import { maybeCreateDailySnapshot } from './lib/backup'
+import { backStack } from './lib/backStack'
+import { HOME, popPage, pushPage, tabPage, type Page } from './lib/pages'
 import { db, ensureCompoundsSeeded, ensureSettingsRow } from './lib/db'
+import { useCustomCompoundsLoaded } from './lib/customCompounds'
+import { startStoreCatalogueRefresh, syncStoreCatalogue, useStoreCompoundsLoaded } from './lib/storeCatalogue'
 import { DEFAULT_LOCALE, toSupportedLocale } from './i18n'
 import { scheduleUpcomingReminders, startReminderLoop } from './lib/notifications'
 import { applyTheme, resolveTheme, subscribeToSystemTheme, type ResolvedTheme } from './lib/theme'
@@ -16,53 +20,73 @@ import { CalculatorScreen } from './screens/CalculatorScreen'
 import { LegalGate, OnboardingScreen } from './screens/OnboardingScreen'
 import { ProtocolsScreen } from './screens/ProtocolsScreen'
 import { HistoryScreen } from './screens/HistoryScreen'
+import { ProgressScreen } from './screens/ProgressScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 
 type Gate = 'loading' | 'onboarding' | 'legalReaccept' | 'app'
 
 function App() {
   const { t, i18n } = useTranslation()
-  const [tab, setTab] = useState<Tab>('home')
   const settings = useSettings()
 
-  // One-shot navigation hand-offs between tabs. Each is consumed by the screen
-  // it opens (as its initial state) and cleared by the next ordinary tab
-  // change, so a stale one can never re-apply itself later.
-  const [calculatorProtocolId, setCalculatorProtocolId] = useState<string | undefined>()
-  const [newProtocolCompoundId, setNewProtocolCompoundId] = useState<string | undefined>()
-  const [editProtocolId, setEditProtocolId] = useState<string | undefined>()
+  // Every page visited, newest last; the last one is what's showing. Back
+  // (the app bar's arrow, or the phone's or browser's own back, through
+  // backStack) returns to the one before. See src/lib/pages.ts.
+  const [pages, setPages] = useState<Page[]>([HOME])
+  const page = pages[pages.length - 1]!
+  const tab = page.tab
 
-  function clearOneShotNav() {
-    setCalculatorProtocolId(undefined)
-    setNewProtocolCompoundId(undefined)
-    setEditProtocolId(undefined)
+  // Where each page in the history was scrolled to when it was left, so back
+  // returns to the same spot. Indexed like `pages`.
+  const scrollMemory = useRef<number[]>([])
+  const lastMove = useRef<'push' | 'pop' | null>(null)
+
+  function navigate(next: Page, leaving?: (page: Page) => boolean) {
+    scrollMemory.current[pages.length - 1] = window.scrollY
+    lastMove.current = 'push'
+    setPages((current) => pushPage(current, next, leaving))
   }
 
-  function goToTab(next: Tab) {
-    clearOneShotNav()
-    setTab(next)
-  }
+  const goBack = useCallback((skipping?: (page: Page) => boolean) => {
+    lastMove.current = 'pop'
+    setPages((current) => popPage(current, skipping))
+  }, [])
+
+  const canGoBack = pages.length > 1
+  useEffect(() => {
+    backStack.setPageBack(canGoBack ? () => goBack() : null)
+  }, [canGoBack, goBack])
+
+  // A new page starts at the top; going back restores where that page was
+  // left. Its content loads a beat after it mounts, so the restore retries for
+  // a few frames until the page is tall enough to scroll that far.
+  useLayoutEffect(() => {
+    const move = lastMove.current
+    lastMove.current = null
+    if (move === 'push') window.scrollTo(0, 0)
+    if (move !== 'pop') return
+    const target = scrollMemory.current[pages.length - 1] ?? 0
+    let frames = 0
+    let raf = 0
+    const tryScroll = () => {
+      window.scrollTo(0, target)
+      if (Math.abs(window.scrollY - target) > 1 && ++frames < 30) raf = requestAnimationFrame(tryScroll)
+    }
+    tryScroll()
+    return () => cancelAnimationFrame(raf)
+  }, [pages])
 
   /** "Next step: reconstitute" — open the calculator prefilled for a protocol. */
-  function openCalculatorFor(protocolId: string) {
-    clearOneShotNav()
-    setCalculatorProtocolId(protocolId)
-    setTab('calculator')
+  function openCalculatorFor(protocolId: string, leaving?: (page: Page) => boolean) {
+    navigate({ tab: 'calculator', protocolId }, leaving)
   }
 
-  /** The calculator's "create a protocol" — open a new-protocol form for that compound. */
-  function openNewProtocolFor(compoundId: string) {
-    clearOneShotNav()
-    setNewProtocolCompoundId(compoundId)
-    setTab('protocols')
-  }
-
-  /** Tapping a protocol on Home (a due/upcoming card) — straight to that protocol's own edit page. */
+  /** Tapping a protocol on Home or in History — straight to that protocol's own edit page. */
   function openProtocolEditor(protocolId: string) {
-    clearOneShotNav()
-    setEditProtocolId(protocolId)
-    setTab('protocols')
+    navigate({ tab: 'protocols', view: { kind: 'form', protocolId } })
   }
+
+  const goToTab = (next: Page['tab']) => navigate(tabPage(next))
 
   // Two separate questions used to be conflated into one comparison
   // (`legalAcceptedVersion !== LEGAL_VERSION`, treated as "needs onboarding"):
@@ -80,8 +104,15 @@ function App() {
   // a live derivation would flip the gate and unmount the wizard before the
   // remaining steps ran. Computed once from the first settings load, then
   // only ever changed by an explicit callback below.
+  //
+  // Also waits for the user's custom compounds and the last-synced store
+  // catalogue to load into memory (src/lib/customCompounds.ts,
+  // src/lib/storeCatalogue.ts), so no screen ever renders a compound by its
+  // id, or flashes a built-in name before the store's.
+  const customCompoundsLoaded = useCustomCompoundsLoaded()
+  const storeCompoundsLoaded = useStoreCompoundsLoaded()
   const [gate, setGate] = useState<Gate>('loading')
-  if (settings && gate === 'loading') {
+  if (settings && customCompoundsLoaded && storeCompoundsLoaded && gate === 'loading') {
     const alreadyOnboardedBeforeThisFlagExisted =
       !settings.onboardingCompletedAt && settings.legalAcceptedVersion === LEGAL_VERSION
     if (alreadyOnboardedBeforeThisFlagExisted) {
@@ -97,7 +128,10 @@ function App() {
     }
   }
 
-  // Runs once per app open: seed/sync the read-only compound catalogue,
+  // Runs once per app open: seed the built-in compound catalogue, then
+  // refresh the brand's store catalogue over it (after, so the seed can't
+  // race the store's renames; see db.ts), and again whenever the app comes
+  // back to the foreground (at most hourly — storeCatalogue.ts throttles);
   // create the singleton settings row on first run, ask the platform to
   // persist storage (protects against iOS Safari's 7-day IndexedDB eviction;
   // harmless no-op once installed), take today's snapshot if one hasn't run
@@ -105,13 +139,14 @@ function App() {
   // next couple of days (silently does nothing where unsupported — see
   // notifications.ts).
   useEffect(() => {
-    void ensureCompoundsSeeded()
+    void ensureCompoundsSeeded().then(() => syncStoreCatalogue())
     void ensureSettingsRow({ locale: DEFAULT_LOCALE, syringeType: 'U-100' })
     if (navigator.storage?.persist) {
       void navigator.storage.persist()
     }
     void maybeCreateDailySnapshot()
     void db.protocols.toArray().then((protocols) => scheduleUpcomingReminders(protocols))
+    return startStoreCatalogueRefresh()
   }, [])
 
   // Dose reminders: checks on a timer and whenever the app comes back to the
@@ -127,9 +162,13 @@ function App() {
   // toSupportedLocale: a settings row (or an imported backup) can carry a
   // language this build doesn't offer — e.g. 'es-CR' on the English-only
   // brand — so that falls back to the build's default instead.
+  // The correction is also saved, not just applied: the service worker reads
+  // `settings.locale` directly to word closed-app reminders, and would
+  // otherwise keep sending them in the language this build doesn't offer.
   useEffect(() => {
     if (!settings) return
     const locale = toSupportedLocale(settings.locale)
+    if (locale !== settings.locale) void updateSettings({ locale })
     if (locale !== i18n.language) {
       void i18n.changeLanguage(locale)
     }
@@ -190,6 +229,7 @@ function App() {
     home: t('nav.home'),
     calculator: t('nav.calculator'),
     protocols: t('nav.protocols'),
+    progress: t('nav.progress'),
     history: t('nav.history'),
     settings: t('nav.settings'),
   }
@@ -220,6 +260,7 @@ function App() {
     >
       <Toaster />
       <AppBar
+        onBack={canGoBack ? () => backStack.back() : undefined}
         showActions={tab !== 'settings'}
         resolvedTheme={resolvedTheme}
         onToggleTheme={() => void toggleTheme()}
@@ -227,32 +268,46 @@ function App() {
       />
       <AnimatePresence mode="wait">
         <motion.div
-          key={tab}
+          // The calculator opened for a different protocol is a fresh calculator.
+          key={page.tab === 'calculator' ? `calculator:${page.protocolId ?? ''}` : tab}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.15 }}
         >
-          {tab === 'home' && (
+          {page.tab === 'home' && (
             <HomeScreen
               onNavigateToSettings={() => goToTab('settings')}
               onNavigateToProtocols={() => goToTab('protocols')}
               onNavigateToHistory={() => goToTab('history')}
               onNavigateToCalculator={() => goToTab('calculator')}
+              onNavigateToProgress={() => goToTab('progress')}
               onOpenProtocol={openProtocolEditor}
             />
           )}
-          {tab === 'calculator' && (
-            <CalculatorScreen protocolId={calculatorProtocolId} onCreateProtocol={openNewProtocolFor} />
-          )}
-          {tab === 'protocols' && (
-            <ProtocolsScreen
-              onReconstitute={openCalculatorFor}
-              initialCompoundId={newProtocolCompoundId}
-              initialProtocolId={editProtocolId}
+          {page.tab === 'calculator' && (
+            <CalculatorScreen
+              protocolId={page.protocolId}
+              onCreateProtocol={(compoundId) => navigate({ tab: 'protocols', view: { kind: 'form', compoundId } })}
             />
           )}
-          {tab === 'history' && <HistoryScreen />}
-          {tab === 'settings' && <SettingsScreen />}
+          {page.tab === 'protocols' && (
+            <ProtocolsScreen
+              view={page.view}
+              onNavigate={(view, leaving) => navigate({ tab: 'protocols', view }, leaving)}
+              onBack={goBack}
+              onReconstitute={openCalculatorFor}
+            />
+          )}
+          {page.tab === 'progress' && <ProgressScreen />}
+          {page.tab === 'history' && (
+            <HistoryScreen
+              editingId={page.editLogId}
+              onEditLog={(editLogId) => navigate({ tab: 'history', editLogId })}
+              onBack={() => goBack()}
+              onOpenProtocol={openProtocolEditor}
+            />
+          )}
+          {page.tab === 'settings' && <SettingsScreen />}
         </motion.div>
       </AnimatePresence>
       <TabBar active={tab} onChange={goToTab} labels={labels} navLabel={t('nav.ariaLabel')} />

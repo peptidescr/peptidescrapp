@@ -73,6 +73,16 @@
   --brand-border: #455d52;
   --brand-warn: #e0954b;
   --brand-warn-lt: #2f2418;
+  /* Progress charts (validated with the dataviz skill's validate_palette.js --ordinal against
+     this mode's card surface). Dose steps: one brand hue, lowest dose → highest. Side-effect
+     severity: one amber hue, mild → severe, the same in both brands. */
+  --chart-dose-1: #4f7d63;
+  --chart-dose-2: #6f9c80;
+  --chart-dose-3: #94bba1;
+  --chart-dose-4: #c2dcc9;
+  --chart-sev-1: #8a5426;
+  --chart-sev-2: #c0712f;
+  --chart-sev-3: #eba465;
   /* Standard destructive-action red (delete, wipe+import) — a UI safety
      convention, not a brand colour, and deliberately distinct from
      --brand-warn's non-alarming amber (which is about measurement accuracy,
@@ -143,6 +153,13 @@
   --brand-border: #d6e4d6;
   --brand-warn: #a95f22;
   --brand-warn-lt: #fbf1e7;
+  --chart-dose-1: #7fa48c;
+  --chart-dose-2: #4f7a60;
+  --chart-dose-3: #2f5a42;
+  --chart-dose-4: #173628;
+  --chart-sev-1: #de8d4a;
+  --chart-sev-2: #b8621f;
+  --chart-sev-3: #7f3e0d;
 
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;

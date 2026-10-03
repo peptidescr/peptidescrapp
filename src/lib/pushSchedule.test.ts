@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import type { DoseLog, Protocol } from './db'
-import { buildPushSchedule, PUSH_HORIZON_DAYS, PUSH_MAX_ITEMS, reminderTag, TAG_SEPARATOR } from './pushSchedule'
+import type { DoseLog, Protocol, Vial } from './db'
+import {
+  buildPushSchedule,
+  PUSH_HORIZON_DAYS,
+  PUSH_MAX_ITEMS,
+  reminderTag,
+  TAG_SEPARATOR,
+  vialReminderTag,
+} from './pushSchedule'
 
 function protocol(overrides: Partial<Protocol> = {}): Protocol {
   return {
@@ -78,5 +85,46 @@ describe('buildPushSchedule', () => {
     const [id, iso] = reminderTag('abc-123', new Date(Date.UTC(2026, 2, 5, 20, 0))).split(TAG_SEPARATOR)
     expect(id).toBe('abc-123')
     expect(iso).toBe('2026-03-05T20:00:00.000Z')
+  })
+})
+
+describe('buildPushSchedule — vial dates', () => {
+  const vial: Vial = {
+    id: 'v1',
+    compoundId: 'bpc-157',
+    totalMcg: 5000,
+    openedOn: '2026-03-01',
+    discardOn: '2026-03-20',
+    status: 'active',
+    createdAt: '2026-03-01T08:00:00.000Z',
+    updatedAt: '2026-03-01T08:00:00.000Z',
+  }
+  const vialItems = (vials: Vial[]) => buildPushSchedule([], [], NOW, vials)
+
+  it('sends a discard-by reminder when the notice window opens and on the day, at 09:00', () => {
+    expect(vialItems([vial])).toEqual([
+      { at: new Date(2026, 2, 17, 9, 0).getTime(), tag: vialReminderTag('v1', 'discard', '2026-03-17') },
+      { at: new Date(2026, 2, 20, 9, 0).getTime(), tag: vialReminderTag('v1', 'discard', '2026-03-20') },
+    ])
+  })
+
+  it('skips past send times, closed vials, and dates beyond the horizon', () => {
+    // Notice day (Mar 4) has passed; only the day itself (Mar 7) remains.
+    expect(vialItems([{ ...vial, discardOn: '2026-03-07' }]).map((i) => i.tag)).toEqual([
+      vialReminderTag('v1', 'discard', '2026-03-07'),
+    ])
+    expect(vialItems([{ ...vial, status: 'finished' }])).toEqual([])
+    expect(vialItems([{ ...vial, discardOn: undefined, expiresOn: '2027-01-01' }])).toEqual([])
+  })
+
+  it('covers the printed expiry too, and names nothing about the vial', () => {
+    const items = vialItems([{ ...vial, discardOn: undefined, expiresOn: '2026-03-10' }])
+    expect(items.map((i) => i.tag)).toEqual([
+      vialReminderTag('v1', 'expiry', '2026-03-07'),
+      vialReminderTag('v1', 'expiry', '2026-03-10'),
+    ])
+    expect(JSON.stringify(items)).not.toContain('bpc')
+    const [prefix, id, kind, day] = items[0]!.tag.split(TAG_SEPARATOR)
+    expect([prefix, id, kind, day]).toEqual(['vial', 'v1', 'expiry', '2026-03-07'])
   })
 })

@@ -1,19 +1,24 @@
-import { isSameDay } from 'date-fns'
-import { AlertTriangle, Bell, Check, ChevronRight, ClipboardList, Clock3, Flame, Plus, X } from 'lucide-react'
+import { isSameDay, startOfDay } from 'date-fns'
+import { AlertTriangle, Bell, Check, ChevronRight, ClipboardList, Clock3, Flame, HeartPulse, Plus, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { DoseCard, DueCard } from '../components/DoseCard'
+import { DoseChangeCard } from '../components/DoseChangeCard'
 import { EmptyState } from '../components/EmptyState'
 import { NotificationPanel } from '../components/NotificationPanel'
+import { VialAlertCard } from '../components/VialAlertCard'
 import { getCompoundById } from '../content/compounds'
 import { formatDate, formatTime } from '../lib/dates'
 import { db, type DoseLog, type Protocol } from '../lib/db'
 import {
+  computeDoseChanges,
+  contextOf,
   computeDueItems,
   computeGetStartedSteps,
+  computeOverallAdherence,
   computeRecentActivity,
   computeShowBackupNudge,
   computeStreakDays,
@@ -24,9 +29,11 @@ import {
   type TodayStatus,
 } from '../lib/homeData'
 import { getNotificationCapability } from '../lib/notifications'
-import type { Occurrence } from '../lib/schedule'
+import { todayKey } from '../lib/results'
+import { cyclePhase, wouldSettle, type Occurrence } from '../lib/schedule'
 import { useLiveQuery } from '../lib/useLiveQuery'
 import { updateSettings, useSettings } from '../lib/useSettings'
+import { computeVialAlerts, vialAlertKey } from '../lib/vials'
 
 /** Time-of-day greeting — no name/account to personalize with, just the hour. */
 function greetingKey(now: Date): string {
@@ -55,6 +62,7 @@ interface HomeScreenProps {
   onNavigateToProtocols: () => void
   onNavigateToHistory: () => void
   onNavigateToCalculator: () => void
+  onNavigateToProgress: () => void
   /** Tapping a specific protocol (a due/upcoming card): straight to its own edit page. */
   onOpenProtocol: (protocolId: string) => void
 }
@@ -64,12 +72,22 @@ export function HomeScreen({
   onNavigateToProtocols,
   onNavigateToHistory,
   onNavigateToCalculator,
+  onNavigateToProgress,
   onOpenProtocol,
 }: HomeScreenProps) {
   const { t } = useTranslation()
   const settings = useSettings()
   const protocols = useLiveQuery(() => db.protocols.toArray(), [])
   const doseLogs = useLiveQuery(() => db.doseLogs.toArray(), [])
+  const vials = useLiveQuery(() => db.vials.toArray(), [])
+  // Whether anything was recorded about today yet — a weight or a check-in.
+  const todayKeyValue = todayKey()
+  const resultsToday = useLiveQuery(
+    async () =>
+      (await db.checkIns.get(todayKeyValue)) !== undefined ||
+      (await db.weights.where('measuredAt').aboveOrEqual(startOfDay(new Date()).toISOString()).count()) > 0,
+    [todayKeyValue],
+  )
   const [now, setNow] = useState(() => new Date())
   const [notificationsOpen, setNotificationsOpen] = useState(false)
 
@@ -103,6 +121,16 @@ export function HomeScreen({
 
   const recentActivity = useMemo(() => computeRecentActivity(doseLogs ?? []), [doseLogs])
 
+  const vialAlerts = useMemo(
+    () => computeVialAlerts(vials ?? [], protocols ?? [], doseLogs ?? [], now),
+    [vials, protocols, doseLogs, now],
+  )
+  const doseChanges = useMemo(() => computeDoseChanges(protocols ?? [], now), [protocols, now])
+  const adherence = useMemo(
+    () => computeOverallAdherence(protocols ?? [], doseLogs ?? [], now),
+    [protocols, doseLogs, now],
+  )
+
   const getStartedSteps = useMemo(
     () => computeGetStartedSteps(protocols ?? [], doseLogs ?? [], settings),
     [protocols, doseLogs, settings],
@@ -122,7 +150,8 @@ export function HomeScreen({
   // inside the panel it opens.
   const capability = getNotificationCapability()
   const notifNudgeCount = capability.supported && (capability.requiresInstallOnIOS || capability.permission === 'default') ? 1 : 0
-  const notificationCount = dueItems.length + (showBackupNudge ? 1 : 0) + notifNudgeCount
+  const notificationCount =
+    dueItems.length + vialAlerts.length + doseChanges.length + (showBackupNudge ? 1 : 0) + notifNudgeCount
 
   return (
     <div className="flex flex-col gap-7 px-4 pb-6 pt-2">
@@ -132,6 +161,7 @@ export function HomeScreen({
         todayProgress={todayProgress}
         todayStatus={todayStatus}
         streakDays={overallStreak}
+        adherencePercent={adherence.percent}
         onOpenNotifications={() => setNotificationsOpen(true)}
         onOpenHistory={onNavigateToHistory}
       />
@@ -141,6 +171,8 @@ export function HomeScreen({
         onOpenChange={setNotificationsOpen}
         protocols={protocols ?? []}
         doseLogs={doseLogs ?? []}
+        vialAlerts={vialAlerts}
+        doseChanges={doseChanges}
         settings={settings}
         now={now}
         onNavigateToSettings={onNavigateToSettings}
@@ -164,6 +196,24 @@ export function HomeScreen({
               </motion.div>
             ))}
           </AnimatePresence>
+        </section>
+      )}
+
+      {vialAlerts.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <SectionTitle>{t('vialAlerts.title')}</SectionTitle>
+          {vialAlerts.map((alert) => (
+            <VialAlertCard key={vialAlertKey(alert)} alert={alert} onOpenProtocol={onOpenProtocol} />
+          ))}
+        </section>
+      )}
+
+      {doseChanges.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <SectionTitle>{t('doseChange.title')}</SectionTitle>
+          {doseChanges.map((item) => (
+            <DoseChangeCard key={item.protocol.id} item={item} now={now} onOpenProtocol={onOpenProtocol} />
+          ))}
         </section>
       )}
 
@@ -196,6 +246,18 @@ export function HomeScreen({
             <EmptyState icon={Clock3} title={t('home.noUpcomingTitle')} body={t('home.noUpcomingBody')} />
           )}
         </section>
+      )}
+
+      {activeProtocols.length > 0 && resultsToday === false && (
+        <button
+          type="button"
+          onClick={onNavigateToProgress}
+          className="flex min-h-11 w-full items-center gap-3 rounded-2xl bg-accent px-4 py-3 text-left text-sm text-foreground"
+        >
+          <HeartPulse aria-hidden className="size-4 shrink-0 text-primary" />
+          <span className="min-w-0 flex-1">{t('progress.homePrompt')}</span>
+          <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+        </button>
       )}
 
       {showGetStarted && (
@@ -331,6 +393,7 @@ function HeroHeader({
   todayProgress,
   todayStatus,
   streakDays,
+  adherencePercent,
   onOpenNotifications,
   onOpenHistory,
 }: {
@@ -339,6 +402,7 @@ function HeroHeader({
   todayProgress: { completed: number; total: number }
   todayStatus: TodayStatus
   streakDays: number
+  adherencePercent: number | null
   onOpenNotifications: () => void
   onOpenHistory: () => void
 }) {
@@ -422,6 +486,12 @@ function HeroHeader({
             </button>
           )}
         </div>
+      )}
+
+      {adherencePercent !== null && (
+        <p className="relative mt-1 text-xs font-medium text-white/75">
+          {t('adherence.overall', { percent: adherencePercent })}
+        </p>
       )}
     </div>
   )
@@ -541,24 +611,31 @@ function NextUpCard({
 }) {
   const { t } = useTranslation()
   const compound = getCompoundById(protocol.compoundId)
-  // One-tap logging here means "ahead of schedule, right now" — that only
-  // makes sense while the occurrence is still today. For a dose several days
-  // out (a weekly/every-N-days/cycling protocol between reminders), logging
-  // it "now" would date-mismatch against its actual scheduled day and the
-  // card would never register it as fulfilled — so the buttons are withheld
-  // until the day itself, rather than appearing to work but silently not
-  // updating anything. See NOTES.md.
-  const canLogToday = isSameDay(occurrence.scheduledAt, now)
-  const dayWord = canLogToday ? t('home.today') : formatDate(occurrence.scheduledAt)
+  // One-tap logging here means "ahead of schedule, right now". It's offered
+  // when a log now would count for this dose: on its own day, or — for doses
+  // at least two days apart, like a weekly shot — up to 3½ days early (see
+  // matchLogsToOccurrences). Further out, a log now wouldn't register against
+  // it, so the buttons are withheld rather than appearing to do nothing.
+  const isToday = isSameDay(occurrence.scheduledAt, now)
+  const canLogNow = isToday || wouldSettle(contextOf(protocol), occurrence, [], now)
+  const dayWord = isToday ? t('home.today') : formatDate(occurrence.scheduledAt)
+  // In a weeks cycle's off weeks, why the next dose is so far away is the
+  // useful part. The date stays the dose's own (beside its time), not the
+  // day the on-block starts, which a weekday pattern may not dose on.
+  const offWeek = cyclePhase(protocol, now)?.phase === 'off'
 
   return (
     <DoseCard
       tone="upcoming"
-      statusLabel={`${dayWord} · ${formatCountdown(now, occurrence.scheduledAt, t)}`}
+      statusLabel={
+        offWeek
+          ? t('cycle.offNextDose', { date: dayWord })
+          : `${dayWord} · ${formatCountdown(now, occurrence.scheduledAt, t)}`
+      }
       time={occurrence.scheduledAt}
       protocol={protocol}
       compoundName={compound?.name}
-      showActions={canLogToday}
+      showActions={canLogNow}
       onOpenProtocol={onOpenProtocol}
     />
   )

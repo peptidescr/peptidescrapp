@@ -1,6 +1,9 @@
 import Dexie, { type EntityTable } from 'dexie'
 import { COMPOUNDS, type Compound } from '../content/compounds'
 import type { Schedule } from './schedule'
+import type { SiteId } from './injectionSites'
+import type { CheckIn, SymptomPrefs, WeightEntry, WeightUnit } from './results'
+import type { Titration } from './titration'
 import type { Locale, SyringeType, ThemeMode } from './units'
 
 export type DoseStatus = 'taken' | 'skipped'
@@ -26,6 +29,24 @@ export interface Protocol {
   trackingStartsAt?: string
   /** The last mixing-calculator result the user saved to this protocol. */
   reconstitution?: SavedReconstitution
+  /**
+   * Stepped doses (see src/lib/titration.ts). When present, `doseAmount` is
+   * kept equal to the first step; ask `doseOn(protocol, day)` for the dose on
+   * a given day. Optional and unindexed — no Dexie bump.
+   */
+  titration?: Titration
+  /**
+   * Injection-site rotation, when the protocol opts in (see
+   * src/lib/injectionSites.ts): the sites it rotates through. Absent = not
+   * tracked, and logging a dose never asks.
+   */
+  siteTracking?: { sites: SiteId[] }
+  /**
+   * Unopened (unmixed) vials on hand for this protocol (see src/lib/reorder.ts).
+   * While there are some, a low vial doesn't nudge a reorder; starting the
+   * next vial uses one up. Absent = none recorded.
+   */
+  spareVials?: number
 }
 
 /**
@@ -63,6 +84,15 @@ export interface DoseLog {
   id: string
   protocolId?: string // absent for an ad-hoc log not tied to a protocol
   compoundId: string
+  /**
+   * The vial this dose came out of, when one was being tracked (see Vial).
+   * Only `taken` logs draw anything down; a skipped log keeps whatever vial
+   * was active purely as a record. Optional and unindexed, so logs from
+   * before vial tracking existed are simply unlinked.
+   */
+  vialId?: string
+  /** Where a taken dose went, when its protocol tracks injection sites. */
+  site?: SiteId
   doseMcg?: number
   doseIU?: number
   administeredAt: string // ISO datetime
@@ -104,6 +134,73 @@ export interface Settings {
    * Missing/undefined means 'system' — see src/lib/theme.ts for resolution.
    */
   theme?: ThemeMode
+  /** Results tracking (src/lib/results.ts): display unit for weight; unset = the brand's default. */
+  weightUnit?: WeightUnit
+  /** Goal weight in whole grams, if the user set one. */
+  goalWeightGrams?: number
+  /** The user's edits to the side-effect symptom list. */
+  symptoms?: SymptomPrefs
+}
+
+export type VialStatus = 'active' | 'finished' | 'discarded'
+
+/**
+ * A physical vial the user has opened. Its starting amount is stored; what's
+ * left is always derived (starting amount minus every `taken` DoseLog linked
+ * to it — see src/lib/vials.ts), never stored, for the same reason upcoming
+ * doses aren't stored (see schedule.ts's header): only what actually
+ * happened is persisted, so the two can never disagree.
+ *
+ * Exactly one of `totalMcg` / `totalMilliIU` is set, matching the compound's
+ * kind, at the same integer storage precision as DoseLog.
+ */
+export interface Vial {
+  id: string
+  compoundId: string
+  /** The protocol drawing from this vial. A protocol has at most one active vial. */
+  protocolId?: string
+  totalMcg?: number
+  totalMilliIU?: number
+  /** Diluent added at reconstitution, in mL — informational (the mix is already reflected in the protocol's saved draw). */
+  diluentMl?: number
+  lot?: string
+  batch?: string
+  /** Expiry printed on the vial/label, yyyy-MM-dd. */
+  expiresOn?: string
+  /** When the vial was opened/mixed, yyyy-MM-dd. */
+  openedOn: string
+  /**
+   * The user's own discard-by date, yyyy-MM-dd. Never defaulted by the app:
+   * suggesting how long a mixed vial stays usable would be a product claim
+   * (see BrandConfig.defaultDiscardDays for the client-supplied exception).
+   */
+  discardOn?: string
+  status: VialStatus
+  /** ISO datetime the vial was marked finished/discarded. */
+  closedAt?: string
+  notes?: string
+  createdAt: string // ISO datetime
+  updatedAt: string // ISO datetime
+}
+
+/**
+ * A user's own protocol saved for reuse (Phase 2, "save as template"). Same
+ * shape as a built-in ProtocolTemplate, but with a user-given name instead
+ * of an i18n key. The table exists from schema v2 so adding the feature
+ * needs no further migration.
+ */
+export interface UserTemplate {
+  id: string
+  name: string
+  compoundId: string
+  doseAmount: number
+  doseUnit: 'mg' | 'mcg' | 'IU'
+  schedule: Schedule
+  reminderTimes: string[]
+  route: Route
+  titration?: Titration
+  siteTracking?: { sites: SiteId[] }
+  createdAt: string // ISO datetime
 }
 
 export interface Snapshot {
@@ -120,6 +217,10 @@ class PeptidesDB extends Dexie {
   doseLogs!: EntityTable<DoseLog, 'id'>
   settings!: EntityTable<Settings, 'id'>
   snapshots!: EntityTable<Snapshot, 'id'>
+  vials!: EntityTable<Vial, 'id'>
+  userTemplates!: EntityTable<UserTemplate, 'id'>
+  weights!: EntityTable<WeightEntry, 'id'>
+  checkIns!: EntityTable<CheckIn, 'date'>
 
   constructor() {
     super('peptidescr')
@@ -133,6 +234,19 @@ class PeptidesDB extends Dexie {
       settings: 'id',
       snapshots: '++id, createdAt',
     })
+    // v2 (Phase 2): vial tracking and user templates. Purely additive — new
+    // tables only; the new optional fields (DoseLog.vialId,
+    // Compound.isCustom) aren't indexed, so no existing row needs upgrading.
+    this.version(2).stores({
+      vials: 'id, compoundId, protocolId',
+      userTemplates: 'id',
+    })
+    // v3: results tracking — weights (any number a day) and one check-in per
+    // day, keyed by its date. New tables only, nothing to upgrade.
+    this.version(3).stores({
+      weights: 'id, measuredAt',
+      checkIns: 'date',
+    })
   }
 }
 
@@ -142,10 +256,20 @@ export const db = new PeptidesDB()
  * Compounds are seeded content, not user data, but the catalogue can change
  * between app releases. Upserting on every open (instead of a one-time
  * populate hook) keeps an existing install's compound list in sync without a
- * migration step, while never touching the user's own protocols/logs.
+ * migration step, while never touching the user's own protocols/logs — or
+ * their custom compounds, which share this table (`isCustom: true`, ids
+ * prefixed `custom-` so a catalogue id can never collide with one).
+ *
+ * A built-in the brand's store also sells has been replaced by its store row
+ * (same id, store name — see src/lib/storeCatalogue.ts); re-seeding skips
+ * those so it can't undo the store sync. One transaction, so a sync landing
+ * mid-seed can't be overwritten either.
  */
 export async function ensureCompoundsSeeded(): Promise<void> {
-  await db.compounds.bulkPut(COMPOUNDS)
+  await db.transaction('rw', db.compounds, async () => {
+    const storeIds = new Set(await db.compounds.filter((c) => c.source === 'store').primaryKeys())
+    await db.compounds.bulkPut(COMPOUNDS.filter((c) => !storeIds.has(c.id)))
+  })
 }
 
 export async function ensureSettingsRow(defaults: Omit<Settings, 'id'>): Promise<Settings> {

@@ -45,10 +45,24 @@ describe('parseBackup', () => {
       { kind: 'weekdays', days: [1, 3, 5] },
       { kind: 'cycle', daysOn: 5, daysOff: 2 },
       { kind: 'custom', dates: ['2026-03-09', '2026-03-04'] },
+      { kind: 'cycleWeeks', inner: { kind: 'weekdays', days: [1, 3, 5] }, weeksOn: 8, weeksOff: 4 },
+      { kind: 'cycleWeeks', inner: { kind: 'daily' }, weeksOn: 4, weeksOff: 0, cycles: 3, washoutWeeks: 2 },
     ]
     for (const schedule of schedules) {
       expect(() => parseBackup(backup({ protocols: [{ ...protocol, schedule }] }))).not.toThrow()
     }
+  })
+
+  it('keeps a weeks cycle exactly, dropping a washout that has no fixed cycle count to follow', () => {
+    const cycle = { kind: 'cycleWeeks', inner: { kind: 'everyNDays', n: 2 }, weeksOn: 6, weeksOff: 2, cycles: 2, washoutWeeks: 4 }
+    expect(parseBackup(backup({ protocols: [{ ...protocol, schedule: cycle }] })).protocols[0]?.schedule).toEqual(cycle)
+    const noCycles = { kind: 'cycleWeeks', inner: { kind: 'daily' }, weeksOn: 6, weeksOff: 2, washoutWeeks: 4 }
+    expect(parseBackup(backup({ protocols: [{ ...protocol, schedule: noCycles }] })).protocols[0]?.schedule).toEqual({
+      kind: 'cycleWeeks',
+      inner: { kind: 'daily' },
+      weeksOn: 6,
+      weeksOff: 2,
+    })
   })
 
   it('rejects schedules that would break the app or make no sense', () => {
@@ -63,6 +77,12 @@ describe('parseBackup', () => {
       { kind: 'custom', dates: [] },
       { kind: 'custom', dates: ['2026-02-31'] },
       { kind: 'custom', dates: ['not a date'] },
+      { kind: 'cycleWeeks', inner: { kind: 'daily' }, weeksOn: 0, weeksOff: 1 },
+      { kind: 'cycleWeeks', inner: { kind: 'daily' }, weeksOn: 1.5, weeksOff: 1 },
+      { kind: 'cycleWeeks', inner: { kind: 'daily' }, weeksOn: 1, weeksOff: 1, cycles: 0 },
+      { kind: 'cycleWeeks', inner: { kind: 'custom', dates: ['2026-03-04'] }, weeksOn: 1, weeksOff: 1 },
+      { kind: 'cycleWeeks', inner: { kind: 'cycleWeeks', inner: { kind: 'daily' }, weeksOn: 1, weeksOff: 1 }, weeksOn: 1, weeksOff: 1 },
+      { kind: 'cycleWeeks', weeksOn: 1, weeksOff: 1 },
       'daily',
       null,
     ]
@@ -104,7 +124,8 @@ describe('parseBackup', () => {
   it('rejects wrong versions, wrong shapes, duplicate ids and oversized lists', () => {
     expect(() => parseBackup(null)).toThrow()
     expect(() => parseBackup([])).toThrow()
-    expect(() => parseBackup(backup({ version: 2 }))).toThrow()
+    expect(() => parseBackup(backup({ version: 5 }))).toThrow()
+    expect(() => parseBackup(backup({ version: '2' }))).toThrow()
     expect(() => parseBackup(backup({ protocols: 'x' }))).toThrow()
     expect(() => parseBackup(backup({ protocols: [protocol, protocol] }))).toThrow()
     const tooMany = Array.from({ length: 1001 }, (_, i) => ({ ...protocol, id: `p${i}` }))
@@ -153,5 +174,242 @@ describe('parseBackup', () => {
     )
     expect(ok.settings).toEqual({ id: 1, locale: 'en', syringeType: 'U-100', theme: 'dark' })
     expect(() => parseBackup(backup({ settings: { locale: 'fr', syringeType: 'U-100' } }))).toThrow()
+  })
+})
+
+describe('parseBackup, format v2 (vials, custom compounds, user templates)', () => {
+  const vial = {
+    id: 'v1',
+    compoundId: 'bpc-157',
+    protocolId: 'p1',
+    totalMcg: 10_000,
+    diluentMl: 2,
+    lot: 'A123',
+    batch: 'B7',
+    expiresOn: '2027-01-31',
+    openedOn: '2026-03-01',
+    discardOn: '2026-03-29',
+    status: 'active',
+    createdAt: '2026-03-01T09:00:00.000Z',
+    updatedAt: '2026-03-01T09:00:00.000Z',
+  }
+  const custom = {
+    id: 'custom-1',
+    name: 'My compound',
+    category: 'whatever',
+    defaultUnit: 'mg',
+    vialSizes: [5, 10],
+    form: 'powder',
+    isBlend: true,
+    isDiluent: true,
+    isCustom: true,
+  }
+  const template = {
+    id: 't1',
+    name: 'My morning routine',
+    compoundId: 'custom-1',
+    doseAmount: 2,
+    doseUnit: 'mg',
+    schedule: { kind: 'weekdays', days: [1, 3, 5] },
+    reminderTimes: ['07:30'],
+    route: 'subcutaneous',
+    createdAt: '2026-03-01T09:00:00.000Z',
+  }
+
+  it('still imports a v1 file, with the newer collections empty', () => {
+    const result = parseBackup(backup({ version: 1 }))
+    expect(result.version).toBe(4)
+    expect(result.protocols).toHaveLength(1)
+    expect(result.vials).toEqual([])
+    expect(result.customCompounds).toEqual([])
+    expect(result.storeCompounds).toEqual([])
+    expect(result.userTemplates).toEqual([])
+  })
+
+  it('round-trips vials, custom compounds, templates and a dose linked to a vial', () => {
+    const result = parseBackup(
+      backup({
+        doseLogs: [{ ...log, vialId: 'v1' }],
+        vials: [vial],
+        customCompounds: [custom],
+        userTemplates: [template],
+      }),
+    )
+    expect(result.vials).toEqual([vial])
+    expect(result.doseLogs[0]?.vialId).toBe('v1')
+    expect(result.userTemplates[0]).toEqual(template)
+    // Custom compounds are normalised: category and flags are the app's, never the file's.
+    expect(result.customCompounds[0]).toEqual({
+      ...custom,
+      category: 'custom',
+      isBlend: false,
+      isDiluent: false,
+    })
+  })
+
+  it('requires exactly one vial amount, of the right kind', () => {
+    const noAmount: Record<string, unknown> = { ...vial }
+    delete noAmount.totalMcg
+    expect(() => parseBackup(backup({ vials: [noAmount] }))).toThrow()
+    expect(() => parseBackup(backup({ vials: [{ ...vial, totalMilliIU: 5000 }] }))).toThrow()
+    expect(() => parseBackup(backup({ vials: [{ ...vial, totalMcg: 0 }] }))).toThrow()
+    expect(() => parseBackup(backup({ vials: [{ ...vial, status: 'lost' }] }))).toThrow()
+    expect(() => parseBackup(backup({ vials: [{ ...vial, discardOn: '2026-02-31' }] }))).toThrow()
+  })
+
+  it('only accepts custom-prefixed compound ids, so a backup can never overwrite a catalogue entry', () => {
+    expect(() => parseBackup(backup({ customCompounds: [{ ...custom, id: 'bpc-157' }] }))).toThrow()
+    expect(() => parseBackup(backup({ customCompounds: [{ ...custom, name: '   ' }] }))).toThrow()
+  })
+
+  it('drops a dose-to-vial link whose vial is not in the file, keeping the dose', () => {
+    const result = parseBackup(backup({ doseLogs: [{ ...log, vialId: 'gone' }] }))
+    expect(result.doseLogs).toHaveLength(1)
+    expect(result.doseLogs[0]).not.toHaveProperty('vialId')
+  })
+
+  it('sanitizes lot and batch, dropping them when empty', () => {
+    const result = parseBackup(backup({ vials: [{ ...vial, lot: '  A1‮23  ', batch: '   ' }] }))
+    expect(result.vials[0]?.lot).toBe('A123')
+    expect(result.vials[0]).not.toHaveProperty('batch')
+  })
+})
+
+describe('parseBackup, format v3 (store compounds the records use)', () => {
+  const store = {
+    id: 'retatrutide',
+    name: 'GLP-1',
+    category: 'Cardiovascular Research Compounds',
+    defaultUnit: 'mg',
+    vialSizes: [5, 10],
+    form: 'powder',
+    isBlend: false,
+    isDiluent: false,
+    source: 'store',
+    listed: true,
+    aliases: ['Retatrutide'],
+    storeProducts: [{ label: 'GLP-1 5mg', slug: 'reta-5mg', size: 5, inStock: true }],
+  }
+
+  it('restores them unlisted and without store products, until the device syncs its own catalogue', () => {
+    const result = parseBackup(backup({ storeCompounds: [store] }))
+    expect(result.storeCompounds).toEqual([
+      {
+        id: 'retatrutide',
+        name: 'GLP-1',
+        category: 'Cardiovascular Research Compounds',
+        defaultUnit: 'mg',
+        vialSizes: [5, 10],
+        form: 'powder',
+        isBlend: false,
+        isDiluent: false,
+        source: 'store',
+        listed: false,
+        aliases: ['Retatrutide'],
+      },
+    ])
+  })
+
+  it('rejects one posing as a custom compound, or with no name', () => {
+    expect(() => parseBackup(backup({ storeCompounds: [{ ...store, id: 'custom-1' }] }))).toThrow()
+    expect(() => parseBackup(backup({ storeCompounds: [{ ...store, name: '  ' }] }))).toThrow()
+  })
+
+  it('still imports a v2 file', () => {
+    expect(parseBackup(backup({ version: 2 })).storeCompounds).toEqual([])
+  })
+})
+
+describe('parseBackup, titration', () => {
+  const steps = [
+    { doseAmount: 2.5, weeks: 4 },
+    { doseAmount: 5, weeks: 4 },
+  ]
+
+  it('keeps a titration, with the plain dose held to its first step', () => {
+    const result = parseBackup(backup({ protocols: [{ ...protocol, doseAmount: 99, titration: { steps } }] }))
+    expect(result.protocols[0]?.titration).toEqual({ steps })
+    expect(result.protocols[0]?.doseAmount).toBe(2.5)
+  })
+
+  it('rejects one with too few or bad steps', () => {
+    const bad = [
+      { steps: [steps[0]] },
+      { steps: [steps[0], { doseAmount: 0, weeks: 4 }] },
+      { steps: [steps[0], { doseAmount: 5, weeks: 0 }] },
+      { steps: [steps[0], { doseAmount: 5, weeks: 1.5 }] },
+      { steps: Array.from({ length: 13 }, () => steps[0]) },
+      'steps',
+    ]
+    for (const titration of bad) {
+      expect(() => parseBackup(backup({ protocols: [{ ...protocol, titration }] }))).toThrow()
+    }
+  })
+})
+
+describe('parseBackup, injection sites', () => {
+  it('keeps known sites on taken doses and protocols, dropping unknown ones', () => {
+    const result = parseBackup(
+      backup({
+        protocols: [{ ...protocol, siteTracking: { sites: ['thigh-left', 'knee', 'thigh-left', 'glute-right'] } }],
+        doseLogs: [
+          { ...log, site: 'thigh-left' },
+          { ...log, id: 'l2', site: 'knee' },
+          { ...log, id: 'l3', status: 'skipped', site: 'thigh-left' },
+        ],
+      }),
+    )
+    expect(result.protocols[0]?.siteTracking).toEqual({ sites: ['thigh-left', 'glute-right'] })
+    expect(result.doseLogs.map((l) => l.site)).toEqual(['thigh-left', undefined, undefined])
+  })
+
+  it('turns tracking off rather than failing when no known site is left', () => {
+    const result = parseBackup(backup({ protocols: [{ ...protocol, siteTracking: { sites: ['knee'] } }] }))
+    expect(result.protocols[0]?.siteTracking).toBeUndefined()
+  })
+})
+
+describe('parseBackup, format v4 (results tracking)', () => {
+  const weight = { id: 'w1', measuredAt: '2026-03-02T07:00:00.000Z', grams: 98_500, createdAt: '2026-03-02T07:00:00.000Z' }
+  const checkIn = {
+    date: '2026-03-02',
+    energy: 4,
+    foodNoise: 2,
+    sideEffects: { nausea: 2, 'custom-1': 1, bogus: 9 },
+    waistMm: 940,
+    note: 'Felt fine',
+    updatedAt: '2026-03-02T20:00:00.000Z',
+  }
+
+  it('round-trips weights and check-ins, cleaning invalid answers', () => {
+    const result = parseBackup(backup({ weights: [weight], checkIns: [checkIn, { date: '2026-03-03', energy: 9 }] }))
+    expect(result.weights).toEqual([weight])
+    expect(result.checkIns).toEqual([
+      { ...checkIn, sideEffects: { nausea: 2, 'custom-1': 1 } },
+    ]) // the second held nothing valid
+  })
+
+  it('rejects implausible weights and duplicate days', () => {
+    expect(() => parseBackup(backup({ weights: [{ ...weight, grams: 5 }] }))).toThrow()
+    expect(() => parseBackup(backup({ checkIns: [checkIn, checkIn] }))).toThrow()
+  })
+
+  it('keeps the unit, a plausible goal and the symptom list from settings', () => {
+    const result = parseBackup(
+      backup({
+        settings: {
+          locale: 'en',
+          syringeType: 'U-100',
+          weightUnit: 'lb',
+          goalWeightGrams: 80_000,
+          symptoms: { hidden: ['nausea', 'not-a-symptom'], custom: [{ id: 'custom-1', name: ' Hiccups ' }, { id: 'x', name: 'Bad' }] },
+        },
+      }),
+    )
+    expect(result.settings).toMatchObject({
+      weightUnit: 'lb',
+      goalWeightGrams: 80_000,
+      symptoms: { hidden: ['nausea'], custom: [{ id: 'custom-1', name: 'Hiccups' }] },
+    })
   })
 })

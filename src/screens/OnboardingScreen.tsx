@@ -7,19 +7,25 @@ import { HowItWorksList } from '../components/HowItWorksList'
 import { InstallInstructions } from '../components/InstallInstructions'
 import { TemplatePicker } from '../components/TemplatePicker'
 import { Button } from '@/components/ui/button'
+import { NumericInput } from '@/components/ui/numeric-input'
+import { Segmented } from '@/components/ui/segmented'
 import { OptionCard } from '@/components/ui/option-card'
 import { Progress } from '@/components/ui/progress'
 import { BRAND } from '../brand'
 import { LEGAL_CONTENT, LEGAL_VERSION } from '../content/legal'
 import { SUPPORTED_LOCALES } from '../i18n'
-import type { ProtocolTemplate } from '../content/protocolTemplates'
+import type { ProtocolPrefill } from '../lib/userTemplates'
+import { useInstallState } from '../lib/install'
 import { getNotificationCapability, requestNotificationPermission } from '../lib/notifications'
 import type { Locale } from '../lib/units'
 import { updateSettings } from '../lib/useSettings'
+import { addWeight, defaultWeightUnit, gramsFrom, isPlausibleWeight, type WeightUnit } from '../lib/results'
+import { parsePositiveAmount } from '../lib/sanitize'
 import { ProtocolForm } from './ProtocolsScreen'
 
-type Step = 1 | 2 | 3 | 4 | 5 | 6
-const TOTAL_STEPS = 6
+type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7
+/** Step 7 (your starting point) only follows a saved first protocol. */
+const TOTAL_STEPS = 7
 
 export function OnboardingScreen({ onComplete }: { onComplete: (calculatorProtocolId?: string) => void }) {
   const { t, i18n } = useTranslation()
@@ -32,6 +38,8 @@ export function OnboardingScreen({ onComplete }: { onComplete: (calculatorProtoc
   // are hidden — otherwise there'd be two back buttons on screen at once.
   const [innerStepOwnsHeader, setInnerStepOwnsHeader] = useState(false)
   const showChrome = !(step === 6 && innerStepOwnsHeader)
+  // Carried from the first-protocol step to the end, when the user chose to reconstitute next.
+  const [calculatorProtocolId, setCalculatorProtocolId] = useState<string | undefined>()
 
   function goBack() {
     setStep((s) => (s > 1 ? ((s - 1) as Step) : s))
@@ -54,10 +62,12 @@ export function OnboardingScreen({ onComplete }: { onComplete: (calculatorProtoc
             type="button"
             onClick={goBack}
             aria-label={t('common.back')}
-            aria-hidden={step === 1}
-            tabIndex={step === 1 ? -1 : 0}
+            aria-hidden={step === 1 || step === 7}
+            tabIndex={step === 1 || step === 7 ? -1 : 0}
+            // Not back from step 7: the protocol is already saved, and going
+            // back into its form would only invite a duplicate.
             className={`-ml-2 flex size-11 shrink-0 items-center justify-center rounded-full text-primary ${
-              step === 1 ? 'invisible' : ''
+              step === 1 || step === 7 ? 'invisible' : ''
             }`}
           >
             <ChevronLeft className="size-6" />
@@ -87,11 +97,16 @@ export function OnboardingScreen({ onComplete }: { onComplete: (calculatorProtoc
             {step === 5 && <NotificationStep onNext={() => setStep(6)} />}
             {step === 6 && (
               <FirstProtocolStep
-                onDone={(protocolId) => void finishOnboarding(protocolId)}
+                onDone={(protocolId) => {
+                  setCalculatorProtocolId(protocolId)
+                  setInnerStepOwnsHeader(false)
+                  setStep(7)
+                }}
                 onSkip={() => void finishOnboarding()}
                 onHeaderModeChange={setInnerStepOwnsHeader}
               />
             )}
+            {step === 7 && <StartingPointStep onDone={() => void finishOnboarding(calculatorProtocolId)} />}
           </motion.div>
         </AnimatePresence>
       </div>
@@ -342,7 +357,76 @@ function ProtocolAnatomy() {
   )
 }
 
-type FirstProtocolMode = 'intro' | 'picker' | { template?: ProtocolTemplate }
+type FirstProtocolMode = 'intro' | 'picker' | { template?: ProtocolPrefill }
+
+/**
+ * After a first protocol: an optional starting weight and goal, so progress
+ * has a "before" to measure from (Tier 1 results tracking). Skippable — the
+ * Progress tab asks again whenever they're ready.
+ */
+function StartingPointStep({ onDone }: { onDone: () => void }) {
+  const { t } = useTranslation()
+  const [unit, setUnit] = useState<WeightUnit>(defaultWeightUnit())
+  const [weight, setWeight] = useState('')
+  const [goal, setGoal] = useState('')
+  const weightGrams = gramsOrNull(weight, unit)
+  const goalGrams = gramsOrNull(goal, unit)
+  const weightValid = weightGrams !== null
+  const goalValid = goal === '' || goalGrams !== null
+
+  async function save() {
+    if (weightGrams === null || !goalValid) return
+    await addWeight(weightGrams)
+    await updateSettings({ weightUnit: unit, ...(goalGrams !== null ? { goalWeightGrams: goalGrams } : {}) })
+    onDone()
+  }
+
+  return (
+    <StepShell
+      title={t('onboarding.startingPoint.title')}
+      body={t('onboarding.startingPoint.body')}
+      footer={
+        <>
+          <Button disabled={!weightValid || !goalValid} onClick={() => void save()}>
+            {t('onboarding.startingPoint.save')}
+          </Button>
+          <button type="button" onClick={onDone} className="min-h-11 self-center text-sm text-muted-foreground">
+            {t('onboarding.startingPoint.skip')}
+          </button>
+        </>
+      }
+    >
+      <Segmented<WeightUnit>
+        value={unit}
+        onChange={setUnit}
+        options={[
+          { value: 'kg', label: 'kg' },
+          { value: 'lb', label: 'lb' },
+        ]}
+      />
+      <label className="flex flex-col gap-1.5">
+        <span className="text-sm font-medium text-foreground">{t('onboarding.startingPoint.weight', { unit })}</span>
+        <NumericInput kind="decimal" value={weight} onValueChange={setWeight} aria-invalid={weight !== '' && !weightValid} />
+      </label>
+      <label className="flex flex-col gap-1.5">
+        <span className="text-sm font-medium text-foreground">{t('onboarding.startingPoint.goal', { unit })}</span>
+        <NumericInput kind="decimal" value={goal} onValueChange={setGoal} aria-invalid={!goalValid} />
+      </label>
+      {((weight !== '' && !weightValid) || !goalValid) && (
+        <p role="alert" className="text-sm text-destructive">
+          {t('progress.weightInvalid')}
+        </p>
+      )}
+    </StepShell>
+  )
+}
+
+function gramsOrNull(text: string, unit: WeightUnit): number | null {
+  const value = parsePositiveAmount(text)
+  if (value === null) return null
+  const grams = gramsFrom(value, unit)
+  return isPlausibleWeight(grams) ? grams : null
+}
 
 function FirstProtocolStep({
   onDone,

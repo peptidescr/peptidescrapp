@@ -1,0 +1,160 @@
+[
+  {
+    "id": 33053,
+    "name": "VIP 5 mg",
+    "slug": "vip-5-mg",
+    "type": "simple",
+    "permalink": "https://peptidescostarica.net/product/vip-5-mg/",
+    "sku": "vip-5-mg",
+    "categories": [
+      {
+        "id": 30,
+        "name": "Nootropic &amp; Neuropeptides",
+        "slug": "peptide-for-cognitive-function"
+      }
+    ],
+    "is_in_stock": false
+  },
+  {
+    "id": 32994,
+    "name": "AA Water 3ml",
+    "slug": "aa-water-3ml",
+    "type": "simple",
+    "permalink": "https://peptidescostarica.net/product/aa-water-3ml/",
+    "sku": "aa-water-3ml",
+    "categories": [
+      {
+        "id": 25,
+        "name": "Bacteriostatic Water",
+        "slug": "bac-water"
+      }
+    ],
+    "is_in_stock": false
+  },
+  {
+    "id": 26438,
+    "name": "Tirzepatide 60mg",
+    "slug": "tirzepatide-60mg",
+    "type": "simple",
+    "permalink": "https://peptidescostarica.net/product/tirzepatide-60mg/",
+    "sku": "TIRZEPATIDE-60MG",
+    "categories": [
+      {
+        "id": 43,
+        "name": "Cardiovascular Research Compounds",
+        "slug": "peptide-for-cardiovascular"
+      }
+    ],
+    "is_in_stock": true
+  },
+  {
+    "id": 26278,
+    "name": "HGH 50 IU (Pfizer Brand Genotropin)",
+    "slug": "hgh-50-iu-pfizer-brand-genotropin",
+    "type": "simple",
+    "permalink": "https://peptidescostarica.net/product/hgh-50-iu-pfizer-brand-genotropin/",
+    "sku": "HGH-50-IU-PFIZER-GENOTROPIN",
+    "categories": [
+      {
+        "id": 23,
+        "name": "Somatropin &amp; Related Compounds",
+        "slug": "hgh-human-growth-hormone"
+      }
+    ],
+    "is_in_stock": true
+  },
+  {
+    "id": 18805,
+    "name": "MT-II",
+    "slug": "mt-ii",
+    "type": "simple",
+    "permalink": "https://peptidescostarica.net/product/mt-ii/",
+    "sku": "mt-ii",
+    "categories": [
+      {
+        "id": 24,
+        "name": "Copper &amp; Dermatological Peptides",
+        "slug": "peptides-for-skin"
+      },
+      {
+        "id": 27,
+        "name": "Reproductive Signalling Peptides",
+        "slug": "peptides-for-fertility"
+      }
+    ],
+    "is_in_stock": true
+  },
+  {
+    "id": 15061,
+    "name": "Lipotropic Blend 10ml",
+    "slug": "fat-blaster-10ml",
+    "type": "simple",
+    "permalink": "https://peptidescostarica.net/product/fat-blaster-10ml/",
+    "sku": "lipotropic-blend-10ml",
+    "categories": [],
+    "is_in_stock": true
+  },
+  {
+    "id": 8177,
+    "name": "GLP-1 10mg",
+    "slug": "reta-10mg",
+    "type": "simple",
+    "permalink": "https://peptidescostarica.net/product/reta-10mg/",
+    "sku": "glp-1-10mg",
+    "categories": [
+      {
+        "id": 43,
+        "name": "Cardiovascular Research Compounds",
+        "slug": "peptide-for-cardiovascular"
+      }
+    ],
+    "is_in_stock": true
+  },
+  {
+    "id": 146,
+    "name": "GHK-CU 50mg",
+    "slug": "ghk-cu-50mg",
+    "type": "simple",
+    "permalink": "https://peptidescostarica.net/product/ghk-cu-50mg/",
+    "sku": "GHK-CU-50MG",
+    "categories": [
+      {
+        "id": 20,
+        "name": "Collagen Peptides",
+        "slug": "collagen-peptides"
+      },
+      {
+        "id": 24,
+        "name": "Copper &amp; Dermatological Peptides",
+        "slug": "peptides-for-skin"
+      },
+      {
+        "id": 22,
+        "name": "Copper Peptides",
+        "slug": "copper-peptides"
+      },
+      {
+        "id": 26,
+        "name": "Tissue Repair Compounds",
+        "slug": "peptides-for-healing"
+      }
+    ],
+    "is_in_stock": true
+  },
+  {
+    "id": 140,
+    "name": "HCG 10,000 IU",
+    "slug": "hcg-10000-iu",
+    "type": "simple",
+    "permalink": "https://peptidescostarica.net/product/hcg-10000-iu/",
+    "sku": "HCG-10-000-IU",
+    "categories": [
+      {
+        "id": 27,
+        "name": "Reproductive Signalling Peptides",
+        "slug": "peptides-for-fertility"
+      }
+    ],
+    "is_in_stock": true
+  }
+]

@@ -82,3 +82,25 @@ button,
 a[role='button'] {
   touch-action: manipulation;
 }
+
+/*
+ * Printing the report for a doctor (DoctorReport.tsx): when it's open, only
+ * it prints — the app underneath and the report's own controls are hidden,
+ * and it flows over as many pages as it needs instead of scrolling in a fixed
+ * overlay. (DoctorReport switches the theme to light while printing.)
+ */
+@media print {
+  body:has(.report-portal) #root {
+    display: none !important;
+  }
+  .report-portal {
+    position: static !important;
+    overflow: visible !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .report-section {
+    break-inside: avoid;
+  }
+}

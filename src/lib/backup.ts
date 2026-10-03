@@ -1,27 +1,44 @@
 import { getCompoundById } from '../content/compounds'
 import { toIsoDate } from './dates'
-import { db, SETTINGS_ID, type DoseLog, type Protocol, type Settings } from './db'
-import { BACKUP_VERSION, parseBackup } from './backupValidation'
+import { db, SETTINGS_ID, type DoseLog, type Vial } from './db'
+import { BACKUP_VERSION, parseBackup, type ValidBackup } from './backupValidation'
 import { csvSafeText } from './sanitize'
 import { applyTheme, resolveTheme } from './theme'
 
 const SNAPSHOT_KEEP = 7
 
-export interface BackupPayload {
-  version: typeof BACKUP_VERSION
-  exportedAt: string
-  protocols: Protocol[]
-  doseLogs: DoseLog[]
-  settings?: Settings
-}
+/** An export is always the current format — see backupValidation.ts for what each version holds. */
+export type BackupPayload = ValidBackup
 
 export async function buildBackupPayload(): Promise<BackupPayload> {
-  const [protocols, doseLogs, settings] = await Promise.all([
-    db.protocols.toArray(),
-    db.doseLogs.toArray(),
-    db.settings.get(SETTINGS_ID),
-  ])
-  return { version: BACKUP_VERSION, exportedAt: new Date().toISOString(), protocols, doseLogs, settings }
+  const [protocols, doseLogs, settings, vials, customCompounds, storeRows, userTemplates, weights, checkIns] =
+    await Promise.all([
+      db.protocols.toArray(),
+      db.doseLogs.toArray(),
+      db.settings.get(SETTINGS_ID),
+      db.vials.toArray(),
+      db.compounds.filter((c) => c.isCustom === true).toArray(),
+      db.compounds.filter((c) => c.source === 'store').toArray(),
+      db.userTemplates.toArray(),
+      db.weights.toArray(),
+      db.checkIns.toArray(),
+    ])
+  // The store catalogue isn't the user's data — only the entries their own
+  // records use travel, so those still have names after a restore.
+  const referenced = new Set([...protocols, ...doseLogs, ...vials, ...userTemplates].map((r) => r.compoundId))
+  return {
+    version: BACKUP_VERSION,
+    exportedAt: new Date().toISOString(),
+    protocols,
+    doseLogs,
+    settings,
+    vials,
+    customCompounds,
+    storeCompounds: storeRows.filter((c) => referenced.has(c.id)),
+    userTemplates,
+    weights,
+    checkIns,
+  }
 }
 
 export function backupToJson(payload: BackupPayload): string {
@@ -33,7 +50,7 @@ function csvField(value: string | number): string {
   return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str
 }
 
-export function doseLogsToCsv(doseLogs: DoseLog[]): string {
+export function doseLogsToCsv(doseLogs: DoseLog[], vials: Vial[] = []): string {
   const header = [
     'compound',
     'doseAmountMg',
@@ -42,9 +59,14 @@ export function doseLogsToCsv(doseLogs: DoseLog[]): string {
     'administeredAt',
     'status',
     'notes',
+    'vialLot',
+    'vialBatch',
+    'injectionSite',
   ]
+  const vialsById = new Map(vials.map((v) => [v.id, v]))
   const rows = doseLogs.map((log) => {
     const compound = getCompoundById(log.compoundId)
+    const vial = log.vialId ? vialsById.get(log.vialId) : undefined
     // Text cells go through csvSafeText so a note like =HYPERLINK(...) can't run as a formula when the file is opened.
     return [
       csvSafeText(compound?.name ?? log.compoundId),
@@ -54,21 +76,45 @@ export function doseLogsToCsv(doseLogs: DoseLog[]): string {
       log.administeredAt,
       log.status,
       csvSafeText(log.notes ?? ''),
+      csvSafeText(vial?.lot ?? ''),
+      csvSafeText(vial?.batch ?? ''),
+      log.site ?? '',
     ]
   })
   return [header, ...rows].map((row) => row.map(csvField).join(',')).join('\r\n')
 }
 
-/** Wipes and replaces protocols/doseLogs/settings from a previously exported backup. */
-export async function importBackupPayload(input: BackupPayload): Promise<void> {
+/**
+ * Wipes and replaces all of the user's own data (protocols, dose logs,
+ * settings, vials, custom compounds, user templates, weights, check-ins) from a previously
+ * exported backup. Catalogue rows in `compounds` are never replaced: a store
+ * compound from the file is only added where this device has no store row
+ * for that id yet (its own synced one is newer).
+ */
+export async function importBackupPayload(input: unknown): Promise<void> {
   // Re-validated here too, not only where a file is picked, so no caller can
   // put unchecked data into the database.
   const payload = parseBackup(input)
-  await db.transaction('rw', db.protocols, db.doseLogs, db.settings, async () => {
+  const tables = [db.protocols, db.doseLogs, db.settings, db.vials, db.compounds, db.userTemplates, db.weights, db.checkIns]
+  await db.transaction('rw', tables, async () => {
     await db.protocols.clear()
     await db.doseLogs.clear()
+    await db.vials.clear()
+    await db.userTemplates.clear()
+    await db.weights.clear()
+    await db.checkIns.clear()
+    const oldCustomIds = await db.compounds.filter((c) => c.isCustom === true).primaryKeys()
+    await db.compounds.bulkDelete(oldCustomIds)
     if (payload.protocols.length) await db.protocols.bulkAdd(payload.protocols)
     if (payload.doseLogs.length) await db.doseLogs.bulkAdd(payload.doseLogs)
+    if (payload.vials.length) await db.vials.bulkAdd(payload.vials)
+    if (payload.customCompounds.length) await db.compounds.bulkPut(payload.customCompounds)
+    const syncedStoreIds = new Set(await db.compounds.filter((c) => c.source === 'store').primaryKeys())
+    const missingStore = payload.storeCompounds.filter((c) => !syncedStoreIds.has(c.id))
+    if (missingStore.length) await db.compounds.bulkPut(missingStore)
+    if (payload.userTemplates.length) await db.userTemplates.bulkAdd(payload.userTemplates)
+    if (payload.weights.length) await db.weights.bulkAdd(payload.weights)
+    if (payload.checkIns.length) await db.checkIns.bulkAdd(payload.checkIns)
     if (payload.settings) await db.settings.put({ ...payload.settings, id: SETTINGS_ID })
   })
 

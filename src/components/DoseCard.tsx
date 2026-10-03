@@ -7,13 +7,20 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { getCompoundById } from '../content/compounds'
 import { formatDate, formatTime } from '../lib/dates'
-import type { Protocol } from '../lib/db'
+import { db, type Protocol } from '../lib/db'
 import { logProtocolDose } from '../lib/doseLog'
+import { contextOf } from '../lib/homeData'
+import { wouldSettle, type Occurrence } from '../lib/schedule'
+import { rotationSites, type SiteId } from '../lib/injectionSites'
+import { doseOn, formatDose } from '../lib/titration'
+import { LateDoseSheet, type LateDoseChoice } from './LateDoseSheet'
+import { SitePickerSheet } from './SitePickerSheet'
 import type { DueItem } from '../lib/homeData'
 
 export function LogButtons({
   protocol,
   administeredAt,
+  lateOccurrence,
 }: {
   protocol: Protocol
   /**
@@ -24,25 +31,51 @@ export function LogButtons({
    * reminder time.
    */
   administeredAt?: Date
+  /**
+   * The due occurrence, for Catch up. When it's from an earlier day and a
+   * dose taken now would still count for it, Taken first asks when it was
+   * taken (and whether to move the schedule) — see LateDoseSheet.
+   */
+  lateOccurrence?: Occurrence
 }) {
   const { t } = useTranslation()
   const [busy, setBusy] = useState(false)
+  // Taken can go through up to two questions before it's logged: when (a late
+  // dose), then where (site rotation). `pending` carries the first answer to the second.
+  const [step, setStep] = useState<'when' | 'site' | null>(null)
+  const [pending, setPending] = useState<LateDoseChoice | null>(null)
+  // Opted in to site rotation (and on a route that has sites): Taken asks where it went.
+  const tracksSites = rotationSites(protocol.route, protocol.siteTracking?.sites ?? []).length > 0
 
-  async function handle(status: 'taken' | 'skipped') {
+  async function handle(status: 'taken' | 'skipped', site?: SiteId, choice?: LateDoseChoice | null) {
     setBusy(true)
     try {
-      await logProtocolDose(protocol, status, administeredAt ?? new Date())
-      toast.success(status === 'taken' ? t('home.toastTaken') : t('home.toastSkipped'))
+      if (choice?.shift) await db.protocols.update(protocol.id, choice.shift)
+      await logProtocolDose(protocol, status, choice?.at ?? administeredAt ?? new Date(), site)
+      toast.success(
+        choice?.shift ? t('late.movedToast') : status === 'taken' ? t('home.toastTaken') : t('home.toastSkipped'),
+      )
     } finally {
       setBusy(false)
     }
+  }
+
+  function onTaken() {
+    const now = new Date()
+    const isLate =
+      lateOccurrence !== undefined &&
+      !isSameDay(lateOccurrence.scheduledAt, now) &&
+      wouldSettle(contextOf(protocol), lateOccurrence, [], now)
+    if (isLate) setStep('when')
+    else if (tracksSites) setStep('site')
+    else void handle('taken')
   }
 
   // Taken is the action nearly everyone is here for, so it gets twice the
   // width and the only filled button; Skipped is a quiet outline beside it.
   return (
     <div className="flex gap-2">
-      <Button disabled={busy} onClick={() => handle('taken')} className="flex-[2] text-sm font-semibold">
+      <Button disabled={busy} onClick={onTaken} className="flex-[2] text-sm font-semibold">
         <Check />
         {t('home.logTaken')}
       </Button>
@@ -54,6 +87,36 @@ export function LogButtons({
       >
         {t('home.logSkipped')}
       </Button>
+      {step === 'when' && lateOccurrence && (
+        <LateDoseSheet
+          protocol={protocol}
+          occurrence={lateOccurrence}
+          onCancel={() => setStep(null)}
+          onConfirm={(choice) => {
+            if (tracksSites) {
+              setPending(choice)
+              setStep('site')
+            } else {
+              setStep(null)
+              void handle('taken', undefined, choice)
+            }
+          }}
+        />
+      )}
+      {step === 'site' && (
+        <SitePickerSheet
+          protocol={protocol}
+          onCancel={() => {
+            setStep(null)
+            setPending(null)
+          }}
+          onConfirm={(site) => {
+            setStep(null)
+            setPending(null)
+            void handle('taken', site, pending)
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -85,6 +148,7 @@ export function DoseCard({
   compoundName,
   showActions,
   administeredAt,
+  lateOccurrence,
   onOpenProtocol,
 }: {
   tone: DoseCardTone
@@ -94,6 +158,8 @@ export function DoseCard({
   compoundName: string | undefined
   showActions: boolean
   administeredAt?: Date
+  /** The due occurrence, for Catch up's late-dose question (see LogButtons). */
+  lateOccurrence?: Occurrence
   /** Taps the name row: straight to this protocol's own edit page, not just the Protocols list. */
   onOpenProtocol: (protocolId: string) => void
 }) {
@@ -129,13 +195,15 @@ export function DoseCard({
               {protocol.name || compoundName}
             </span>
             <span className="mt-0.5 block text-sm text-muted-foreground">
-              {protocol.doseAmount} {protocol.doseUnit} · {t(`route.${protocol.route}`)}
+              {formatDose(doseOn(protocol, time))} · {t(`route.${protocol.route}`)}
             </span>
           </span>
           <ChevronRight aria-hidden className="size-5 shrink-0 text-muted-foreground" />
         </button>
 
-        {showActions && <LogButtons protocol={protocol} administeredAt={administeredAt} />}
+        {showActions && (
+          <LogButtons protocol={protocol} administeredAt={administeredAt} lateOccurrence={lateOccurrence} />
+        )}
       </div>
     </Card>
   )
@@ -165,6 +233,7 @@ export function DueCard({
       compoundName={compound?.name}
       showActions
       administeredAt={item.occurrence.scheduledAt}
+      lateOccurrence={item.occurrence}
       onOpenProtocol={onOpenProtocol}
     />
   )

@@ -2,8 +2,12 @@ import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { X } from 'lucide-react'
 import type { ComponentProps } from 'react'
 import { cn } from '@/lib/utils'
+import { useBackClosable } from '@/lib/useBackLayer'
 
-export const Dialog = DialogPrimitive.Root
+/** Closes on back (the phone's, the browser's or the app bar's) while open; see useBackClosable. */
+export function Dialog(props: ComponentProps<typeof DialogPrimitive.Root>) {
+  return <DialogPrimitive.Root {...useBackClosable(props)} />
+}
 export const DialogTrigger = DialogPrimitive.Trigger
 export const DialogClose = DialogPrimitive.Close
 

@@ -1,4 +1,5 @@
 import {
+  BookmarkPlus,
   ChevronRight,
   ClipboardList,
   FlaskConical,
@@ -41,23 +42,38 @@ import { Switch } from '@/components/ui/switch'
 import { EmptyState } from '../components/EmptyState'
 import { AppHeader } from '../components/AppHeader'
 import { ProtocolSavedPrompt } from '../components/ProtocolSavedPrompt'
+import { CustomCompoundSheet } from '../components/CustomCompoundSheet'
+import { SyringeGraphic } from '../components/SyringeGraphic'
 import { TemplatePicker } from '../components/TemplatePicker'
-import { compareAlphabetical, getCompoundById, listSelectableCompounds } from '../content/compounds'
-import { PROTOCOL_TEMPLATES, type ProtocolTemplate } from '../content/protocolTemplates'
-import { formatDateTime, toIsoDate } from '../lib/dates'
-import { db, type DoseLog, type Protocol, type Route } from '../lib/db'
-import { computeProtocolStats } from '../lib/homeData'
+import { TitrationEditor } from '../components/TitrationEditor'
+import { SaveTemplateDialog } from '../components/SaveTemplateDialog'
+import { VialStrip } from '../components/VialStrip'
+import { compareAlphabetical, getCompoundById } from '../content/compounds'
+import { toCompoundOptions, useSelectableCompounds } from '../lib/customCompounds'
+import { PROTOCOL_TEMPLATES } from '../content/protocolTemplates'
+import type { ProtocolPrefill } from '../lib/userTemplates'
+import { isProtocolFlow, isProtocolPicker, type Page, type ProtocolsView } from '../lib/pages'
+import { formatDate, formatDateTime, toIsoDate } from '../lib/dates'
+import { db, type DoseLog, type Protocol, type Route, type Vial } from '../lib/db'
+import { computeAdherence, computeProtocolStats } from '../lib/homeData'
 import { scheduleUpcomingReminders } from '../lib/notifications'
 import { alphabeticalOptions } from '../lib/options'
 import { requestPushSync } from '../lib/push'
 import {
+  MAX_CYCLES,
   MAX_DAY_COUNT,
   MAX_NAME_LENGTH,
-  parseBoundedInteger,
+  MAX_WEEK_COUNT,
   parsePositiveAmount,
   sanitizeText,
 } from '../lib/sanitize'
-import type { Schedule, Weekday } from '../lib/schedule'
+import { cyclePhase, type CycleInnerSchedule, type Schedule, type Weekday } from '../lib/schedule'
+import { parseScheduleFields, scheduleFields, type ScheduleFields } from '../lib/scheduleForm'
+import { parseTitrationFields, titrationFields, type TitrationFields } from '../lib/titrationForm'
+import { doseOn, formatDose, nextDoseChange, sameDose } from '../lib/titration'
+import { rotationSites, siteRest, SITES_BY_ROUTE, suggestSite, type SiteId } from '../lib/injectionSites'
+import { restText } from '../lib/siteText'
+import { cyclePhaseText, scheduleSummary } from '../lib/cycleText'
 import { useLiveQuery } from '../lib/useLiveQuery'
 import { formatDecimal, type Locale, type MassUnit } from '../lib/units'
 
@@ -70,44 +86,37 @@ async function rescheduleReminders(): Promise<void> {
 }
 
 const WEEKDAY_LABELS_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const
-const SCHEDULE_KINDS: Schedule['kind'][] = ['daily', 'everyNDays', 'weekdays', 'cycle', 'custom']
+const SCHEDULE_KINDS: Schedule['kind'][] = ['daily', 'everyNDays', 'weekdays', 'cycle', 'cycleWeeks', 'custom']
+const CYCLE_INNER_KINDS: CycleInnerSchedule['kind'][] = ['daily', 'everyNDays', 'weekdays']
 const ROUTES: Route[] = ['subcutaneous', 'intramuscular', 'other']
-
-type Mode =
-  | { kind: 'list' }
-  | { kind: 'picker' }
-  | { kind: 'form'; protocolId?: string; template?: ProtocolTemplate; compoundId?: string }
 
 /** Mirrors the "My Protocols / Templates" tabs pattern from reference peptide-tracker
  * apps — templates are browsable any time, not just at the moment of creation. */
 type ListTab = 'mine' | 'templates'
 
 interface ProtocolsScreenProps {
+  /** Which sub-page is showing. It lives in App's page history, so back returns through it. */
+  view: ProtocolsView
+  /** Opens a sub-page; `leaving` drops pages that back shouldn't return to (see pushPage). */
+  onNavigate: (view: ProtocolsView, leaving?: (page: Page) => boolean) => void
+  /** Back a page, skipping any `skipping` matches (see popPage). */
+  onBack: (skipping?: (page: Page) => boolean) => void
   /** Opens the calculator for a protocol — the "next step" offered right after saving a new one. */
-  onReconstitute: (protocolId: string) => void
-  /** Open straight into a new-protocol form for this compound (from the calculator's "create a protocol"). */
-  initialCompoundId?: string
-  /** Open straight into an existing protocol's edit form (tapping it from Home). */
-  initialProtocolId?: string
+  onReconstitute: (protocolId: string, leaving?: (page: Page) => boolean) => void
 }
 
-export function ProtocolsScreen({ onReconstitute, initialCompoundId, initialProtocolId }: ProtocolsScreenProps) {
+export function ProtocolsScreen({ view: mode, onNavigate, onBack, onReconstitute }: ProtocolsScreenProps) {
   const { t } = useTranslation()
   const protocols = useLiveQuery(() => db.protocols.toArray(), [])
   const doseLogs = useLiveQuery(() => db.doseLogs.toArray(), [])
-  const [mode, setMode] = useState<Mode>(
-    initialProtocolId
-      ? { kind: 'form', protocolId: initialProtocolId }
-      : initialCompoundId
-        ? { kind: 'form', compoundId: initialCompoundId }
-        : { kind: 'list' },
-  )
+  const vials = useLiveQuery(() => db.vials.toArray(), [])
+  const setMode = (view: ProtocolsView) => onNavigate(view)
   const [listTab, setListTab] = useState<ListTab>('mine')
 
   if (mode.kind === 'picker') {
     return (
       <div className="flex flex-col gap-6 px-4 pb-6 pt-2">
-        <AppHeader title={t('templates.pickerTitle')} onBack={() => setMode({ kind: 'list' })} />
+        <AppHeader title={t('templates.pickerTitle')} />
         <TemplatePicker
           onSelectTemplate={(template) => setMode({ kind: 'form', template })}
           onSelectCustom={() => setMode({ kind: 'form' })}
@@ -119,11 +128,15 @@ export function ProtocolsScreen({ onReconstitute, initialCompoundId, initialProt
   if (mode.kind === 'form') {
     return (
       <ProtocolForm
+        // A fresh form for each page, so back from one form to another never carries edits across.
+        key={JSON.stringify(mode)}
         protocolId={mode.protocolId}
         template={mode.template}
         initialCompoundId={mode.compoundId}
-        onDone={() => setMode({ kind: 'list' })}
-        onReconstitute={onReconstitute}
+        // Saved (or the next-step offer skipped): back to before the template picker, not into it.
+        onDone={() => onBack(isProtocolPicker)}
+        // Saved, then on to mixing: the finished form and picker aren't pages to come back to.
+        onReconstitute={(protocolId) => onReconstitute(protocolId, isProtocolFlow)}
       />
     )
   }
@@ -210,7 +223,9 @@ export function ProtocolsScreen({ onReconstitute, initialCompoundId, initialProt
                       <ProtocolRow
                         protocol={protocol}
                         doseLogs={doseLogs ?? []}
+                        vials={vials ?? []}
                         onEdit={() => setMode({ kind: 'form', protocolId: protocol.id })}
+                        onReconstitute={(protocolId) => onReconstitute(protocolId)}
                       />
                     </motion.div>
                   ))}
@@ -227,19 +242,40 @@ export function ProtocolsScreen({ onReconstitute, initialCompoundId, initialProt
 function ProtocolRow({
   protocol,
   doseLogs,
+  vials,
   onEdit,
+  onReconstitute,
 }: {
   protocol: Protocol
   doseLogs: DoseLog[]
+  vials: Vial[]
   onEdit: () => void
+  onReconstitute: (protocolId: string) => void
 }) {
   const { t, i18n } = useTranslation()
   const locale = i18n.language as Locale
   const compound = getCompoundById(protocol.compoundId)
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [savingTemplate, setSavingTemplate] = useState(false)
 
   const stats = useMemo(() => computeProtocolStats(protocol, doseLogs, new Date()), [protocol, doseLogs])
+  const adherence = useMemo(() => computeAdherence(protocol, doseLogs, new Date()), [protocol, doseLogs])
+  const phase = protocol.isActive ? cyclePhase(protocol, new Date()) : null
+  const nextSite = useMemo(() => {
+    if (!protocol.isActive || !protocol.siteTracking) return null
+    const sites = rotationSites(protocol.route, protocol.siteTracking.sites)
+    const site = suggestSite(sites, doseLogs)
+    return site ? siteRest([site], doseLogs, new Date())[0]! : null
+  }, [protocol, doseLogs])
+  const today = new Date()
+  const currentDose = doseOn(protocol, today)
+  const nextChange = protocol.isActive ? nextDoseChange(protocol, today) : null
+  // A titration step can move today's dose away from the one the saved mix was
+  // worked out for. Only flagged then: a fixed-dose protocol's mix may be for
+  // another dose on purpose, and its summary already says which.
+  const mix = protocol.reconstitution
+  const mixIsForOtherDose = currentDose.stepIndex !== null && mix !== undefined && !sameDose(mix, currentDose)
 
   async function toggleActive() {
     setMenuOpen(false)
@@ -292,6 +328,14 @@ function ProtocolRow({
               }}
             />
             <MenuItem
+              icon={BookmarkPlus}
+              label={t('templates.saveAs')}
+              onClick={() => {
+                setMenuOpen(false)
+                setSavingTemplate(true)
+              }}
+            />
+            <MenuItem
               icon={protocol.isActive ? Pause : Play}
               label={protocol.isActive ? t('protocols.pause') : t('protocols.resume')}
               onClick={toggleActive}
@@ -314,16 +358,46 @@ function ProtocolRow({
           appear; "ongoing" is the default and no longer needs saying. */}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-4 pt-1 text-sm text-foreground">
         <span>
-          {t(`schedule.${protocol.schedule.kind}`)} · {protocol.doseAmount} {protocol.doseUnit}
+          {scheduleSummary(protocol.schedule, t)}{' '}
+          · <span className="whitespace-nowrap">{formatDose(currentDose)}</span>
+          {nextChange && (
+            <span className="whitespace-nowrap text-muted-foreground">
+              {' → '}
+              {t('protocols.doseNext', {
+                dose: formatDose({ amount: nextChange.to, unit: nextChange.unit }),
+                date: formatDate(nextChange.on),
+              })}
+            </span>
+          )}
         </span>
         {!protocol.isActive && <Badge variant="outline">{t('protocols.pausedBadge')}</Badge>}
         {stats.missedCount > 0 && (
           <Badge variant="destructive">{t('protocols.missedCount', { count: stats.missedCount })}</Badge>
         )}
       </div>
+      {nextSite && (
+        <p className="px-4 pt-1 text-xs text-muted-foreground">
+          {t('sites.nextSite', { site: t(`sites.${nextSite.site}`), rest: restText(nextSite.restDays, t) })}
+        </p>
+      )}
+      {phase && (
+        <p className={`px-4 pt-1 text-xs ${phase.phase === 'on' ? 'text-primary' : 'text-muted-foreground'}`}>
+          {cyclePhaseText(phase, t)}
+        </p>
+      )}
+      {adherence.percent !== null && (
+        <p className="px-4 pt-1 text-xs text-muted-foreground">
+          {t('adherence.protocol', { percent: adherence.percent })}
+          <span className="sr-only">
+            {' '}
+            ({t('adherence.detail', { taken: adherence.taken, skipped: adherence.skipped, missed: adherence.missed })})
+          </span>
+        </p>
+      )}
 
       {protocol.reconstitution && (
-        <p className="mx-4 mt-3 flex items-start gap-2 rounded-2xl bg-accent px-3 py-2 text-sm text-foreground">
+        <div className="mx-4 mt-3 flex flex-col gap-2 rounded-2xl bg-accent px-3 py-2 text-sm text-foreground">
+          <p className="flex items-start gap-2">
           <FlaskConical className="mt-0.5 size-4 shrink-0 text-primary" />
           {protocol.reconstitution.diluentMl === undefined
             ? t('protocols.mixSummarySolution', {
@@ -337,8 +411,30 @@ function ProtocolRow({
                 ml: formatDecimal(protocol.reconstitution.drawVolumeMl, locale, 3),
                 dose: `${formatDecimal(protocol.reconstitution.doseAmount, locale, 3)} ${protocol.reconstitution.doseUnit}`,
               })}
-        </p>
+          </p>
+          {/* Capped at about phone width: it scales with its width, and on a desktop-wide card it would stand hundreds of pixels tall. */}
+          <SyringeGraphic
+            drawUnits={protocol.reconstitution.drawSyringeUnits}
+            syringeType={protocol.reconstitution.syringeType}
+            className="w-full max-w-xs"
+          />
+          {mixIsForOtherDose && (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2">
+              <span className="min-w-0 flex-1 text-xs text-brand-warn">
+                {t('protocols.mixForOtherDose', {
+                  saved: formatDose({ amount: protocol.reconstitution.doseAmount, unit: protocol.reconstitution.doseUnit }),
+                  current: formatDose(currentDose),
+                })}
+              </span>
+              <Button size="sm" variant="secondary" onClick={() => onReconstitute(protocol.id)}>
+                {t('protocols.recalculate')}
+              </Button>
+            </div>
+          )}
+        </div>
       )}
+
+      <VialStrip protocol={protocol} vials={vials} doseLogs={doseLogs} />
 
       {/* Footer: when it's next due, and how much is on record. One hairline
           instead of a nested tinted tile. */}
@@ -366,6 +462,8 @@ function ProtocolRow({
           </p>
         )}
       </div>
+
+      {savingTemplate && <SaveTemplateDialog protocol={protocol} onClose={() => setSavingTemplate(false)} />}
 
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>
@@ -412,17 +510,16 @@ function MenuItem({
 
 interface ProtocolFormProps {
   protocolId?: string
-  /** Prefills a new protocol's fields from a starter template — still fully editable before saving. */
-  template?: ProtocolTemplate
+  /** Prefills a new protocol from a starter or saved template — still fully editable before saving. */
+  template?: ProtocolPrefill
   /** Preselects the compound on a new protocol (the calculator's "create a protocol" shortcut). */
   initialCompoundId?: string
   onDone: () => void
   /**
-   * Where the header's back button goes. Defaults to `onDone` — fine for the
-   * real Protocols screen, where "cancel" and "saved" both just return to the
-   * list. Onboarding passes a distinct value: cancelling out of protocol
-   * creation there needs to return to the template picker, not finish the
-   * entire wizard (which is what `onDone` means in that context).
+   * Shows a back chevron in the form's header that goes here. Only onboarding
+   * passes it: cancelling out of protocol creation there returns to its
+   * template picker. In the app, the app bar's back arrow does this job
+   * through the page history, so the form shows no second one.
    */
   onCancel?: () => void
   /**
@@ -447,12 +544,10 @@ export function ProtocolForm({
     () => (protocolId ? db.protocols.get(protocolId) : undefined),
     [protocolId],
   )
-  const compounds = useMemo(() => listSelectableCompounds(), [])
+  const compounds = useSelectableCompounds()
+  const [addingCompound, setAddingCompound] = useState(false)
 
-  const compoundOptions = useMemo(
-    () => compounds.map((c) => ({ value: c.id, label: c.name, hint: c.category })),
-    [compounds],
-  )
+  const compoundOptions = useMemo(() => toCompoundOptions(compounds, t), [compounds, t])
   const scheduleOptions = useMemo(() => alphabeticalOptions(SCHEDULE_KINDS, (k) => t(`schedule.${k}`)), [t])
   const routeOptions = useMemo(() => alphabeticalOptions(ROUTES, (r) => t(`route.${r}`)), [t])
   // Free-text field with suggestions: template and compound names are the
@@ -466,7 +561,7 @@ export function ProtocolForm({
 
   const [loaded, setLoaded] = useState(!protocolId)
   const [saved, setSaved] = useState<Protocol | null>(null)
-  const [name, setName] = useState(template ? t(template.nameKey) : '')
+  const [name, setName] = useState(template?.name ?? '')
   const [compoundId, setCompoundId] = useState(initialCompound?.id ?? compounds[0]?.id ?? '')
   const [doseAmount, setDoseAmount] = useState(
     template ? String(template.doseAmount).replace('.', ',') : '',
@@ -474,88 +569,75 @@ export function ProtocolForm({
   const [doseUnit, setDoseUnit] = useState<MassUnit | 'IU'>(
     template?.doseUnit ?? initialCompound?.defaultUnit ?? 'mg',
   )
-  const [scheduleKind, setScheduleKind] = useState<Schedule['kind']>(template?.schedule.kind ?? 'daily')
-  const [everyN, setEveryN] = useState(
-    template?.schedule.kind === 'everyNDays' ? String(template.schedule.n) : '2',
-  )
-  const [weekdays, setWeekdays] = useState<Weekday[]>(
-    template?.schedule.kind === 'weekdays' ? template.schedule.days : [1, 3, 5],
-  )
-  const [daysOn, setDaysOn] = useState(
-    template?.schedule.kind === 'cycle' ? String(template.schedule.daysOn) : '5',
-  )
-  const [daysOff, setDaysOff] = useState(
-    template?.schedule.kind === 'cycle' ? String(template.schedule.daysOff) : '2',
-  )
-  const [customDates, setCustomDates] = useState<string[]>([])
+  const [fields, setFields] = useState<ScheduleFields>(() => scheduleFields(template?.schedule))
+  const setField = <K extends keyof ScheduleFields>(key: K, value: ScheduleFields[K]) =>
+    setFields((f) => ({ ...f, [key]: value }))
+  const scheduleKind = fields.kind
   const [reminderTimes, setReminderTimes] = useState<string[]>(template?.reminderTimes ?? ['08:00'])
   const [startDate, setStartDate] = useState(toIsoDate(new Date()))
   const [hasEndDate, setHasEndDate] = useState(false)
   const [endDate, setEndDate] = useState('')
   const [route, setRoute] = useState<Route>(template?.route ?? 'subcutaneous')
+  const [trackSites, setTrackSites] = useState(template?.siteTracking !== undefined)
+  const [sites, setSites] = useState<SiteId[]>(() => [
+    ...(template?.siteTracking?.sites ?? SITES_BY_ROUTE[template?.route ?? 'subcutaneous']),
+  ])
+  const [titrationState, setTitrationState] = useState<TitrationFields>(() => titrationFields(template?.titration))
+  const setTitration = (patch: Partial<TitrationFields>) => setTitrationState((f) => ({ ...f, ...patch }))
 
   if (existing && !loaded) {
     setName(existing.name)
     setCompoundId(existing.compoundId)
     setDoseAmount(String(existing.doseAmount))
     setDoseUnit(existing.doseUnit)
-    setScheduleKind(existing.schedule.kind)
-    if (existing.schedule.kind === 'everyNDays') setEveryN(String(existing.schedule.n))
-    if (existing.schedule.kind === 'weekdays') setWeekdays(existing.schedule.days)
-    if (existing.schedule.kind === 'cycle') {
-      setDaysOn(String(existing.schedule.daysOn))
-      setDaysOff(String(existing.schedule.daysOff))
-    }
-    if (existing.schedule.kind === 'custom') setCustomDates(existing.schedule.dates)
+    setFields(scheduleFields(existing.schedule))
     setReminderTimes(existing.reminderTimes.length ? existing.reminderTimes : ['08:00'])
     setStartDate(existing.startDate)
     setHasEndDate(Boolean(existing.endDate))
     setEndDate(existing.endDate ?? '')
     setRoute(existing.route)
+    setTrackSites(existing.siteTracking !== undefined)
+    setSites(existing.siteTracking ? [...existing.siteTracking.sites] : [...SITES_BY_ROUTE[existing.route]])
+    setTitrationState(titrationFields(existing.titration))
     setLoaded(true)
   }
 
-  const compound = compounds.find((c) => c.id === compoundId)
+  // getCompoundById (the live registry), not `compounds`: a compound created
+  // a moment ago via "Add your own" isn't in this render's list yet.
+  const compound = getCompoundById(compoundId)
+
+  function selectCompound(id: string) {
+    setCompoundId(id)
+    const c = getCompoundById(id)
+    if (c) setDoseUnit(c.defaultUnit)
+  }
 
   // Parsed, range-checked values. Save stays disabled until each field that
   // applies is valid — bad input is refused, never quietly turned into a default.
   const doseValue = parsePositiveAmount(doseAmount)
-  const everyNValue = parseBoundedInteger(everyN, 1, MAX_DAY_COUNT)
-  const daysOnValue = parseBoundedInteger(daysOn, 1, MAX_DAY_COUNT)
-  const daysOffValue = parseBoundedInteger(daysOff, 0, MAX_DAY_COUNT)
+  const parsed = parseScheduleFields(fields)
+  const schedule = parsed.schedule
+  const parsedTitration = parseTitrationFields(titrationState, doseValue)
+  const showsEveryN = scheduleKind === 'everyNDays' || (scheduleKind === 'cycleWeeks' && fields.cycleInner === 'everyNDays')
+  const showsWeekdays = scheduleKind === 'weekdays' || (scheduleKind === 'cycleWeeks' && fields.cycleInner === 'weekdays')
 
-  function scheduleFromForm(): Schedule {
-    switch (scheduleKind) {
-      case 'daily':
-        return { kind: 'daily' }
-      case 'everyNDays':
-        return { kind: 'everyNDays', n: everyNValue ?? 1 }
-      case 'weekdays':
-        return { kind: 'weekdays', days: weekdays.length ? weekdays : [1] }
-      case 'cycle':
-        return { kind: 'cycle', daysOn: daysOnValue ?? 1, daysOff: daysOffValue ?? 0 }
-      case 'custom':
-        return { kind: 'custom', dates: [...customDates].sort() }
-    }
-  }
-
-  const needsCustomDays = scheduleKind === 'custom' && customDates.length === 0
-  const scheduleFieldsValid =
-    scheduleKind === 'everyNDays'
-      ? everyNValue !== null
-      : scheduleKind === 'cycle'
-        ? daysOnValue !== null && daysOffValue !== null
-        : true
+  const needsCustomDays = scheduleKind === 'custom' && fields.customDates.length === 0
+  // Site rotation only exists for routes that have sites (not "other").
+  const routeSites = SITES_BY_ROUTE[route]
+  const tracksSites = trackSites && routeSites.length > 0
+  const chosenSites = rotationSites(route, sites)
+  const needsSites = tracksSites && chosenSites.length === 0
   const canSave =
     compound !== undefined &&
     doseValue !== null &&
     reminderTimes.length > 0 &&
     !needsCustomDays &&
-    scheduleFieldsValid
+    schedule !== null &&
+    parsedTitration.titration !== null &&
+    !needsSites
 
   async function handleSave() {
-    if (!compound || doseValue === null) return
-    const schedule = scheduleFromForm()
+    if (!compound || doseValue === null || schedule === null || parsedTitration.titration === null) return
     // A hand-picked schedule has no meaningful start/end of its own — its
     // first and last picked days are the start and end, which also keeps
     // "ongoing" and "next dose" logic elsewhere honest without special cases.
@@ -589,6 +671,8 @@ export function ProtocolForm({
       // A saved mix is for one specific compound; carrying it across a change
       // of compound would show the wrong draw volume.
       reconstitution: existing?.compoundId === compound.id ? existing.reconstitution : undefined,
+      titration: parsedTitration.titration,
+      siteTracking: tracksSites ? { sites: chosenSites } : undefined,
     }
     await db.protocols.put(protocol)
     void rescheduleReminders()
@@ -612,7 +696,8 @@ export function ProtocolForm({
   }
 
   function toggleWeekday(day: Weekday) {
-    setWeekdays((days) => (days.includes(day) ? days.filter((d) => d !== day) : [...days, day].sort()))
+    const days = fields.weekdays
+    setField('weekdays', days.includes(day) ? days.filter((d) => d !== day) : [...days, day].sort())
   }
 
   if (saved && onReconstitute) {
@@ -625,26 +710,28 @@ export function ProtocolForm({
     )
   }
 
-  const selectedCustomDates = customDates.map((d) => parseISO(d))
+  const selectedCustomDates = fields.customDates.map((d) => parseISO(d))
   const today = startOfToday()
 
   return (
     <div className="flex flex-col gap-5 px-4 pb-6 pt-2">
       <AppHeader
         title={protocolId ? t('protocols.editTitle') : t('protocols.newTitle')}
-        onBack={onCancel ?? onDone}
+        onBack={onCancel}
       />
 
       <FormField label={t('protocols.compound')}>
         <Combobox
           value={compoundId}
-          onValueChange={(value) => {
-            setCompoundId(value)
-            const c = compounds.find((x) => x.id === value)
-            if (c) setDoseUnit(c.defaultUnit)
-          }}
+          onValueChange={selectCompound}
           options={compoundOptions}
           emptyText={t('common.noMatches')}
+          footerAction={{ label: t('compounds.addCustom'), onSelect: () => setAddingCompound(true) }}
+        />
+        <CustomCompoundSheet
+          open={addingCompound}
+          onOpenChange={setAddingCompound}
+          onSaved={(c) => selectCompound(c.id)}
         />
       </FormField>
 
@@ -660,7 +747,7 @@ export function ProtocolForm({
         />
       </FormField>
 
-      <FormField label={t('protocols.doseAmount')}>
+      <FormField label={titrationState.on ? t('protocols.startingDose') : t('protocols.doseAmount')}>
         <div className="flex gap-2">
           <NumericInput
             kind="decimal"
@@ -686,8 +773,23 @@ export function ProtocolForm({
         </div>
       </FormField>
 
+      <label className="-mt-2 flex min-h-11 items-center justify-between gap-3">
+        <span className="text-sm font-medium text-foreground">{t('protocols.titrationToggle')}</span>
+        <Switch checked={titrationState.on} onCheckedChange={(on) => setTitration({ on })} />
+      </label>
+
+      {titrationState.on && (
+        <TitrationEditor
+          fields={titrationState}
+          parsed={parsedTitration}
+          firstDose={doseValue}
+          unit={doseUnit}
+          onChange={setTitration}
+        />
+      )}
+
       <FormField label={t('protocols.schedule')}>
-        <Select value={scheduleKind} onValueChange={(v) => setScheduleKind(v as Schedule['kind'])}>
+        <Select value={scheduleKind} onValueChange={(v) => setField('kind', v as Schedule['kind'])}>
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
@@ -701,23 +803,48 @@ export function ProtocolForm({
         </Select>
       </FormField>
 
-      {scheduleKind === 'everyNDays' && (
-        <FormField label={t('protocols.everyNDays')}>
-          <NumericInput kind="integer" value={everyN} onValueChange={setEveryN} aria-invalid={everyNValue === null} />
-          {everyNValue === null && <FieldError>{t('protocols.invalidDays', { max: MAX_DAY_COUNT })}</FieldError>}
+      {/* A weeks cycle runs one of the plain patterns while it's on: pick
+          which, then the same every-N / weekday fields below serve both. */}
+      {scheduleKind === 'cycleWeeks' && (
+        <FormField label={t('protocols.cycleDoseOn')}>
+          <Select value={fields.cycleInner} onValueChange={(v) => setField('cycleInner', v as CycleInnerSchedule['kind'])}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CYCLE_INNER_KINDS.map((kind) => (
+                <SelectItem key={kind} value={kind}>
+                  {t(`schedule.${kind}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </FormField>
       )}
 
-      {scheduleKind === 'weekdays' && (
+      {showsEveryN && (
+        <FormField label={t('protocols.everyNDays')}>
+          <NumericInput
+            kind="integer"
+            value={fields.everyN}
+            onValueChange={(v) => setField('everyN', v)}
+            aria-invalid={parsed.everyN === null}
+          />
+          {parsed.everyN === null && <FieldError>{t('protocols.invalidDays', { max: MAX_DAY_COUNT })}</FieldError>}
+        </FormField>
+      )}
+
+      {showsWeekdays && (
         <FormField label={t('protocols.weekdays')}>
           <div className="flex flex-wrap gap-2">
             {WEEKDAY_LABELS_KEYS.map((key, index) => (
               <button
                 key={key}
                 type="button"
+                aria-pressed={fields.weekdays.includes(index as Weekday)}
                 onClick={() => toggleWeekday(index as Weekday)}
                 className={`min-h-11 min-w-11 rounded-full border text-sm font-medium transition-colors ${
-                  weekdays.includes(index as Weekday)
+                  fields.weekdays.includes(index as Weekday)
                     ? 'border-primary bg-accent text-primary'
                     : 'border-border text-muted-foreground'
                 }`}
@@ -730,14 +857,79 @@ export function ProtocolForm({
       )}
 
       {scheduleKind === 'cycle' && (
-        <div className="flex gap-3">
+        <div className="flex items-end gap-3">
           <FormField label={t('protocols.daysOn')}>
-            <NumericInput kind="integer" value={daysOn} onValueChange={setDaysOn} aria-invalid={daysOnValue === null} />
+            <NumericInput
+              kind="integer"
+              value={fields.daysOn}
+              onValueChange={(v) => setField('daysOn', v)}
+              aria-invalid={parsed.daysOn === null}
+            />
           </FormField>
           <FormField label={t('protocols.daysOff')}>
-            <NumericInput kind="integer" value={daysOff} onValueChange={setDaysOff} aria-invalid={daysOffValue === null} />
+            <NumericInput
+              kind="integer"
+              value={fields.daysOff}
+              onValueChange={(v) => setField('daysOff', v)}
+              aria-invalid={parsed.daysOff === null}
+            />
           </FormField>
         </div>
+      )}
+
+      {scheduleKind === 'cycleWeeks' && (
+        <>
+          {/* items-end: a label that wraps (Spanish "Semanas de descanso") must not push its input out of line. */}
+          <div className="flex items-end gap-3">
+            <FormField label={t('protocols.weeksOn')}>
+              <NumericInput
+                kind="integer"
+                value={fields.weeksOn}
+                onValueChange={(v) => setField('weeksOn', v)}
+                aria-invalid={parsed.weeksOn === null}
+              />
+            </FormField>
+            <FormField label={t('protocols.weeksOff')}>
+              <NumericInput
+                kind="integer"
+                value={fields.weeksOff}
+                onValueChange={(v) => setField('weeksOff', v)}
+                aria-invalid={parsed.weeksOff === null}
+              />
+            </FormField>
+          </div>
+          {(parsed.weeksOn === null || parsed.weeksOff === null) && (
+            <FieldError>{t('protocols.invalidWeeks', { max: MAX_WEEK_COUNT })}</FieldError>
+          )}
+          <label className="flex min-h-11 items-center justify-between gap-3">
+            <span className="text-sm font-medium text-foreground">{t('protocols.fixedCycles')}</span>
+            <Switch checked={fields.fixedCycles} onCheckedChange={(v) => setField('fixedCycles', v)} />
+          </label>
+          {fields.fixedCycles && (
+            <>
+              <FormField label={t('protocols.cycleCount')}>
+                <NumericInput
+                  kind="integer"
+                  value={fields.cycleCount}
+                  onValueChange={(v) => setField('cycleCount', v)}
+                  aria-invalid={parsed.cycles === null}
+                />
+                {parsed.cycles === null && <FieldError>{t('protocols.invalidCycles', { max: MAX_CYCLES })}</FieldError>}
+              </FormField>
+              <FormField label={t('protocols.washoutWeeks')}>
+                <NumericInput
+                  kind="integer"
+                  value={fields.washoutWeeks}
+                  onValueChange={(v) => setField('washoutWeeks', v)}
+                  aria-invalid={parsed.washoutWeeks === null}
+                />
+                {parsed.washoutWeeks === null && (
+                  <FieldError>{t('protocols.invalidWeeks', { max: MAX_WEEK_COUNT })}</FieldError>
+                )}
+              </FormField>
+            </>
+          )}
+        </>
       )}
 
       {scheduleKind === 'custom' && (
@@ -748,12 +940,12 @@ export function ProtocolForm({
             <Calendar
               mode="multiple"
               selected={selectedCustomDates}
-              onSelect={(dates) => setCustomDates((dates ?? []).map(toIsoDate).sort())}
+              onSelect={(dates) => setField('customDates', (dates ?? []).map(toIsoDate).sort())}
               locale={i18n.language === 'en' ? enUS : es}
               // Past days can't be newly picked (they'd instantly read as
               // missed), but a day already in an edited protocol stays
               // deselectable.
-              disabled={(date) => date < today && !customDates.includes(toIsoDate(date))}
+              disabled={(date) => date < today && !fields.customDates.includes(toIsoDate(date))}
               classNames={{
                 month_grid: 'w-full border-collapse mt-2',
                 weekday: 'flex-1 text-muted-foreground text-xs font-medium text-center',
@@ -766,7 +958,7 @@ export function ProtocolForm({
           <p className={`text-sm ${needsCustomDays ? 'text-destructive' : 'text-muted-foreground'}`} aria-live="polite">
             {needsCustomDays
               ? t('protocols.customDaysRequired')
-              : t('protocols.customDaysCount', { count: customDates.length })}
+              : t('protocols.customDaysCount', { count: fields.customDates.length })}
           </p>
         </div>
       )}
@@ -817,7 +1009,14 @@ export function ProtocolForm({
       )}
 
       <FormField label={t('protocols.route')}>
-        <Select value={route} onValueChange={(v) => setRoute(v as Route)}>
+        <Select
+          value={route}
+          onValueChange={(v) => {
+            setRoute(v as Route)
+            // Each route has its own sites; start the new one with all of them.
+            setSites([...SITES_BY_ROUTE[v as Route]])
+          }}
+        >
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
@@ -830,6 +1029,39 @@ export function ProtocolForm({
           </SelectContent>
         </Select>
       </FormField>
+
+      {routeSites.length > 0 && (
+        <div className="flex flex-col gap-3">
+          <label className="flex min-h-11 items-center justify-between gap-3">
+            <span className="flex flex-col">
+              <span className="text-sm font-medium text-foreground">{t('protocols.trackSites')}</span>
+              <span className="text-xs text-muted-foreground">{t('protocols.trackSitesHint')}</span>
+            </span>
+            <Switch checked={trackSites} onCheckedChange={setTrackSites} />
+          </label>
+          {trackSites && (
+            <div className="flex flex-wrap gap-2" role="group" aria-label={t('sites.listLabel')}>
+              {routeSites.map((site) => {
+                const on = sites.includes(site)
+                return (
+                  <button
+                    key={site}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => setSites(on ? sites.filter((s) => s !== site) : [...sites, site])}
+                    className={`min-h-11 rounded-full border px-3 text-sm transition-colors ${
+                      on ? 'border-primary bg-accent text-primary' : 'border-border text-muted-foreground'
+                    }`}
+                  >
+                    {t(`sites.${site}`)}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+          {needsSites && <FieldError>{t('protocols.sitesRequired')}</FieldError>}
+        </div>
+      )}
 
       <Button onClick={handleSave} disabled={!canSave} className="mt-2">
         {t('common.save')}
