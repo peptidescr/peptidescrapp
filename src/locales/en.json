@@ -383,6 +383,18 @@
     }
   },
   "templates": {
+    "mine": "My templates",
+    "builtIn": "Starter templates",
+    "stepped": "(stepped)",
+    "saveAs": "Save as template",
+    "saveTitle": "Save as a template",
+    "saveBody": "Reuse this protocol's compound, dose, schedule and reminders when you start a new one.",
+    "nameLabel": "Template name",
+    "saved": "Template saved",
+    "deleted": "Template deleted",
+    "deleteTitle": "Delete this template?",
+    "deleteBody": "\"{{name}}\" will be removed. Protocols you made from it stay as they are.",
+    "deleteLabel": "Delete template {{name}}",
     "pickerTitle": "Start from a template or go custom",
     "custom": "Custom protocol",
     "customDescription": "Pick your own compound, dose, and schedule from scratch.",

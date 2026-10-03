@@ -11,7 +11,7 @@ import { Progress } from '@/components/ui/progress'
 import { BRAND } from '../brand'
 import { LEGAL_CONTENT, LEGAL_VERSION } from '../content/legal'
 import { SUPPORTED_LOCALES } from '../i18n'
-import type { ProtocolTemplate } from '../content/protocolTemplates'
+import type { ProtocolPrefill } from '../lib/userTemplates'
 import { useInstallState } from '../lib/install'
 import { getNotificationCapability, requestNotificationPermission } from '../lib/notifications'
 import type { Locale } from '../lib/units'
@@ -356,7 +356,7 @@ function ProtocolAnatomy() {
   )
 }
 
-type FirstProtocolMode = 'intro' | 'picker' | { template?: ProtocolTemplate }
+type FirstProtocolMode = 'intro' | 'picker' | { template?: ProtocolPrefill }
 
 function FirstProtocolStep({
   onDone,

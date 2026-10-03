@@ -1,4 +1,5 @@
 import {
+  BookmarkPlus,
   ChevronRight,
   ClipboardList,
   FlaskConical,
@@ -45,10 +46,12 @@ import { CustomCompoundSheet } from '../components/CustomCompoundSheet'
 import { SyringeGraphic } from '../components/SyringeGraphic'
 import { TemplatePicker } from '../components/TemplatePicker'
 import { TitrationEditor } from '../components/TitrationEditor'
+import { SaveTemplateDialog } from '../components/SaveTemplateDialog'
 import { VialStrip } from '../components/VialStrip'
 import { compareAlphabetical, getCompoundById } from '../content/compounds'
 import { toCompoundOptions, useSelectableCompounds } from '../lib/customCompounds'
-import { PROTOCOL_TEMPLATES, type ProtocolTemplate } from '../content/protocolTemplates'
+import { PROTOCOL_TEMPLATES } from '../content/protocolTemplates'
+import type { ProtocolPrefill } from '../lib/userTemplates'
 import { formatDate, formatDateTime, toIsoDate } from '../lib/dates'
 import { db, type DoseLog, type Protocol, type Route, type Vial } from '../lib/db'
 import { computeAdherence, computeProtocolStats } from '../lib/homeData'
@@ -69,7 +72,7 @@ import { parseTitrationFields, titrationFields, type TitrationFields } from '../
 import { doseOn, formatDose, nextDoseChange, sameDose } from '../lib/titration'
 import { rotationSites, siteRest, SITES_BY_ROUTE, suggestSite, type SiteId } from '../lib/injectionSites'
 import { restText } from '../lib/siteText'
-import { cyclePhaseText } from '../lib/cycleText'
+import { cyclePhaseText, scheduleSummary } from '../lib/cycleText'
 import { useLiveQuery } from '../lib/useLiveQuery'
 import { formatDecimal, type Locale, type MassUnit } from '../lib/units'
 
@@ -89,7 +92,7 @@ const ROUTES: Route[] = ['subcutaneous', 'intramuscular', 'other']
 type Mode =
   | { kind: 'list' }
   | { kind: 'picker' }
-  | { kind: 'form'; protocolId?: string; template?: ProtocolTemplate; compoundId?: string }
+  | { kind: 'form'; protocolId?: string; template?: ProtocolPrefill; compoundId?: string }
 
 /** Mirrors the "My Protocols / Templates" tabs pattern from reference peptide-tracker
  * apps — templates are browsable any time, not just at the moment of creation. */
@@ -258,6 +261,7 @@ function ProtocolRow({
   const compound = getCompoundById(protocol.compoundId)
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [savingTemplate, setSavingTemplate] = useState(false)
 
   const stats = useMemo(() => computeProtocolStats(protocol, doseLogs, new Date()), [protocol, doseLogs])
   const adherence = useMemo(() => computeAdherence(protocol, doseLogs, new Date()), [protocol, doseLogs])
@@ -328,6 +332,14 @@ function ProtocolRow({
               }}
             />
             <MenuItem
+              icon={BookmarkPlus}
+              label={t('templates.saveAs')}
+              onClick={() => {
+                setMenuOpen(false)
+                setSavingTemplate(true)
+              }}
+            />
+            <MenuItem
               icon={protocol.isActive ? Pause : Play}
               label={protocol.isActive ? t('protocols.pause') : t('protocols.resume')}
               onClick={toggleActive}
@@ -350,9 +362,7 @@ function ProtocolRow({
           appear; "ongoing" is the default and no longer needs saying. */}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-4 pt-1 text-sm text-foreground">
         <span>
-          {protocol.schedule.kind === 'cycleWeeks'
-            ? t('cycle.summary', { on: protocol.schedule.weeksOn, off: protocol.schedule.weeksOff })
-            : t(`schedule.${protocol.schedule.kind}`)}{' '}
+          {scheduleSummary(protocol.schedule, t)}{' '}
           · <span className="whitespace-nowrap">{formatDose(currentDose)}</span>
           {nextChange && (
             <span className="whitespace-nowrap text-muted-foreground">
@@ -455,6 +465,8 @@ function ProtocolRow({
         )}
       </div>
 
+      {savingTemplate && <SaveTemplateDialog protocol={protocol} onClose={() => setSavingTemplate(false)} />}
+
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -500,8 +512,8 @@ function MenuItem({
 
 interface ProtocolFormProps {
   protocolId?: string
-  /** Prefills a new protocol's fields from a starter template — still fully editable before saving. */
-  template?: ProtocolTemplate
+  /** Prefills a new protocol from a starter or saved template — still fully editable before saving. */
+  template?: ProtocolPrefill
   /** Preselects the compound on a new protocol (the calculator's "create a protocol" shortcut). */
   initialCompoundId?: string
   onDone: () => void
@@ -552,7 +564,7 @@ export function ProtocolForm({
 
   const [loaded, setLoaded] = useState(!protocolId)
   const [saved, setSaved] = useState<Protocol | null>(null)
-  const [name, setName] = useState(template ? t(template.nameKey) : '')
+  const [name, setName] = useState(template?.name ?? '')
   const [compoundId, setCompoundId] = useState(initialCompound?.id ?? compounds[0]?.id ?? '')
   const [doseAmount, setDoseAmount] = useState(
     template ? String(template.doseAmount).replace('.', ',') : '',
@@ -569,9 +581,11 @@ export function ProtocolForm({
   const [hasEndDate, setHasEndDate] = useState(false)
   const [endDate, setEndDate] = useState('')
   const [route, setRoute] = useState<Route>(template?.route ?? 'subcutaneous')
-  const [trackSites, setTrackSites] = useState(false)
-  const [sites, setSites] = useState<SiteId[]>(() => [...SITES_BY_ROUTE[template?.route ?? 'subcutaneous']])
-  const [titrationState, setTitrationState] = useState<TitrationFields>(() => titrationFields())
+  const [trackSites, setTrackSites] = useState(template?.siteTracking !== undefined)
+  const [sites, setSites] = useState<SiteId[]>(() => [
+    ...(template?.siteTracking?.sites ?? SITES_BY_ROUTE[template?.route ?? 'subcutaneous']),
+  ])
+  const [titrationState, setTitrationState] = useState<TitrationFields>(() => titrationFields(template?.titration))
   const setTitration = (patch: Partial<TitrationFields>) => setTitrationState((f) => ({ ...f, ...patch }))
 
   if (existing && !loaded) {

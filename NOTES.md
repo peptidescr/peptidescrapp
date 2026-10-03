@@ -1799,3 +1799,31 @@ A tracking list left with no known site turns tracking off.
   - With ten sites the sheet's flex column squashed the map to nearly nothing (`shrink-0`, and a
     check now asserts its size).
   - "upper right" + "suggested" read as one word, because only a margin separated them.
+
+## Phase 2, batch 2 (5 of 5): save a protocol as a template (October 2026)
+
+Added to Phase 2 in batch 1, alongside keeping the built-in dosed templates (the developer's call).
+The `userTemplates` table has existed since schema v2.
+- **Save:** a protocol card's menu has "Save as template". It asks for a name (prefilled from the
+  protocol) and stores the compound, dose, schedule, reminder times, route, titration and site set.
+  It doesn't store dates, history, the vial or the saved mix: a template is a copy, not a link
+  (`src/lib/userTemplates.ts`).
+- **Use:** the template picker (the Protocols tab's Templates, "New", and onboarding) shows "My
+  templates" above "Starter templates". Search and category chips apply to both, and saved ones
+  can be deleted, which never touches protocols made from them.
+- **One way into the form:** built-in and saved templates both become a `ProtocolPrefill` before
+  reaching `ProtocolForm`. Its `template` prop no longer takes the built-in shape, and onboarding
+  uses the same type. Hand-picked custom days already in the past are dropped from a saved template
+  when it's used.
+- Template rows use `scheduleSummary` ("6 wk on / 2 wk off") and mark a titration "(stepped)". The
+  protocol card uses the same helper.
+
+**Verified:**
+- Typecheck, 319/319 tests (new: what a template keeps and leaves out, the name rule, both prefill
+  paths giving the same shape, past custom days dropped), lint (known `App.tsx` error only), i18n
+  parity, both builds.
+- Live in headless Chrome on Peptides CR at 390px:
+  - Saved a weeks-cycle, titrated, site-tracked protocol under a new name.
+  - It appeared under "My templates" as "(stepped) · 6 wk on / 2 wk off".
+  - Creating from it prefilled everything, and saving produced an identical plan.
+  - Deleting it left both protocols in place, with no console errors.

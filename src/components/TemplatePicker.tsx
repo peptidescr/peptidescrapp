@@ -1,19 +1,48 @@
-import { ChevronRight, PenLine, Search } from 'lucide-react'
+import { ChevronRight, PenLine, Search, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { toast } from 'sonner'
 import { compareAlphabetical, getCompoundById } from '../content/compounds'
-import { PROTOCOL_TEMPLATES, type ProtocolTemplate } from '../content/protocolTemplates'
+import { PROTOCOL_TEMPLATES } from '../content/protocolTemplates'
+import { scheduleSummary } from '../lib/cycleText'
+import { db, type UserTemplate } from '../lib/db'
 import { formatDecimal, type Locale } from '../lib/units'
+import { useLiveQuery } from '../lib/useLiveQuery'
+import {
+  deleteUserTemplate,
+  prefillFromBuiltIn,
+  prefillFromUserTemplate,
+  type ProtocolPrefill,
+} from '../lib/userTemplates'
 
 interface TemplatePickerProps {
-  onSelectTemplate: (template: ProtocolTemplate) => void
+  onSelectTemplate: (template: ProtocolPrefill) => void
   onSelectCustom: () => void
 }
 
+/** Text the search matches for a template: its name, its compound's names and category. */
+function haystackFor(name: string, compoundId: string): string {
+  const compound = getCompoundById(compoundId)
+  // The compound's other names too: the store may call it something else ("GLP-1" for Retatrutide).
+  return `${name} ${compound?.name ?? ''} ${compound?.aliases?.join(' ') ?? ''} ${compound?.category ?? ''}`.toLowerCase()
+}
+
 /**
- * Shown before creating a new protocol: pick a starter template or go custom.
+ * Shown before creating a new protocol: the user's own saved templates, then
+ * the built-in starter templates, or go custom. Either kind becomes a
+ * ProtocolPrefill, so the form has one way in.
  *
  * Categories aren't stored on the templates themselves — they're read off the
  * template's compound, which already carries one. That keeps a single source
@@ -25,30 +54,41 @@ export function TemplatePicker({ onSelectTemplate, onSelectCustom }: TemplatePic
   const locale = i18n.language as Locale
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<UserTemplate | null>(null)
+  const userTemplates = useLiveQuery(() => db.userTemplates.toArray(), [])
 
   const categories = useMemo(() => {
     const seen = new Set<string>()
-    for (const template of PROTOCOL_TEMPLATES) {
-      const c = getCompoundById(template.compoundId)?.category
+    for (const compoundId of [...PROTOCOL_TEMPLATES, ...(userTemplates ?? [])].map((tpl) => tpl.compoundId)) {
+      const c = getCompoundById(compoundId)?.category
       if (c) seen.add(c)
     }
     return [...seen].sort(compareAlphabetical)
-  }, [])
+  }, [userTemplates])
 
-  const results = useMemo(() => {
-    const needle = query.trim().toLowerCase()
-    return PROTOCOL_TEMPLATES.filter((template) => {
-      const compound = getCompoundById(template.compoundId)
-      if (category && compound?.category !== category) return false
-      if (!needle) return true
-      // Match the translated name too, so searching "sueño" finds the sleep
-      // template in Spanish rather than only matching the English compound id.
-      // The compound's other names too: the store may call it something else ("GLP-1" for Retatrutide).
-      const haystack =
-        `${t(template.nameKey)} ${compound?.name ?? ''} ${compound?.aliases?.join(' ') ?? ''} ${compound?.category ?? ''}`.toLowerCase()
-      return haystack.includes(needle)
-    }).sort((a, b) => compareAlphabetical(t(a.nameKey), t(b.nameKey)))
-  }, [query, category, t])
+  const needle = query.trim().toLowerCase()
+  const matches = (name: string, compoundId: string) =>
+    (!category || getCompoundById(compoundId)?.category === category) && (!needle || haystackFor(name, compoundId).includes(needle))
+
+  // A couple of dozen templates at most: filtering on every render costs nothing.
+  const mine = (userTemplates ?? [])
+    .filter((tpl) => matches(tpl.name, tpl.compoundId))
+    .sort((a, b) => compareAlphabetical(a.name, b.name))
+  const builtIn = PROTOCOL_TEMPLATES.filter((tpl) => matches(t(tpl.nameKey), tpl.compoundId)).sort((a, b) =>
+    compareAlphabetical(t(a.nameKey), t(b.nameKey)),
+  )
+  const total = mine.length + builtIn.length
+
+  function summary(compoundId: string, doseAmount: number, doseUnit: string, schedule: ProtocolPrefill['schedule'], stepped: boolean) {
+    const compound = getCompoundById(compoundId)
+    return `${compound?.name ?? ''} · ${formatDecimal(doseAmount, locale, 2)} ${doseUnit}${stepped ? ` ${t('templates.stepped')}` : ''} · ${scheduleSummary(schedule, t)}`
+  }
+
+  async function handleDelete(template: UserTemplate) {
+    setConfirmDelete(null)
+    await deleteUserTemplate(template.id)
+    toast.success(t('templates.deleted'))
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -82,40 +122,84 @@ export function TemplatePicker({ onSelectTemplate, onSelectCustom }: TemplatePic
         ))}
       </div>
 
-      <p className="text-xs text-muted-foreground">{t('templates.resultCount', { count: results.length })}</p>
+      <p className="text-xs text-muted-foreground">{t('templates.resultCount', { count: total })}</p>
 
-      {results.length > 0 && (
-        <Card className="divide-y divide-border overflow-hidden">
-          {results.map((template) => {
-            const compound = getCompoundById(template.compoundId)
-            return (
+      {mine.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <h3 className="text-sm font-semibold text-muted-foreground">{t('templates.mine')}</h3>
+          <Card className="divide-y divide-border overflow-hidden">
+            {mine.map((template) => (
+              <div key={template.id} className="flex items-center">
+                <button
+                  type="button"
+                  onClick={() => onSelectTemplate(prefillFromUserTemplate(template))}
+                  className="flex min-h-14 min-w-0 flex-1 items-center gap-3 py-3 pl-4 text-left"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-foreground">{template.name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {summary(template.compoundId, template.doseAmount, template.doseUnit, template.schedule, !!template.titration)}
+                    </p>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  aria-label={t('templates.deleteLabel', { name: template.name })}
+                  onClick={() => setConfirmDelete(template)}
+                  className="flex size-11 shrink-0 items-center justify-center text-muted-foreground"
+                >
+                  <Trash2 className="size-4" />
+                </button>
+              </div>
+            ))}
+          </Card>
+        </section>
+      )}
+
+      {builtIn.length > 0 && (
+        <section className="flex flex-col gap-2">
+          {mine.length > 0 && <h3 className="text-sm font-semibold text-muted-foreground">{t('templates.builtIn')}</h3>}
+          <Card className="divide-y divide-border overflow-hidden">
+            {builtIn.map((template) => (
               <button
                 key={template.id}
                 type="button"
-                onClick={() => onSelectTemplate(template)}
+                onClick={() => onSelectTemplate(prefillFromBuiltIn(template, t))}
                 className="flex min-h-14 w-full items-center gap-3 px-4 py-3 text-left"
               >
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold text-foreground">{t(template.nameKey)}</p>
                   <p className="text-sm text-muted-foreground">
-                    {compound?.name} · {formatDecimal(template.doseAmount, locale, 2)} {template.doseUnit} ·{' '}
-                    {t(`schedule.${template.schedule.kind}`)}
+                    {summary(template.compoundId, template.doseAmount, template.doseUnit, template.schedule, false)}
                   </p>
                 </div>
                 <ChevronRight aria-hidden className="size-5 shrink-0 text-muted-foreground" />
               </button>
-            )
-          })}
-        </Card>
+            ))}
+          </Card>
+        </section>
       )}
 
-      <div className="flex flex-col gap-3">
-        {results.length === 0 && (
-          <p className="rounded-2xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-            {t('templates.noResults')}
-          </p>
-        )}
-      </div>
+      {total === 0 && (
+        <p className="rounded-2xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+          {t('templates.noResults')}
+        </p>
+      )}
+
+      <AlertDialog open={confirmDelete !== null} onOpenChange={(open) => !open && setConfirmDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('templates.deleteTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('templates.deleteBody', { name: confirmDelete?.name ?? '' })}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => confirmDelete && void handleDelete(confirmDelete)}>
+              {t('common.delete')}
+            </AlertDialogAction>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

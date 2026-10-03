@@ -383,6 +383,18 @@
     }
   },
   "templates": {
+    "mine": "Mis plantillas",
+    "builtIn": "Plantillas de inicio",
+    "stepped": "(escalonada)",
+    "saveAs": "Guardar como plantilla",
+    "saveTitle": "Guardar como plantilla",
+    "saveBody": "Reutilizá el compuesto, la dosis, el calendario y los recordatorios de este protocolo cuando empecés uno nuevo.",
+    "nameLabel": "Nombre de la plantilla",
+    "saved": "Plantilla guardada",
+    "deleted": "Plantilla eliminada",
+    "deleteTitle": "¿Eliminar esta plantilla?",
+    "deleteBody": "\"{{name}}\" se eliminará. Los protocolos que creaste con ella no cambian.",
+    "deleteLabel": "Eliminar la plantilla {{name}}",
     "pickerTitle": "Empezá con una plantilla o hacelo personalizado",
     "custom": "Protocolo personalizado",
     "customDescription": "Elegí tu propio compuesto, dosis y horario desde cero.",
