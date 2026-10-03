@@ -63,6 +63,28 @@ Backups carry all of it, and older backups still import.
 
 **Email reminders were dropped.** Push reminders already work, and email would mean
 storing each customer's address on a server, which the privacy terms say we don't do.
+
+**Results tracking (October 2026).** These are the most impactful items from the competitor
+research, now in both sites:
+- **A Progress tab.** Weight with start, goal and progress (kg or lb). A daily check-in for
+  energy, mood, sleep, appetite ("food noise") and side effects with severity. The side-effect
+  list can be edited and includes injection-site reaction and pain. Waist, body fat and a note
+  are optional. Setup asks for a starting weight and goal once the first protocol is saved.
+- **Charts that tie results to doses.** The weight line is coloured by the dose in force, a
+  table shows weight change and side effects at each dose step and at each injection site,
+  and side effects are laid out along the dose timeline. Each chart can also be shown as a
+  table. A History day shows that day's weight and check-in next to its doses.
+- **Late and early doses.** A dose logged a day or two off schedule now counts for the dose
+  it was meant to be, so it isn't marked missed. For an every-few-days or once-a-week
+  protocol, the app offers to keep the schedule or move the following doses to match.
+- **Reorder.** Low-vial alerts link to the matching product on your store. Customers can
+  record unopened vials on hand, and the count goes down when they start the next one.
+- **Report for a doctor.** A one-page summary of a chosen period (protocols and how
+  consistently they were taken, weight with doses marked, side effects and the dose log). It
+  is printed or saved as a PDF from the phone, and nothing is sent anywhere.
+
+Backups carry all of it, and older backups still import.
+
 **Questions for you:**
 1. **USA Peptide Depot's product list is incomplete.** The app reads it from the site's own
    `/api/products`, which currently returns 7 of the 20 products on `/shop`. Missing include
