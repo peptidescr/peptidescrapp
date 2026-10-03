@@ -22,16 +22,32 @@ export type BrandLocale = 'es-CR' | 'en'
 
 export interface BrandConfig {
   id: BrandId
-  /** Prose name, as it appears inside sentences ("Install {{appName}}"). */
+  /** Prose name, as it appears inside sentences ("Install {{appName}}"), and the manifest's full `name`. */
   appName: string
-  /** Tight chrome: manifest short_name, <title>, iOS home-screen label. */
+  /**
+   * Browser tab <title> only — an SEO-oriented "<what it is> | <brand>"
+   * string, deliberately longer/keyword-fuller than appName (which stays
+   * the short, plain name used mid-sentence everywhere else, and as the
+   * manifest's install name).
+   */
+  title: string
+  /**
+   * Tight chrome only: manifest short_name (Android's under-icon caption)
+   * and the iOS home-screen label — both genuinely space-constrained, so
+   * this stays terse.
+   */
   shortName: string
   /** Prefix for exported backup/history filenames. */
   filePrefix: string
   /** Languages this build offers. One entry = no language picker at all. */
   locales: readonly BrandLocale[]
   defaultLocale: BrandLocale
-  /** Manifest + meta description, in the default locale. */
+  /**
+   * Manifest description and <meta name="description">, in the default
+   * locale — so PCR's is Spanish (its default locale), not a translation
+   * shown only on request; there's no way to swap it per visitor language,
+   * since crawlers/install prompts read the static build output.
+   */
   description: string
   /**
    * <meta name="theme-color"> per theme — mirrors each brand's tokens.css
@@ -57,22 +73,34 @@ export interface BrandConfig {
 export const PCR_BRAND: BrandConfig = {
   id: 'pcr',
   appName: 'Peptides CR',
+  // Spanish (PCR's default locale — see the class comment above). Uses the
+  // same product-name phrasing as the description below ("Registro de
+  // Péptidos", "Calculadora de Reconstitución", "de investigación") so the
+  // tab title and the meta description read as one consistent phrase.
+  title: 'Registro de Péptidos de Investigación y Calculadora de Reconstitución | Peptides Costa Rica',
   shortName: 'peptidescr',
   filePrefix: 'peptidescr',
   locales: ['es-CR', 'en'],
   defaultLocale: 'es-CR',
-  description: 'Registro de dosis y calculadora de reconstitución — Peptides Costa Rica.',
+  // Spanish translation (PCR's default locale) of "Track research peptide
+  // routines and calculate reconstitution amounts with the Peptides Costa
+  // Rica Peptide Tracker & Reconstitution Calculator." — see the class
+  // comment above for why this isn't swapped per visitor language.
+  description:
+    'Llevá el registro de tus rutinas de péptidos de investigación y calculá las cantidades de reconstitución con el Registro de Péptidos y Calculadora de Reconstitución de Peptides Costa Rica.',
   themeColors: { dark: '#060b1a', light: '#f0f5fa' },
 }
 
 export const UPD_BRAND: BrandConfig = {
   id: 'upd',
   appName: 'USA Peptide Depot',
+  title: 'Research Peptide Tracker & Reconstitution Calculator | USA Peptide Depot',
   shortName: 'UPD',
   filePrefix: 'upd',
   locales: ['en'],
   defaultLocale: 'en',
-  description: 'Dose log and reconstitution calculator — USA Peptide Depot.',
+  description:
+    'Track research peptide routines and calculate reconstitution amounts with the USA Peptide Depot Peptide Tracker & Reconstitution Calculator.',
   themeColors: { dark: '#060f0a', light: '#fdfbf0' },
 }
 

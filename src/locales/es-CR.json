@@ -320,8 +320,27 @@
       "installed": "La app {{appName}} está instalada en este dispositivo.",
       "available": "Instalá {{appName}} para usarla sin conexión y recibir notificaciones de forma confiable.",
       "cta": "Instalar",
-      "iosInstructions": "En Safari, tocá el ícono de Compartir y luego \"Agregar a pantalla de inicio\". Esto protege tus datos y es necesario para las notificaciones en iPhone/iPad.",
-      "genericInstructions": "Abrí el menú de tu navegador y buscá \"Instalar aplicación\" o \"Agregar a pantalla de inicio\"."
+      "ios": {
+        "title": "Agregá {{appName}} a tu iPhone",
+        "step1": "Tocá Compartir en Safari",
+        "step2": "Tocá \"Agregar a pantalla de inicio\"",
+        "step3": "Tocá Agregar",
+        "footer": "¡Listo! {{appName}} va a aparecer en tu pantalla de inicio."
+      },
+      "android": {
+        "title": "Agregá {{appName}} a tu dispositivo Android",
+        "step1": "Tocá el menú en Chrome",
+        "step2": "Tocá \"Agregar a la pantalla de inicio\" o \"Instalar aplicación\"",
+        "step3": "Tocá \"Instalar\" o \"Agregar\"",
+        "footer": "¡Listo! {{appName}} va a aparecer en tu pantalla de inicio."
+      },
+      "generic": {
+        "title": "Agregá {{appName}} a tu dispositivo",
+        "step1": "Abrí el menú de tu navegador, o buscá un ícono de instalación en la barra de direcciones",
+        "step2": "Seleccioná \"Instalar\" o \"Agregar a pantalla de inicio\"",
+        "step3": "Confirmá",
+        "footer": "¡Listo! {{appName}} va a aparecer en tu dispositivo."
+      }
     },
     "storage": {
       "title": "Almacenamiento",

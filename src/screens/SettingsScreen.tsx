@@ -19,6 +19,7 @@ import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from '@/compo
 import { AppHeader } from '../components/AppHeader'
 import { CustomCompoundSheet } from '../components/CustomCompoundSheet'
 import { HowItWorksList } from '../components/HowItWorksList'
+import { InstallInstructions } from '../components/InstallInstructions'
 import { BRAND } from '../brand'
 import { LEGAL_CONTENT, LEGAL_VERSION } from '../content/legal'
 import {
@@ -261,22 +262,9 @@ function NotificationsSection() {
 
 function InstallSection() {
   const { t } = useTranslation()
-  const install = useInstallState()
-
   return (
     <SectionCard title={t('settings.install.title')}>
-      {install.isStandalone ? (
-        <p className="text-sm text-muted-foreground">{t('settings.install.installed')}</p>
-      ) : install.canPromptInstall ? (
-        <>
-          <p className="text-sm text-muted-foreground">{t('settings.install.available')}</p>
-          <Button onClick={() => void install.promptInstall()}>{t('settings.install.cta')}</Button>
-        </>
-      ) : install.isIOS ? (
-        <p className="text-sm text-muted-foreground">{t('settings.install.iosInstructions')}</p>
-      ) : (
-        <p className="text-sm text-muted-foreground">{t('settings.install.genericInstructions')}</p>
-      )}
+      <InstallInstructions />
     </SectionCard>
   )
 }
