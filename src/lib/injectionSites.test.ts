@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { DoseLog } from './db'
-import { isSiteId, lastUsedBySite, rotationSites, SITES_BY_ROUTE, siteRest, suggestSite } from './injectionSites'
+import { isSiteId, lastUsedBySite, restEmphasis, rotationSites, SITES_BY_ROUTE, siteRest, suggestSite } from './injectionSites'
 
 const now = new Date(2026, 9, 10, 12)
 function log(site: DoseLog['site'], daysAgo: number, status: DoseLog['status'] = 'taken'): DoseLog {
@@ -57,5 +57,23 @@ describe('rotationSites', () => {
   it('recognises site ids', () => {
     expect(isSiteId('glute-left')).toBe(true)
     expect(isSiteId('knee')).toBe(false)
+  })
+})
+
+describe('restEmphasis', () => {
+  it('scales rest against the longest-rested site, with never-used above any used site', () => {
+    const e = restEmphasis([
+      { site: 'thigh-left', restDays: 0 },
+      { site: 'thigh-right', restDays: 2 },
+      { site: 'arm-left', restDays: 4 },
+      { site: 'arm-right', restDays: null },
+    ])
+    expect([...e.values()]).toEqual([0, 0.4, 0.8, 1])
+  })
+
+  it('treats equal sites alike, including all used today or none used', () => {
+    expect([...restEmphasis([{ site: 'glute-left', restDays: 3 }, { site: 'glute-right', restDays: 3 }]).values()]).toEqual([1, 1])
+    expect([...restEmphasis([{ site: 'glute-left', restDays: 0 }, { site: 'glute-right', restDays: 0 }]).values()]).toEqual([1, 1])
+    expect([...restEmphasis([{ site: 'glute-left', restDays: null }]).values()]).toEqual([1])
   })
 })

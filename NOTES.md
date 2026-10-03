@@ -2043,3 +2043,43 @@ in either theme.
 - `Page.printToPDF` (the real print path) produced a two-page A4 PDF: light, everything legible,
   the line in two dose shades with ticks, and the dose log with sites.
 - The theme was back to dark afterwards. No console errors.
+
+## Site picker redesign (October 2026)
+
+The developer found the Phase 2 site picker clunky and its figure cartoonish: rounded boxes for a
+body, a Front/Back toggle, and a 10-row list that pushed the button off-screen. Chosen with them:
+**front and back side by side with no list**, a **realistic gender-neutral figure**, and **recently
+used sites faded**.
+
+- **Figure** (`BodyMap.tsx`). One outline path, used for both views. It's built from a list of
+  points for the right half (`HALF_OUTLINE`), mirrored, and smoothed as a closed Catmull-Rom
+  spline, so it stays symmetric and is easy to adjust. Proportions are roughly 8 heads tall. The
+  back view adds a faint spine and gluteal folds, the front a navel. It's cropped below the calves
+  (the lowest site is the thigh) and fades out there, so it can be drawn larger.
+- **Sites** stay as zones on the body. The abdomen quadrants are kept clear of the navel. Each tap
+  area is larger than the drawn zone, filling the space up to the next site: about 33×35 px for
+  an abdomen quadrant at 390px wide, 31×33 at 320. The chosen site is filled with a soft halo,
+  and the suggested one gets a dashed outline once something else is picked. The keyboard focus
+  ring outlines the tap area.
+- **Fading** (`restEmphasis`, `src/lib/injectionSites.ts`, tested). It's relative: 0 is the site
+  used most recently, 1 the one rested longest (never used counts as one day more than the longest
+  rest), so it ranks sites against each other without claiming how long one *should* rest. "Faded
+  sites were used more recently." explains it once anything has been used.
+- **Sheet** (`SitePickerSheet.tsx`). The map scrolls. A card naming the chosen site with
+  "Suggested" and its rest, and the **Log dose** button, are pinned below it, so on a short phone
+  the button never scrolls away. The button no longer repeats the site name, because "Registrar
+  en Abdomen, arriba a la derecha" was cut off at 320px. Each zone's accessible name now carries
+  the rest ("Left thigh, rested 3 days"), since the list that showed it is gone.
+- Figure width is `min(8.5rem, 40vw, 22dvh)`. A view with none of the protocol's sites is left
+  out, so an abdomen-only protocol shows just the front.
+
+**Verified:** typecheck, 357/357 tests, lint (known `App.tsx` error only), i18n 594/594, both
+builds. Checked live (`check-bodymap`) on both brands, in dark and light, English and Spanish,
+at 390×844, 375×667 and 320×568/640:
+- both figures and all 10 zones drawn, with the suggested site preselected;
+- recently used sites fainter;
+- tapping the body or pressing Enter on a focused zone picks the site;
+- the Log button is in view and nothing is clipped or overflowing;
+- the dose is logged at the chosen site, and there are no console errors.
+
+An intramuscular protocol (deltoids, glutes, thighs) and a front-only set were also checked.

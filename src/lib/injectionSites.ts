@@ -102,6 +102,20 @@ export function siteRest(sites: readonly SiteId[], doseLogs: readonly DoseLog[],
   })
 }
 
+/**
+ * How rested each site is next to the others, from 0 (used most recently) to 1
+ * (rested longest, or never used), so the body map can fade recently used
+ * sites. Relative on purpose: it ranks the sites against each other and makes
+ * no claim about how long a site should rest. Never-used counts as one day more
+ * rested than the longest-rested used site; all equal means all 1.
+ */
+export function restEmphasis(rest: readonly SiteRest[]): Map<SiteId, number> {
+  const used = rest.flatMap((r) => (r.restDays === null ? [] : [r.restDays]))
+  const longest = Math.max(0, ...used)
+  const top = used.length < rest.length ? longest + 1 : longest
+  return new Map(rest.map(({ site, restDays }) => [site, top === 0 ? 1 : (restDays ?? top) / top]))
+}
+
 /** The site that has rested longest: never used first, then least recently used; ties go to the earlier site in the list. */
 export function suggestSite(sites: readonly SiteId[], doseLogs: readonly DoseLog[]): SiteId | null {
   const last = lastUsedBySite(doseLogs)
