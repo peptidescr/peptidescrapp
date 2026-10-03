@@ -38,15 +38,28 @@ user's local data is affected — the rebrand never touches how or where data is
 
 Backups include all of it, and older backups still import.
 
-**Phase 2, second batch (October 2026), in progress:**
-- **Your catalogue, synced from each store.** Both sites now read their own store's product list
-  and show it first in the compound pickers, under the store's own names and categories.
-  Everything else follows under "Other compounds". New products appear by themselves, with no
-  redeploy. Peptides CR's store lists all 79 products (48 compounds). USA Peptide Depot's lists
-  only 7, see question 1 below.
+**Phase 2, second batch (October 2026): complete.** With it, every Phase 2 item in the revised
+scope (CR-TRK-2608) is built, plus titration, moved up from Phase 4. Now in both sites:
+- **Your catalogue, synced from each store.** Both sites read their own store's product list and
+  show it first in the compound pickers, under the store's own names and categories, with
+  everything else under "Other compounds". New products appear by themselves, with no redeploy.
+  Peptides CR's store lists all 79 products (48 compounds). USA Peptide Depot's lists only 7; see
+  question 1.
+- **Cycling in weeks.** Any pattern (every day, every few days, set weekdays) can run for some
+  weeks on, then some weeks off, e.g. "Mon/Wed/Fri for 8 weeks, 4 off". It can optionally stop
+  after a set number of cycles, with a washout at the end. Protocols and Home say which week
+  someone is in and when dosing resumes.
+- **Titration.** A dose can step up (or down) on a schedule, e.g. 2.5 mg for 4 weeks, then 5 mg.
+  It changes by itself on the day, with a heads-up on Home and in the bell 3 days ahead.
+  Reminders, logged doses, the calculator and the vial's doses-left all follow the step in force.
+  If a saved mix was worked out for an earlier step, the app says so and offers to recalculate.
+- **Injection-site rotation**, switched on per protocol. Tapping Taken shows a body map with the
+  site that has rested longest already picked, so it's one more tap. The protocol card says which
+  site is next, and History records where each dose went.
+- **Save a protocol as a template**, then start new protocols from it. Saved templates sit above
+  the built-in starter templates.
 
-Still to come in Phase 2: cycling in weeks on/off, titration (moved up from Phase 4), injection-site
-rotation, and "save my protocol as a template".
+Backups carry all of it, and older backups still import.
 
 **Email reminders were dropped.** Push reminders already work, and email would mean
 storing each customer's address on a server, which the privacy terms say we don't do.
@@ -60,6 +73,13 @@ storing each customer's address on a server, which the privacy terms say we don'
    Glucagon" is Retatrutide, and Peptides CR's "GLP-1" is Retatrutide.
 2. Do you want a default "discard after N days" for mixed vials? It's left blank on purpose,
    since how long a mixed vial lasts is a product claim.
+3. **Injection sites.** The app offers four abdomen quadrants, thighs, backs of the arms and
+   glutes for subcutaneous injections, and deltoids, glutes and thighs for intramuscular. Each
+   customer can turn off the ones they don't use. Is that the right set for your products? The
+   app only shows how long each site has rested; it doesn't say how long a site *should* rest.
+4. **Titration counts calendar weeks**, including any off weeks in a cycle, so each dose change
+   lands on a fixed date that can be announced in advance. Tell us if your customers would expect
+   off weeks not to count.
 
 ## What this is
 
@@ -244,7 +264,9 @@ enough.
 
 ## What's intentionally not in this build
 
-Accounts/login, cloud sync, inventory tracking, calendar grid, visual syringe graphics,
-injection site rotation, custom compounds, titration, progress photos, weight/side-effect
-tracking, cost tracking, PDF export, and anything AI. If any of these turn out to matter
-after the client sees it, they're Phase 2 conversations, not omissions.
+Accounts/login and cloud sync (by design). The Phase 3 store connection: reorder prompts,
+"a purchase creates the vial", COA lookup by lot, limiting access to customers who've ordered,
+cost per dose, and your totals dashboard. The Phase 4 items besides titration: weight, side
+effects, progress photos, blends, and a PDF summary. Anything AI. All of these are later-phase
+conversations, not omissions. The store sync already keeps each product's SKU, link and stock
+flag for Phase 3 to build on.
