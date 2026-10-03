@@ -1,0 +1,57 @@
+[
+  {
+    "name": "BPC-157 5mg",
+    "slug": "bpc-157-5mg",
+    "inStock": true,
+    "url": "https://www.usapeptidedepot.com/product/bpc-157-5mg",
+    "sku": "USP-BPC157-5",
+    "category": "Extracellular Matrix and Cell-Migration Peptides"
+  },
+  {
+    "name": "CJC-1295 (No DAC) 5mg",
+    "slug": "cjc-1295-5mg",
+    "inStock": true,
+    "url": "https://www.usapeptidedepot.com/product/cjc-1295-5mg",
+    "sku": "USP-CJC-5",
+    "category": "GHRH and Ghrelin Receptor Peptides"
+  },
+  {
+    "name": "GHK-Cu (Copper Tripeptide) 50mg",
+    "slug": "ghk-cu-50mg",
+    "inStock": true,
+    "url": "https://www.usapeptidedepot.com/product/ghk-cu-50mg",
+    "sku": "USP-GHKCU-50",
+    "category": "Extracellular Matrix and Cell-Migration Peptides"
+  },
+  {
+    "name": "GLP-1 / GIP / Glucagon 10mg",
+    "slug": "glp3-10mg",
+    "inStock": true,
+    "url": "https://www.usapeptidedepot.com/product/glp3-10mg",
+    "sku": "USP-GLP3-10",
+    "category": "Incretin and Metabolic Receptor Compounds"
+  },
+  {
+    "name": "Melanotan 2 (MT-2) 10mg",
+    "slug": "melanotan-2-10mg",
+    "inStock": true,
+    "url": "https://www.usapeptidedepot.com/product/melanotan-2-10mg",
+    "sku": "USP-MT2-10",
+    "category": "Melanocortin Receptor Peptides"
+  },
+  {
+    "name": "Tesamorelin 10mg",
+    "slug": "tesamorelin-10mg",
+    "inStock": true,
+    "url": "https://www.usapeptidedepot.com/product/tesamorelin-10mg",
+    "sku": "USP-TESA-10",
+    "category": "GHRH and Ghrelin Receptor Peptides"
+  },
+  {
+    "name": "KLOW 80mg",
+    "slug": "klow-80mg",
+    "inStock": true,
+    "url": "https://www.usapeptidedepot.com/product/klow-80mg",
+    "category": "Incretin and Metabolic Receptor Compounds"
+  }
+]

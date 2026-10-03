@@ -220,9 +220,17 @@ export const db = new PeptidesDB()
  * migration step, while never touching the user's own protocols/logs — or
  * their custom compounds, which share this table (`isCustom: true`, ids
  * prefixed `custom-` so a catalogue id can never collide with one).
+ *
+ * A built-in the brand's store also sells has been replaced by its store row
+ * (same id, store name — see src/lib/storeCatalogue.ts); re-seeding skips
+ * those so it can't undo the store sync. One transaction, so a sync landing
+ * mid-seed can't be overwritten either.
  */
 export async function ensureCompoundsSeeded(): Promise<void> {
-  await db.compounds.bulkPut(COMPOUNDS)
+  await db.transaction('rw', db.compounds, async () => {
+    const storeIds = new Set(await db.compounds.filter((c) => c.source === 'store').primaryKeys())
+    await db.compounds.bulkPut(COMPOUNDS.filter((c) => !storeIds.has(c.id)))
+  })
 }
 
 export async function ensureSettingsRow(defaults: Omit<Settings, 'id'>): Promise<Settings> {

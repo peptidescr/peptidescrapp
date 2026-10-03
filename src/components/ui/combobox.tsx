@@ -1,6 +1,6 @@
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import { Check, ChevronDown, Plus } from 'lucide-react'
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { Fragment, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { cn } from '@/lib/utils'
 
 export interface ComboboxOption {
@@ -8,6 +8,13 @@ export interface ComboboxOption {
   label: string
   /** Muted secondary text shown after the label (e.g. a compound's category). */
   hint?: string
+  /** Extra text the search matches but never shows (e.g. a compound's other names). */
+  keywords?: string
+  /**
+   * Section heading. A heading row is drawn wherever it changes from the
+   * previous option, so options must arrive already grouped.
+   */
+  group?: string
 }
 
 interface ComboboxProps {
@@ -79,7 +86,7 @@ export function Combobox({
   const filtered = useMemo(() => {
     const needle = query === null ? '' : normalize(query)
     if (!needle) return options
-    return options.filter((o) => normalize(`${o.label} ${o.hint ?? ''}`).includes(needle))
+    return options.filter((o) => normalize(`${o.label} ${o.hint ?? ''} ${o.keywords ?? ''}`).includes(needle))
   }, [options, query])
 
   // Keep the highlighted row visible while arrowing through a long list.
@@ -214,23 +221,36 @@ export function Combobox({
               <p className="px-3 py-3 text-sm text-muted-foreground">{emptyText}</p>
             ) : (
               filtered.map((option, index) => (
-                <div
-                  key={option.value}
-                  role="option"
-                  aria-selected={option.value === value}
-                  data-index={index}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => choose(option)}
-                  onMouseEnter={() => setHighlight(index)}
-                  className={cn(
-                    'relative flex min-h-11 cursor-pointer select-none items-center gap-2 rounded-lg py-2 pl-3 pr-8 text-base',
-                    index === highlight && 'bg-accent text-accent-foreground',
+                <Fragment key={option.value}>
+                  {option.group && option.group !== filtered[index - 1]?.group && (
+                    <p
+                      role="presentation"
+                      className="px-3 pb-1 pt-3 text-xs font-semibold text-muted-foreground first:pt-2"
+                    >
+                      {option.group}
+                    </p>
                   )}
-                >
-                  <span className="truncate">{option.label}</span>
-                  {option.hint && <span className="shrink-0 text-xs text-muted-foreground">{option.hint}</span>}
-                  {option.value === value && <Check className="absolute right-2 size-4" />}
-                </div>
+                  <div
+                    role="option"
+                    aria-selected={option.value === value}
+                    data-index={index}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => choose(option)}
+                    onMouseEnter={() => setHighlight(index)}
+                    className={cn(
+                      'relative flex min-h-11 cursor-pointer select-none flex-col justify-center rounded-lg py-2 pl-3 pr-8 text-base',
+                      index === highlight && 'bg-accent text-accent-foreground',
+                    )}
+                  >
+                    {/* The hint sits under the name, not beside it: store names
+                        and categories can both be long ("GLP-1 / GIP / Glucagon",
+                        "Extracellular Matrix and Cell-Migration Peptides"), and
+                        side by side one of them gets cut off at phone widths. */}
+                    <span className="leading-snug">{option.label}</span>
+                    {option.hint && <span className="truncate text-xs text-muted-foreground">{option.hint}</span>}
+                    {option.value === value && <Check className="absolute right-2 top-1/2 size-4 -translate-y-1/2" />}
+                  </div>
+                </Fragment>
               ))
             )}
           </div>

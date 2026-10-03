@@ -8,6 +8,7 @@ import { LEGAL_VERSION } from './content/legal'
 import { maybeCreateDailySnapshot } from './lib/backup'
 import { db, ensureCompoundsSeeded, ensureSettingsRow } from './lib/db'
 import { useCustomCompoundsLoaded } from './lib/customCompounds'
+import { startStoreCatalogueRefresh, syncStoreCatalogue, useStoreCompoundsLoaded } from './lib/storeCatalogue'
 import { DEFAULT_LOCALE, toSupportedLocale } from './i18n'
 import { scheduleUpcomingReminders, startReminderLoop } from './lib/notifications'
 import { applyTheme, resolveTheme, subscribeToSystemTheme, type ResolvedTheme } from './lib/theme'
@@ -82,11 +83,14 @@ function App() {
   // remaining steps ran. Computed once from the first settings load, then
   // only ever changed by an explicit callback below.
   //
-  // Also waits for the user's custom compounds to load into memory (see
-  // src/lib/customCompounds.ts), so no screen ever renders one by its id.
+  // Also waits for the user's custom compounds and the last-synced store
+  // catalogue to load into memory (src/lib/customCompounds.ts,
+  // src/lib/storeCatalogue.ts), so no screen ever renders a compound by its
+  // id, or flashes a built-in name before the store's.
   const customCompoundsLoaded = useCustomCompoundsLoaded()
+  const storeCompoundsLoaded = useStoreCompoundsLoaded()
   const [gate, setGate] = useState<Gate>('loading')
-  if (settings && customCompoundsLoaded && gate === 'loading') {
+  if (settings && customCompoundsLoaded && storeCompoundsLoaded && gate === 'loading') {
     const alreadyOnboardedBeforeThisFlagExisted =
       !settings.onboardingCompletedAt && settings.legalAcceptedVersion === LEGAL_VERSION
     if (alreadyOnboardedBeforeThisFlagExisted) {
@@ -102,7 +106,10 @@ function App() {
     }
   }
 
-  // Runs once per app open: seed/sync the read-only compound catalogue,
+  // Runs once per app open: seed the built-in compound catalogue, then
+  // refresh the brand's store catalogue over it (after, so the seed can't
+  // race the store's renames; see db.ts), and again whenever the app comes
+  // back to the foreground (at most hourly — storeCatalogue.ts throttles);
   // create the singleton settings row on first run, ask the platform to
   // persist storage (protects against iOS Safari's 7-day IndexedDB eviction;
   // harmless no-op once installed), take today's snapshot if one hasn't run
@@ -110,13 +117,14 @@ function App() {
   // next couple of days (silently does nothing where unsupported — see
   // notifications.ts).
   useEffect(() => {
-    void ensureCompoundsSeeded()
+    void ensureCompoundsSeeded().then(() => syncStoreCatalogue())
     void ensureSettingsRow({ locale: DEFAULT_LOCALE, syringeType: 'U-100' })
     if (navigator.storage?.persist) {
       void navigator.storage.persist()
     }
     void maybeCreateDailySnapshot()
     void db.protocols.toArray().then((protocols) => scheduleUpcomingReminders(protocols))
+    return startStoreCatalogueRefresh()
   }, [])
 
   // Dose reminders: checks on a timer and whenever the app comes back to the

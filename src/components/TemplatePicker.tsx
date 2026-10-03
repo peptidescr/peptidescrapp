@@ -43,7 +43,9 @@ export function TemplatePicker({ onSelectTemplate, onSelectCustom }: TemplatePic
       if (!needle) return true
       // Match the translated name too, so searching "sueño" finds the sleep
       // template in Spanish rather than only matching the English compound id.
-      const haystack = `${t(template.nameKey)} ${compound?.name ?? ''} ${compound?.category ?? ''}`.toLowerCase()
+      // The compound's other names too: the store may call it something else ("GLP-1" for Retatrutide).
+      const haystack =
+        `${t(template.nameKey)} ${compound?.name ?? ''} ${compound?.aliases?.join(' ') ?? ''} ${compound?.category ?? ''}`.toLowerCase()
       return haystack.includes(needle)
     }).sort((a, b) => compareAlphabetical(t(a.nameKey), t(b.nameKey)))
   }, [query, category, t])

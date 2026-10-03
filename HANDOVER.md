@@ -38,14 +38,26 @@ user's local data is affected — the rebrand never touches how or where data is
 
 Backups include all of it, and older backups still import.
 
-Still to come in Phase 2: your full catalogue synced from each store, cycling in weeks
-on/off, "save my protocol as a template", and injection-site rotation.
+**Phase 2, second batch (October 2026), in progress:**
+- **Your catalogue, synced from each store.** Both sites now read their own store's product list
+  and show it first in the compound pickers, under the store's own names and categories.
+  Everything else follows under "Other compounds". New products appear by themselves, with no
+  redeploy. Peptides CR's store lists all 79 products (48 compounds). USA Peptide Depot's lists
+  only 7, see question 1 below.
+
+Still to come in Phase 2: cycling in weeks on/off, titration (moved up from Phase 4), injection-site
+rotation, and "save my protocol as a template".
 
 **Email reminders were dropped.** Push reminders already work, and email would mean
 storing each customer's address on a server, which the privacy terms say we don't do.
 **Questions for you:**
-1. Can USA Peptide Depot send a product export or feed? Their store has no public product
-   list to sync from; Peptides CR's (WooCommerce) does.
+1. **USA Peptide Depot's product list is incomplete.** The app reads it from the site's own
+   `/api/products`, which currently returns 7 of the 20 products on `/shop`. Missing include
+   GLP3 5mg, GLP-1/GIP, TB-500, Ipamorelin, Semax, Selank, SS-31, Epithalon, Thymosin Alpha-1 and
+   BAC water. Please have it return every product, or tell us which endpoint does. Once it does,
+   the rest appear in the app automatically.
+   Also, please confirm the name matches in `src/content/storeAliases.ts`: e.g. "GLP-1 / GIP /
+   Glucagon" is Retatrutide, and Peptides CR's "GLP-1" is Retatrutide.
 2. Do you want a default "discard after N days" for mixed vials? It's left blank on purpose,
    since how long a mixed vial lasts is a product claim.
 

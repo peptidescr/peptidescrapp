@@ -104,7 +104,7 @@ describe('parseBackup', () => {
   it('rejects wrong versions, wrong shapes, duplicate ids and oversized lists', () => {
     expect(() => parseBackup(null)).toThrow()
     expect(() => parseBackup([])).toThrow()
-    expect(() => parseBackup(backup({ version: 3 }))).toThrow()
+    expect(() => parseBackup(backup({ version: 4 }))).toThrow()
     expect(() => parseBackup(backup({ version: '2' }))).toThrow()
     expect(() => parseBackup(backup({ protocols: 'x' }))).toThrow()
     expect(() => parseBackup(backup({ protocols: [protocol, protocol] }))).toThrow()
@@ -196,12 +196,13 @@ describe('parseBackup, format v2 (vials, custom compounds, user templates)', () 
     createdAt: '2026-03-01T09:00:00.000Z',
   }
 
-  it('still imports a v1 file, with the v2 collections empty', () => {
+  it('still imports a v1 file, with the newer collections empty', () => {
     const result = parseBackup(backup({ version: 1 }))
-    expect(result.version).toBe(2)
+    expect(result.version).toBe(3)
     expect(result.protocols).toHaveLength(1)
     expect(result.vials).toEqual([])
     expect(result.customCompounds).toEqual([])
+    expect(result.storeCompounds).toEqual([])
     expect(result.userTemplates).toEqual([])
   })
 
@@ -251,5 +252,50 @@ describe('parseBackup, format v2 (vials, custom compounds, user templates)', () 
     const result = parseBackup(backup({ vials: [{ ...vial, lot: '  A1‮23  ', batch: '   ' }] }))
     expect(result.vials[0]?.lot).toBe('A123')
     expect(result.vials[0]).not.toHaveProperty('batch')
+  })
+})
+
+describe('parseBackup, format v3 (store compounds the records use)', () => {
+  const store = {
+    id: 'retatrutide',
+    name: 'GLP-1',
+    category: 'Cardiovascular Research Compounds',
+    defaultUnit: 'mg',
+    vialSizes: [5, 10],
+    form: 'powder',
+    isBlend: false,
+    isDiluent: false,
+    source: 'store',
+    listed: true,
+    aliases: ['Retatrutide'],
+    storeProducts: [{ label: 'GLP-1 5mg', slug: 'reta-5mg', size: 5, inStock: true }],
+  }
+
+  it('restores them unlisted and without store products, until the device syncs its own catalogue', () => {
+    const result = parseBackup(backup({ storeCompounds: [store] }))
+    expect(result.storeCompounds).toEqual([
+      {
+        id: 'retatrutide',
+        name: 'GLP-1',
+        category: 'Cardiovascular Research Compounds',
+        defaultUnit: 'mg',
+        vialSizes: [5, 10],
+        form: 'powder',
+        isBlend: false,
+        isDiluent: false,
+        source: 'store',
+        listed: false,
+        aliases: ['Retatrutide'],
+      },
+    ])
+  })
+
+  it('rejects one posing as a custom compound, or with no name', () => {
+    expect(() => parseBackup(backup({ storeCompounds: [{ ...store, id: 'custom-1' }] }))).toThrow()
+    expect(() => parseBackup(backup({ storeCompounds: [{ ...store, name: '  ' }] }))).toThrow()
+  })
+
+  it('still imports a v2 file', () => {
+    expect(parseBackup(backup({ version: 2 })).storeCompounds).toEqual([])
   })
 })

@@ -11,14 +11,18 @@ const SNAPSHOT_KEEP = 7
 export type BackupPayload = ValidBackup
 
 export async function buildBackupPayload(): Promise<BackupPayload> {
-  const [protocols, doseLogs, settings, vials, customCompounds, userTemplates] = await Promise.all([
+  const [protocols, doseLogs, settings, vials, customCompounds, storeRows, userTemplates] = await Promise.all([
     db.protocols.toArray(),
     db.doseLogs.toArray(),
     db.settings.get(SETTINGS_ID),
     db.vials.toArray(),
     db.compounds.filter((c) => c.isCustom === true).toArray(),
+    db.compounds.filter((c) => c.source === 'store').toArray(),
     db.userTemplates.toArray(),
   ])
+  // The store catalogue isn't the user's data — only the entries their own
+  // records use travel, so those still have names after a restore.
+  const referenced = new Set([...protocols, ...doseLogs, ...vials, ...userTemplates].map((r) => r.compoundId))
   return {
     version: BACKUP_VERSION,
     exportedAt: new Date().toISOString(),
@@ -27,6 +31,7 @@ export async function buildBackupPayload(): Promise<BackupPayload> {
     settings,
     vials,
     customCompounds,
+    storeCompounds: storeRows.filter((c) => referenced.has(c.id)),
     userTemplates,
   }
 }
@@ -75,7 +80,9 @@ export function doseLogsToCsv(doseLogs: DoseLog[], vials: Vial[] = []): string {
 /**
  * Wipes and replaces all of the user's own data (protocols, dose logs,
  * settings, vials, custom compounds, user templates) from a previously
- * exported backup. The catalogue rows in `compounds` are never touched.
+ * exported backup. Catalogue rows in `compounds` are never replaced: a store
+ * compound from the file is only added where this device has no store row
+ * for that id yet (its own synced one is newer).
  */
 export async function importBackupPayload(input: unknown): Promise<void> {
   // Re-validated here too, not only where a file is picked, so no caller can
@@ -93,6 +100,9 @@ export async function importBackupPayload(input: unknown): Promise<void> {
     if (payload.doseLogs.length) await db.doseLogs.bulkAdd(payload.doseLogs)
     if (payload.vials.length) await db.vials.bulkAdd(payload.vials)
     if (payload.customCompounds.length) await db.compounds.bulkPut(payload.customCompounds)
+    const syncedStoreIds = new Set(await db.compounds.filter((c) => c.source === 'store').primaryKeys())
+    const missingStore = payload.storeCompounds.filter((c) => !syncedStoreIds.has(c.id))
+    if (missingStore.length) await db.compounds.bulkPut(missingStore)
     if (payload.userTemplates.length) await db.userTemplates.bulkAdd(payload.userTemplates)
     if (payload.settings) await db.settings.put({ ...payload.settings, id: SETTINGS_ID })
   })

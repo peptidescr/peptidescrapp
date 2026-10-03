@@ -11,9 +11,12 @@
  * record that isn't valid rejects the whole file (before anything is written)
  * rather than restoring a quietly partial history.
  *
- * Format versions: 1 (Phase 1: protocols, dose logs, settings) and 2 (adds
- * vials, custom compounds and user templates). Both import; a v1 file simply
- * restores with none of the v2 collections. Exports are always the latest.
+ * Format versions: 1 (Phase 1: protocols, dose logs, settings), 2 (adds
+ * vials, custom compounds and user templates) and 3 (adds the store
+ * compounds the user's records refer to, so a restore onto a fresh device
+ * doesn't show bare ids before its first catalogue sync). All import; an
+ * older file simply restores without the newer collections. Exports are
+ * always the latest.
  */
 import { CUSTOM_CATEGORY, type Compound } from '../content/compounds'
 import type { DoseLog, Protocol, SavedReconstitution, Settings, UserTemplate, Vial } from './db'
@@ -27,15 +30,18 @@ import {
 } from './sanitize'
 import type { Schedule, Weekday } from './schedule'
 
-export const BACKUP_VERSION = 2
-const SUPPORTED_VERSIONS: readonly unknown[] = [1, 2]
+export const BACKUP_VERSION = 3
+const SUPPORTED_VERSIONS: readonly unknown[] = [1, 2, 3]
 export const MAX_BACKUP_BYTES = 20 * 1024 * 1024
 const MAX_PROTOCOLS = 1000
 const MAX_DOSE_LOGS = 200_000
 const MAX_VIALS = 10_000
 const MAX_CUSTOM_COMPOUNDS = 500
+const MAX_STORE_COMPOUNDS = 1000
 const MAX_USER_TEMPLATES = 500
 const MAX_VIAL_SIZES = 20
+const MAX_STORE_TEXT = 200
+const MAX_ALIASES = 10
 export const MAX_LOT_LENGTH = 40
 const MAX_ID_LENGTH = 100
 const MAX_REMINDER_TIMES = 12
@@ -49,6 +55,7 @@ export interface ValidBackup {
   settings?: Settings
   vials: Vial[]
   customCompounds: Compound[]
+  storeCompounds: Compound[]
   userTemplates: UserTemplate[]
 }
 
@@ -258,6 +265,40 @@ function customCompound(value: unknown): Compound {
   }
 }
 
+/**
+ * A store compound a record refers to, carried for its name and measure only.
+ * Restored unlisted and without its store products — the next catalogue sync
+ * on the restoring device is what says whether its store sells it.
+ */
+function storeCompound(value: unknown): Compound {
+  if (!isRecord(value)) fail('store compound')
+  const id = str(value.id, 'storeCompound.id')
+  if (id.startsWith('custom-')) fail('storeCompound.id')
+  const name = sanitizeText(String(value.name ?? ''), MAX_STORE_TEXT).trim()
+  if (!name) fail('storeCompound.name')
+  if (!Array.isArray(value.vialSizes) || value.vialSizes.length > MAX_VIAL_SIZES) fail('storeCompound.vialSizes')
+  const result: Compound = {
+    id,
+    name,
+    category: typeof value.category === 'string' ? sanitizeText(value.category, MAX_STORE_TEXT).trim() : '',
+    defaultUnit: oneOf(value.defaultUnit, ['mg', 'mcg', 'IU'] as const, 'storeCompound.defaultUnit'),
+    vialSizes: value.vialSizes.map((size) => finiteNumber(size, 'storeCompound.vialSizes', 0, 1e9)),
+    form: oneOf(value.form, ['powder', 'solution'] as const, 'storeCompound.form'),
+    isBlend: value.isBlend === true,
+    isDiluent: value.isDiluent === true,
+    source: 'store',
+    listed: false,
+  }
+  if (Array.isArray(value.aliases)) {
+    const aliases = value.aliases
+      .slice(0, MAX_ALIASES)
+      .map((a) => (typeof a === 'string' ? sanitizeText(a, MAX_STORE_TEXT).trim() : ''))
+      .filter(Boolean)
+    if (aliases.length) result.aliases = aliases
+  }
+  return result
+}
+
 function userTemplate(value: unknown): UserTemplate {
   if (!isRecord(value)) fail('template')
   // Same field rules as a protocol — reuse its validator on a protocol-shaped view.
@@ -316,8 +357,9 @@ export function parseBackup(input: unknown): ValidBackup {
   const doseLogs = input.doseLogs.map(doseLog)
   const vials = optionalList(input.vials, MAX_VIALS, vial, 'vials')
   const customCompounds = optionalList(input.customCompounds, MAX_CUSTOM_COMPOUNDS, customCompound, 'custom compounds')
+  const storeCompounds = optionalList(input.storeCompounds, MAX_STORE_COMPOUNDS, storeCompound, 'store compounds')
   const userTemplates = optionalList(input.userTemplates, MAX_USER_TEMPLATES, userTemplate, 'templates')
-  for (const list of [protocols, doseLogs, vials, customCompounds, userTemplates]) {
+  for (const list of [protocols, doseLogs, vials, customCompounds, storeCompounds, userTemplates]) {
     if (new Set(list.map((r) => r.id)).size !== list.length) fail('duplicate ids')
   }
 
@@ -336,6 +378,7 @@ export function parseBackup(input: unknown): ValidBackup {
     settings: settings(input.settings),
     vials,
     customCompounds,
+    storeCompounds,
     userTemplates,
   }
 }

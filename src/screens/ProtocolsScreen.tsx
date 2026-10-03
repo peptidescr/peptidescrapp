@@ -46,7 +46,7 @@ import { SyringeGraphic } from '../components/SyringeGraphic'
 import { TemplatePicker } from '../components/TemplatePicker'
 import { VialStrip } from '../components/VialStrip'
 import { compareAlphabetical, getCompoundById } from '../content/compounds'
-import { compoundCategoryLabel, useSelectableCompounds } from '../lib/customCompounds'
+import { toCompoundOptions, useSelectableCompounds } from '../lib/customCompounds'
 import { PROTOCOL_TEMPLATES, type ProtocolTemplate } from '../content/protocolTemplates'
 import { formatDateTime, toIsoDate } from '../lib/dates'
 import { db, type DoseLog, type Protocol, type Route, type Vial } from '../lib/db'
@@ -476,10 +476,7 @@ export function ProtocolForm({
   const compounds = useSelectableCompounds()
   const [addingCompound, setAddingCompound] = useState(false)
 
-  const compoundOptions = useMemo(
-    () => compounds.map((c) => ({ value: c.id, label: c.name, hint: compoundCategoryLabel(c, t) })),
-    [compounds, t],
-  )
+  const compoundOptions = useMemo(() => toCompoundOptions(compounds, t), [compounds, t])
   const scheduleOptions = useMemo(() => alphabeticalOptions(SCHEDULE_KINDS, (k) => t(`schedule.${k}`)), [t])
   const routeOptions = useMemo(() => alphabeticalOptions(ROUTES, (r) => t(`route.${r}`)), [t])
   // Free-text field with suggestions: template and compound names are the

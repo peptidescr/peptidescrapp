@@ -12,8 +12,8 @@ import { AppHeader } from '../components/AppHeader'
 import { CustomCompoundSheet } from '../components/CustomCompoundSheet'
 import { SyringeGraphic } from '../components/SyringeGraphic'
 import { VialSheet, type VialPrefill } from '../components/VialSheet'
-import { compareAlphabetical, getCompoundById, listDiluents, vialSizeUnit, type Compound } from '../content/compounds'
-import { compoundCategoryLabel, useSelectableCompounds } from '../lib/customCompounds'
+import { compareAlphabetical, getCompoundById, vialSizeUnit, type Compound } from '../content/compounds'
+import { toCompoundOptions, useDiluents, useSelectableCompounds } from '../lib/customCompounds'
 import { db, type Protocol, type SavedReconstitution } from '../lib/db'
 import {
   mixFromSolutionIU,
@@ -60,11 +60,8 @@ export function CalculatorScreen({ protocolId, onCreateProtocol }: CalculatorScr
   const settings = useSettings()
 
   const selectable = useSelectableCompounds()
-  const diluents = useMemo(() => listDiluents(), [])
-  const compoundOptions = useMemo(
-    () => selectable.map((c) => ({ value: c.id, label: c.name, hint: compoundCategoryLabel(c, t) })),
-    [selectable, t],
-  )
+  const diluents = useDiluents()
+  const compoundOptions = useMemo(() => toCompoundOptions(selectable, t), [selectable, t])
   const [addingCompound, setAddingCompound] = useState(false)
 
   const [compoundId, setCompoundId] = useState(selectable[0]?.id ?? '')
@@ -328,20 +325,27 @@ export function CalculatorScreen({ protocolId, onCreateProtocol }: CalculatorScr
               ariaLabel={t('calculator.bacWaterToAdd')}
             />
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          {/* One row per diluent, its sizes as chips: store names can be long
+              ("Bacteriostatic Water"), and repeating one on every chip wrapped
+              the quick-fill onto several lines. */}
+          <div className="flex flex-col gap-2">
             <span className="text-sm text-muted-foreground">{t('calculator.quickFill')}</span>
-            {diluents.flatMap((d) =>
-              d.vialSizes.map((size) => (
-                <button
-                  key={`${d.id}-${size}`}
-                  type="button"
-                  onClick={() => setDiluentMl(String(size).replace('.', ','))}
-                  className="min-h-11 rounded-full border border-border px-3 text-sm text-muted-foreground active:bg-accent"
-                >
-                  {d.name} {size}mL
-                </button>
-              )),
-            )}
+            {diluents.map((d) => (
+              <div key={d.id} role="group" aria-label={d.name} className="flex flex-wrap items-center gap-2">
+                <span className="mr-1 text-sm text-foreground">{d.name}</span>
+                {d.vialSizes.map((size) => (
+                  <button
+                    key={size}
+                    type="button"
+                    aria-label={`${d.name} ${size} mL`}
+                    onClick={() => setDiluentMl(String(size).replace('.', ','))}
+                    className="min-h-11 rounded-full border border-border px-3 text-sm text-muted-foreground active:bg-accent"
+                  >
+                    {size} mL
+                  </button>
+                ))}
+              </div>
+            ))}
           </div>
         </Step>
       )}

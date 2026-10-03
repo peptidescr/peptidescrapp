@@ -11,9 +11,12 @@
 import { liveQuery } from 'dexie'
 import { useSyncExternalStore } from 'react'
 import type { TFunction } from 'i18next'
+import type { ComboboxOption } from '@/components/ui/combobox'
 import {
   CUSTOM_CATEGORY,
   getCustomCompounds,
+  isStoreListed,
+  listDiluents,
   listSelectableCompounds,
   setCustomCompounds,
   subscribeToCompounds,
@@ -69,13 +72,34 @@ export function useSelectableCompounds(): Compound[] {
   return useSyncExternalStore(subscribeToCompounds, listSelectableCompounds)
 }
 
+/** The calculator's quick-fill diluents, re-rendering when the store catalogue changes them. */
+export function useDiluents(): Compound[] {
+  return useSyncExternalStore(subscribeToCompounds, listDiluents)
+}
+
 export function useCustomCompounds(): readonly Compound[] {
   return useSyncExternalStore(subscribeToCompounds, getCustomCompounds)
 }
 
-/** Catalogue categories are shown as stored; the custom category is a key, shown translated. */
+/** Catalogue and store categories are shown as stored; the custom category is a key, shown translated. */
 export function compoundCategoryLabel(compound: Compound, t: TFunction): string {
   return compound.category === CUSTOM_CATEGORY ? t('compounds.customCategory') : compound.category
+}
+
+/**
+ * Picker options for a listSelectableCompounds() list: "From the store" and
+ * "Other" headings once a store catalogue is loaded (the list is already in
+ * that order), and the app's own name for a renamed compound kept searchable.
+ */
+export function toCompoundOptions(compounds: readonly Compound[], t: TFunction): ComboboxOption[] {
+  const grouped = compounds.some(isStoreListed)
+  return compounds.map((c) => ({
+    value: c.id,
+    label: c.name,
+    hint: compoundCategoryLabel(c, t),
+    keywords: c.aliases?.join(' '),
+    group: grouped ? (isStoreListed(c) ? t('compounds.groupStore') : t('compounds.groupOther')) : undefined,
+  }))
 }
 
 /** Normalises user input into a stored compound. Throws RangeError on anything unusable. */

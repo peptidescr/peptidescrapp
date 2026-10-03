@@ -372,7 +372,9 @@
     "inUse": "Used by a protocol, vial or logged dose, so it can't be deleted.",
     "manageTitle": "Your compounds",
     "manageEmpty": "Compounds you add yourself show up here.",
-    "vialSize": "Usual vial size (optional)"
+    "vialSize": "Usual vial size (optional)",
+    "groupStore": "From the {{appName}} store",
+    "groupOther": "Other compounds"
   },
   "vials": {
     "newTitle": "Start a vial",

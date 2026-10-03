@@ -372,7 +372,9 @@
     "inUse": "Lo usa un protocolo, un vial o una dosis registrada, así que no se puede eliminar.",
     "manageTitle": "Tus compuestos",
     "manageEmpty": "Los compuestos que agregués vos aparecen aquí.",
-    "vialSize": "Tamaño de vial habitual (opcional)"
+    "vialSize": "Tamaño de vial habitual (opcional)",
+    "groupStore": "De la tienda de {{appName}}",
+    "groupOther": "Otros compuestos"
   },
   "vials": {
     "newTitle": "Empezar un vial",

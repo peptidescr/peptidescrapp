@@ -1548,3 +1548,86 @@ exists (schema v2) for that.
   8. A v1 backup imported.
   9. Light and dark themes both checked.
 - Lint still shows the one pre-existing `set-state-in-effect` error in `App.tsx`.
+
+## Phase 2, batch 2 (1 of 5): store catalogue sync (October 2026)
+
+The rest of Phase 2 was planned with the developer as five features, each committed separately:
+catalogue sync, cycling in weeks, titration (pulled forward from Phase 4, because both stores
+sell many GLP-1 sizes), injection-site rotation, and "save as template". This entry covers the first.
+
+**Both stores can be read, so both brands sync:**
+- **Peptides CR** is WooCommerce. Its public Store API
+  (`peptidescostarica.net/wp-json/wc/store/v1/products`) lists all 79 products, one per vial size.
+  It sends no `Access-Control-Allow-Origin` header, so the app can't fetch it directly.
+- **USA Peptide Depot** is a custom Next.js site. Its own `/api/products` (bare domain
+  308-redirects to `www.`) currently returns **7 of the 20 products on `/shop`**. It's
+  undocumented and ignores paging parameters. Decided: build on it as-is, ask the client to make it
+  return everything (HANDOVER), and don't scrape `/shop`.
+
+**Server:** `netlify/lib/catalogue.ts`, plus a thin wrapper in `netlify/functions/catalogue.ts`
+(`GET /api/catalogue`).
+- It picks the store from the site's `VITE_BRAND`, fetches it (Woo is paged by `X-WP-TotalPages`),
+  and flattens each product to `{ name, slug, sku, category, inStock, url }`. Woo's HTML entities
+  (`&amp;`) are decoded.
+- It takes no input, and the upstream URLs are constants.
+- The edge caches it for an hour (`Netlify-CDN-Cache-Control`, stale-while-revalidate a day).
+  An empty or failed upstream response is a 502 and isn't cached.
+- `vite.config.ts` mounts the same handler for `vite` and `vite preview`, so local runs hit the
+  real store.
+
+**App:** `src/lib/storeCatalogue.ts` does the interpretation, because the app is what knows its
+own compounds.
+- Sizes are parsed out of names. The parser handles "10mg", "5 mg", "75 IU", "10,000 IU", "10ml",
+  "1.5mg", and "KissPeptin-10 10mg" (read as 10 mg).
+- Products are grouped by name, with the size and any parenthetical removed.
+- A group whose name slugs to a built-in id, or that's in the brand's alias table
+  (`src/content/storeAliases.ts`), **keeps the built-in id**. Templates, maths and existing records
+  therefore still resolve, while the name and category shown are the store's. The built-in name
+  becomes a searchable alias, so typing "Retatrutide" finds "GLP-1". How it's measured (unit, form,
+  blend/diluent flags) stays the built-in's, since the maths depends on it.
+- Everything else gets a `store-` id and is measured from its sizes. mL means a ready solution,
+  IU means IU-dosed, and "water", "diluent" or "reconstitution solution" means a diluent.
+- Alias tables are per brand ("GLP-1" is Retatrutide at Peptides CR). They contain only certain
+  equivalents: UPD's "CJC-1295 (No DAC)" is **not** "CJC with DAC". Like `src/brand/index.ts`,
+  each build keeps only its own table (checked by grepping both `dist/`s).
+- On the real data, Peptides CR's 79 products become 48 compounds. All 38 built-ins match; 10 are
+  new, e.g. AHK-Cu, VIP, SNAP-8, HMG, GHRP-6, oxytocin, TB-500 (separate from TB-4 at this
+  store) and AA water. UPD's 7 become 7.
+- Woo lists a product's categories alphabetically, so "first category" is the alphabetical first
+  (GHK-CU shows as "Collagen Peptides").
+
+**Storage:** store rows live in the Dexie `compounds` table (`source: 'store'`). The service
+worker's notification text therefore needs no change.
+- `ensureCompoundsSeeded` now skips ids that have a store row, inside one transaction, so a re-seed
+  can't undo a rename.
+- A product the store drops keeps its row with `listed: false`, so existing records keep their
+  name.
+- An in-memory mirror (like custom compounds) feeds the synchronous lookups. The App's loading gate
+  waits for it, so a built-in name never flashes before the store's.
+- The app syncs on open (after seeding) and on return to the foreground, at most hourly
+  (localStorage timestamp). Offline, a 502, or an odd response changes nothing.
+
+**Picker:** "From the {{appName}} store" first, then "Other compounds", in one alphabetical group
+each (`listSelectableCompounds`, `toCompoundOptions`).
+- `Combobox` gained `group` headings and search-only `keywords`.
+- Its rows now put the hint (category) **under** the name. At 320px, store names like "GLP-1 / GIP
+  / Glucagon" and long store categories couldn't both fit side by side.
+- The calculator's diluent quick-fill is one row per diluent with size chips. The store's longer
+  names had wrapped the old "name + size" chips onto three lines.
+
+**Backup v3** carries the store compounds the user's records refer to, so a restore onto a fresh
+device shows names before its first sync. They're restored unlisted and without store products, and
+only where the device has no store row of its own. v1 and v2 files still import.
+
+**Verified:**
+- Typecheck, 265/265 tests, and lint (only the pre-existing `App.tsx` theme-effect error).
+- Tests cover the server with fixtures trimmed from both real responses, and the app's mapping run
+  over every real product from both stores (passed through the server's own normalizer).
+- Both brand builds, with no alias-table or brand leakage across them.
+- Live in headless Chrome over CDP against `vite preview` and the real stores. Peptides CR at 390px:
+  48 store rows, store heading first, no "Other" section (it sells every built-in). UPD at 320px: 7
+  store rows plus 33 built-ins under "Other". On both:
+  - "Retatrutide" finds the store-named compound.
+  - With `/api/catalogue` blocked, the synced list stays and nothing is unlisted.
+  - There were no console errors.
+- Not verified: the function on Netlify itself (edge caching, `process.env.VITE_BRAND` there).

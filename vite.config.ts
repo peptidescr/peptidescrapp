@@ -1,11 +1,12 @@
 /// <reference types="vitest/config" />
 import { readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath, URL } from 'node:url'
-import { defineConfig, loadEnv, type Plugin } from 'vite'
+import { defineConfig, loadEnv, type Connect, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import { getBrand, type BrandConfig } from './src/brand/brands.ts'
+import { handleCatalogueRequest, toCatalogueBrand } from './netlify/lib/catalogue.ts'
 
 /**
  * Which brand to build (see src/brand/brands.ts). VITE_BRAND wins — that's
@@ -47,6 +48,24 @@ function sharedPublicFiles(): Plugin {
   }
 }
 
+/**
+ * Serves /api/catalogue from `vite` and `vite preview` with the same handler
+ * the Netlify function wraps (netlify/functions/catalogue.ts), so the store
+ * sync can be exercised locally against the real store.
+ */
+function catalogueApi(brand: BrandConfig): Plugin {
+  const serve = ({ middlewares }: { middlewares: Connect.Server }) => {
+    middlewares.use('/api/catalogue', (_req, res) => {
+      void handleCatalogueRequest(toCatalogueBrand(brand.id), fetch).then(async (response) => {
+        res.statusCode = response.status
+        response.headers.forEach((value, key) => res.setHeader(key, value))
+        res.end(Buffer.from(await response.arrayBuffer()))
+      })
+    })
+  }
+  return { name: 'catalogue-api', configureServer: serve, configurePreviewServer: serve }
+}
+
 /** Fills index.html's %BRAND_*% placeholders. */
 function brandHtml(brand: BrandConfig): Plugin {
   const values: Record<string, string> = {
@@ -84,6 +103,7 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
       sharedPublicFiles(),
+      catalogueApi(brand),
       brandHtml(brand),
       VitePWA({
         registerType: 'autoUpdate',
