@@ -5,7 +5,9 @@
  */
 import type { TFunction } from 'i18next'
 import { getCompoundById } from '../content/compounds'
+import { BRAND } from '../brand'
 import { formatDate } from './dates'
+import { orderByDate, sparesOf } from './reorder'
 import { formatDecimal, iuFromMilliIU, type Locale, type MilliIU } from './units'
 import type { VialAlert, VialKind } from './vials'
 
@@ -24,6 +26,17 @@ function whenText(daysUntil: number, t: TFunction): string {
 
 /** The one-line description of an alert, named after the protocol (or compound, for a vial without one). */
 export function describeVialAlert(alert: VialAlert, t: TFunction): string {
+  const base = describeAlertOnly(alert, t)
+  if (alert.kind !== 'lowStock' && alert.kind !== 'empty') return base
+  // Stock alerts say what's to hand: unopened vials, or — once the shipping
+  // time is known (BRAND.shippingDays) — the last day to order.
+  const spares = sparesOf(alert.protocol)
+  if (spares > 0) return `${base} ${t('vialAlerts.sparesOnHand', { count: spares })}`
+  const orderBy = orderByDate(alert.lastDoseOn, BRAND.shippingDays)
+  return orderBy ? `${base} ${t('vialAlerts.orderBy', { date: formatDate(orderBy) })}` : base
+}
+
+function describeAlertOnly(alert: VialAlert, t: TFunction): string {
   const name = alert.protocol?.name || getCompoundById(alert.vial.compoundId)?.name || ''
   switch (alert.kind) {
     case 'empty':

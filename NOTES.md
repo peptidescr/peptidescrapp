@@ -1978,3 +1978,34 @@ with the dataviz skill's method; hand-rolled SVG, so no chart dependency is adde
     callback ref).
   - "6 months" wrapped in the range control (now "6 mo").
   - "Darker when more severe" was wrong on the dark theme, where severe is the brighter step.
+
+## Tier 1 (4 of 5): reorder loop and unopened vials (October 2026)
+
+The first piece of Phase 3, and the client-ROI item: a nudge at the moment a customer would
+otherwise go looking for a supplier.
+
+- **Reorder button** in `VialAlertCard`'s empty action slot (Home and the bell). It shows on a
+  low-stock or empty alert when there's nothing unopened left.
+  - It's a plain link to the product on the brand's own store, taken from the catalogue sync's
+    stored links (`Compound.storeProducts`). It prefers the same vial size in stock, then the
+    same size, then anything in stock (`reorderProduct`, `src/lib/reorder.ts`).
+  - Nothing is written to the store and nothing about the customer leaves the device.
+  - No button when the store doesn't sell it.
+- **Unopened vials on hand** (`Protocol.spareVials`, a −/+ on the protocol's vial strip). While
+  there are some, the alert says "N unopened vials on hand." and doesn't nudge. Starting the next
+  vial (`startVial`) uses one up.
+- **"Order by <date>"** = the vial's "enough until" date minus `BrandConfig.shippingDays`. As the
+  developer chose, it's **unset for both brands until the client confirms shipping times**
+  (HANDOVER question 5), so no date shows. Setting the number turns it on.
+- Fixed on the way: the alert card didn't re-render when a catalogue sync landed, so the button
+  only appeared on Home's next minute tick. It now subscribes (`useCompound`).
+
+**Verified:**
+- Typecheck, 352/352 tests (new: product choice, the nudge rule, order-by), lint (known `App.tsx`
+  error only), i18n 563/563, PCR build.
+- Live on the PCR build against the real store. A tirzepatide vial with one dose left showed
+  Reorder, linking to `peptidescostarica.net/product/tirzepatide-10mg/`, with no order-by date.
+  Adding one unopened vial switched the alert to "1 unopened vial on hand." with no button. No
+  console errors.
+- Not exercised live: the spare count dropping when the next vial is started. That's a one-line
+  update inside `startVial`'s transaction.

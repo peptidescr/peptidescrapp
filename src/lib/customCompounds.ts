@@ -14,6 +14,7 @@ import type { TFunction } from 'i18next'
 import type { ComboboxOption } from '@/components/ui/combobox'
 import {
   CUSTOM_CATEGORY,
+  getCompoundById,
   getCustomCompounds,
   isStoreListed,
   listDiluents,
@@ -70,6 +71,14 @@ export function useCustomCompoundsLoaded(): boolean {
 /** Picker list (catalogue + custom), re-rendering when a custom compound is added, renamed or removed. */
 export function useSelectableCompounds(): Compound[] {
   return useSyncExternalStore(subscribeToCompounds, listSelectableCompounds)
+}
+
+/**
+ * One compound by id, re-rendering when the store catalogue or custom
+ * compounds change it — e.g. once a sync brings in the store's product links.
+ */
+export function useCompound(id: string): Compound | undefined {
+  return useSyncExternalStore(subscribeToCompounds, () => getCompoundById(id))
 }
 
 /** The calculator's quick-fill diluents, re-rendering when the store catalogue changes them. */

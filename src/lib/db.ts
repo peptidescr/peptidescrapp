@@ -41,6 +41,12 @@ export interface Protocol {
    * tracked, and logging a dose never asks.
    */
   siteTracking?: { sites: SiteId[] }
+  /**
+   * Unopened (unmixed) vials on hand for this protocol (see src/lib/reorder.ts).
+   * While there are some, a low vial doesn't nudge a reorder; starting the
+   * next vial uses one up. Absent = none recorded.
+   */
+  spareVials?: number
 }
 
 /**

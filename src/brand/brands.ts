@@ -46,6 +46,12 @@ export interface BrandConfig {
    * their products. Unset = the user enters their own date (or none).
    */
   defaultDiscardDays?: number
+  /**
+   * Typical days from order to delivery, for "order by <date>" on a low vial
+   * (src/lib/reorder.ts). Unset until the client confirms it — with it unset
+   * the app shows the Reorder button but no date.
+   */
+  shippingDays?: number
 }
 
 export const PCR_BRAND: BrandConfig = {

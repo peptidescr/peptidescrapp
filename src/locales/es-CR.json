@@ -510,7 +510,12 @@
     "remaining": "Quedan {{remaining}} de {{total}}",
     "lotLabel": "Lote {{lot}}",
     "discardLabel": "Descartar el {{date}}",
-    "empty": "Vacío"
+    "empty": "Vacío",
+    "spares_one": "{{count}} vial sin abrir",
+    "spares_other": "{{count}} viales sin abrir",
+    "spares_zero": "Ningún vial sin abrir",
+    "sparesMore": "Un vial sin abrir más",
+    "sparesFewer": "Un vial sin abrir menos"
   },
   "vialAlerts": {
     "title": "Viales",
@@ -524,7 +529,10 @@
     "expired": "{{name}}: ya pasó el vencimiento de la etiqueta",
     "whenToday": "hoy",
     "whenTomorrow": "mañana",
-    "whenInDays": "en {{count}} días"
+    "whenInDays": "en {{count}} días",
+    "sparesOnHand_one": "Tenés {{count}} vial sin abrir.",
+    "sparesOnHand_other": "Tenés {{count}} viales sin abrir.",
+    "orderBy": "Pedí antes del {{date}} para que te llegue a tiempo."
   },
   "adherence": {
     "protocol": "{{percent}}% aplicadas · últimos 30 días",
@@ -671,5 +679,9 @@
     "siteReactions": "Reacciones en el sitio",
     "ofDoses": "{{count}} de {{total}}",
     "none": "Ninguna"
+  },
+  "reorder": {
+    "cta": "Volver a pedir",
+    "aria": "Volver a pedir {{product}} en la tienda de {{appName}}"
   }
 }

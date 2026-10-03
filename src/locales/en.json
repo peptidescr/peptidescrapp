@@ -510,7 +510,12 @@
     "remaining": "{{remaining}} of {{total}} left",
     "lotLabel": "Lot {{lot}}",
     "discardLabel": "Discard by {{date}}",
-    "empty": "Empty"
+    "empty": "Empty",
+    "spares_one": "{{count}} unopened vial on hand",
+    "spares_other": "{{count}} unopened vials on hand",
+    "spares_zero": "No unopened vials on hand",
+    "sparesMore": "One more unopened vial",
+    "sparesFewer": "One fewer unopened vial"
   },
   "vialAlerts": {
     "title": "Vials",
@@ -524,7 +529,10 @@
     "expired": "{{name}}: past the expiry on its label",
     "whenToday": "today",
     "whenTomorrow": "tomorrow",
-    "whenInDays": "in {{count}} days"
+    "whenInDays": "in {{count}} days",
+    "sparesOnHand_one": "{{count}} unopened vial on hand.",
+    "sparesOnHand_other": "{{count}} unopened vials on hand.",
+    "orderBy": "Order by {{date}} to have more in time."
   },
   "adherence": {
     "protocol": "{{percent}}% taken · last 30 days",
@@ -671,5 +679,9 @@
     "siteReactions": "Site reactions",
     "ofDoses": "{{count}} of {{total}}",
     "none": "None"
+  },
+  "reorder": {
+    "cta": "Reorder",
+    "aria": "Reorder {{product}} on the {{appName}} store"
   }
 }

@@ -33,6 +33,7 @@ import {
 } from './sanitize'
 import type { CycleInnerSchedule, Schedule, Weekday } from './schedule'
 import { isSiteId, type SiteId } from './injectionSites'
+import { MAX_SPARE_VIALS } from './reorder'
 import {
   BUILT_IN_SYMPTOMS,
   cleanCheckIn,
@@ -252,6 +253,9 @@ function protocol(value: unknown): Protocol {
   if (value.trackingStartsAt !== undefined) result.trackingStartsAt = isoDateTime(value.trackingStartsAt, 'protocol.trackingStartsAt')
   const mix = reconstitution(value.reconstitution)
   if (mix) result.reconstitution = mix
+  if (typeof value.spareVials === 'number' && Number.isInteger(value.spareVials)) {
+    result.spareVials = Math.min(Math.max(value.spareVials, 0), MAX_SPARE_VIALS)
+  }
   const tracking = siteTracking(value.siteTracking)
   if (tracking) result.siteTracking = tracking
   if (value.titration !== undefined) {

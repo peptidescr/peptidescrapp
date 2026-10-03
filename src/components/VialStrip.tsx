@@ -2,6 +2,7 @@ import {
   Archive,
   CheckCircle2,
   FlaskConical,
+  Minus,
   MoreHorizontal,
   Pencil,
   Plus,
@@ -12,7 +13,8 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { formatDate } from '../lib/dates'
-import type { DoseLog, Protocol, Vial } from '../lib/db'
+import { db, type DoseLog, type Protocol, type Vial } from '../lib/db'
+import { MAX_SPARE_VIALS, sparesOf } from '../lib/reorder'
 import type { Locale } from '../lib/units'
 import { formatVialAmount } from '../lib/vialText'
 import { activeVialFor, closeVial, computeVialAlerts, computeVialState } from '../lib/vials'
@@ -165,7 +167,37 @@ export function VialStrip({
           style={{ width: `${Math.max(0, Math.min(1, state.remainingFraction)) * 100}%` }}
         />
       </div>
+      <SpareVials protocol={protocol} />
       {sheetEl}
+    </div>
+  )
+}
+
+/**
+ * Unopened (unmixed) vials on hand for this protocol, with a −/+ to keep it
+ * true. While there are some, a low vial doesn't nudge a reorder; starting the
+ * next vial uses one up (src/lib/reorder.ts).
+ */
+function SpareVials({ protocol }: { protocol: Protocol }) {
+  const { t } = useTranslation()
+  const spares = sparesOf(protocol)
+  const set = (n: number) => void db.protocols.update(protocol.id, { spareVials: Math.min(Math.max(n, 0), MAX_SPARE_VIALS) })
+  const stepClass =
+    'flex size-11 items-center justify-center rounded-full text-muted-foreground disabled:opacity-40'
+  return (
+    <div className="-mb-1 mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+      <span>{t('vials.spares', { count: spares })}</span>
+      <span className="flex items-center">
+        <button type="button" aria-label={t('vials.sparesFewer')} disabled={spares === 0} onClick={() => set(spares - 1)} className={stepClass}>
+          <Minus className="size-4" />
+        </button>
+        <span className="w-6 text-center text-sm font-semibold tabular-nums text-foreground" aria-live="polite">
+          {spares}
+        </span>
+        <button type="button" aria-label={t('vials.sparesMore')} disabled={spares >= MAX_SPARE_VIALS} onClick={() => set(spares + 1)} className={stepClass}>
+          <Plus className="size-4" />
+        </button>
+      </span>
     </div>
   )
 }

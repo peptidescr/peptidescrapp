@@ -303,8 +303,11 @@ export function buildVial(input: NewVialInput, id: string, nowIso: string): Vial
 export async function startVial(input: NewVialInput): Promise<Vial> {
   const now = new Date().toISOString()
   const vial = buildVial(input, crypto.randomUUID(), now)
-  await db.transaction('rw', db.vials, async () => {
+  await db.transaction('rw', db.vials, db.protocols, async () => {
     if (vial.protocolId) {
+      // Opening a new vial uses up one of the protocol's unopened ones, if any were on record.
+      const protocol = await db.protocols.get(vial.protocolId)
+      if (protocol?.spareVials) await db.protocols.update(protocol.id, { spareVials: protocol.spareVials - 1 })
       const current = await db.vials
         .where('protocolId')
         .equals(vial.protocolId)

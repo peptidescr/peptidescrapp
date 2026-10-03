@@ -1,6 +1,9 @@
-import { ChevronRight, FlaskConical } from 'lucide-react'
+import { ChevronRight, FlaskConical, ShoppingCart } from 'lucide-react'
+import { BRAND } from '../brand'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useCompound } from '../lib/customCompounds'
+import { reorderProduct, shouldNudgeReorder } from '../lib/reorder'
 import { describeVialAlert } from '../lib/vialText'
 import type { VialAlert } from '../lib/vials'
 
@@ -10,8 +13,9 @@ import type { VialAlert } from '../lib/vials'
  * actions live. Styled with the same non-alarming amber as the app's other
  * notices — a vial running low is something to plan for, not a danger.
  *
- * `action` is an optional slot beside the text: nothing fills it yet. It's
- * where a reorder button can go later without reworking the card.
+ * A stock alert with no unopened vials left gets a Reorder link to the
+ * product on the brand's store (src/lib/reorder.ts) in the action slot, unless
+ * the caller fills that slot itself or the store doesn't sell it.
  */
 export function VialAlertCard({
   alert,
@@ -25,6 +29,23 @@ export function VialAlertCard({
   const { t } = useTranslation()
   const protocolId = alert.protocol?.id
   const text = describeVialAlert(alert, t)
+  // Subscribed, so the Reorder link appears as soon as a catalogue sync brings the store's links in.
+  useCompound(alert.vial.compoundId)
+  const product = shouldNudgeReorder(alert) ? reorderProduct(alert.vial.compoundId, alert.vial) : null
+  const slot =
+    action ??
+    (product?.url ? (
+      <a
+        href={product.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={t('reorder.aria', { product: product.label, appName: BRAND.appName })}
+        className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-2xl bg-primary px-4 text-sm font-semibold text-primary-foreground"
+      >
+        <ShoppingCart aria-hidden className="size-4" />
+        {t('reorder.cta')}
+      </a>
+    ) : null)
   const content = (
     <>
       <FlaskConical className="mt-0.5 size-4 shrink-0" />
@@ -44,7 +65,7 @@ export function VialAlertCard({
       ) : (
         <p className={cardClass}>{content}</p>
       )}
-      {action}
+      {slot}
     </div>
   )
 }
