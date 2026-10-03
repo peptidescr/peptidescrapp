@@ -1631,3 +1631,54 @@ only where the device has no store row of its own. v1 and v2 files still import.
   - With `/api/catalogue` blocked, the synced list stays and nothing is unlisted.
   - There were no console errors.
 - Not verified: the function on Netlify itself (edge caching, `process.env.VITE_BRAND` there).
+
+## Phase 2, batch 2 (2 of 5): cycling in weeks (October 2026)
+
+New schedule kind `cycleWeeks` (`src/lib/schedule.ts`): one of the plain patterns (daily, every N
+days, set weekdays) runs for N weeks on, then nothing for M weeks off, repeating from the start
+date ("Mon/Wed/Fri for 8 weeks, 4 off"). This is the shape the developer picked. The old
+day-based `cycle` is unchanged; its label is now "Cycle (days on/off)" to tell the two apart.
+- **Every N days restarts at each on-block**, so every block opens with a dose. Weekdays follow
+  the calendar.
+- **Optional fixed run:** `cycles` stops it after that many on-blocks. `washoutWeeks` (only
+  meaningful with `cycles`) is the rest after the last block; it replaces that block's off weeks,
+  and then the protocol is complete. A washout schedules nothing, so `isScheduledDay` only has to
+  stop after the last block. `getNextOccurrence` is then null, and Home and the reminders simply
+  run out.
+- **`cyclePhase(ctx, day)`** reports on / off / washout / done, which week of how many, and when
+  the next phase starts. It's for display only: what's scheduled always comes from
+  `isScheduledDay`. The protocol card shows it ("Off · week 2 of 4 · resumes 03/11/2026",
+  "Washout · week 1 of 2 · ends …", "All cycles complete"). It also replaces the long kind name
+  with "8 wk on / 4 wk off".
+- **Home:** an upcoming card in the off weeks says "Off week · next dose <date>". It uses the
+  dose's own date, not the day the on-block starts, because a weekday pattern may not dose on
+  that day.
+- Occurrences, missed doses, adherence, the month calendar and push reminders all go through
+  `isScheduledDay`, so they needed no change.
+
+**Form:** the schedule state is now one `ScheduleFields` object (`src/lib/scheduleForm.ts`)
+instead of eleven `useState`s.
+- `scheduleFields(schedule)` prefills it, from an existing protocol or a template.
+- `parseScheduleFields` reads it back, one value per field, so the form flags exactly which field
+  is wrong. The schedule is `null` until everything it needs is valid.
+- One behaviour change: "Specific weekdays" with no day picked no longer saves as Monday; Save
+  stays disabled instead ("validated, not coerced").
+- The weeks-cycle fields reuse the every-N input and weekday chips under a "While on, dose" select.
+  A select rather than a segmented control, because three Spanish labels don't fit at 320px.
+- Weeks are capped at 104, cycles at 52 (`sanitize.ts`).
+
+**Backups:** validation accepts `cycleWeeks`, checking the inner kind *before* parsing it, so a
+crafted file can't nest cycles inside cycles. It drops a washout that has no cycle count.
+
+**Verified:**
+- Typecheck, 287/287 tests (new: block boundaries, both inner kinds, the restart rule, fixed runs
+  ending, every `cyclePhase` state, form round-trips and refusals, backup validation), lint (only
+  the known `App.tsx` error), i18n 363/363, and both brand builds.
+- Live in headless Chrome on the Peptides CR build, English at 390px and Spanish at 320px:
+  - Seeded protocols mid-off-week and mid-washout showed the right phase and dates on the cards
+    and on Home.
+  - A weekday weeks-cycle with 3 cycles built through the real form saved exactly what was
+    entered.
+  - No overflow and no console errors.
+  - Two 320px Spanish layout defects were found and fixed: the paired week inputs misaligned when
+    one label wrapped, and "250 mcg" split across lines on the card.

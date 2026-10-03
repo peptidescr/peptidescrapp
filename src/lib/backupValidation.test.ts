@@ -45,10 +45,24 @@ describe('parseBackup', () => {
       { kind: 'weekdays', days: [1, 3, 5] },
       { kind: 'cycle', daysOn: 5, daysOff: 2 },
       { kind: 'custom', dates: ['2026-03-09', '2026-03-04'] },
+      { kind: 'cycleWeeks', inner: { kind: 'weekdays', days: [1, 3, 5] }, weeksOn: 8, weeksOff: 4 },
+      { kind: 'cycleWeeks', inner: { kind: 'daily' }, weeksOn: 4, weeksOff: 0, cycles: 3, washoutWeeks: 2 },
     ]
     for (const schedule of schedules) {
       expect(() => parseBackup(backup({ protocols: [{ ...protocol, schedule }] }))).not.toThrow()
     }
+  })
+
+  it('keeps a weeks cycle exactly, dropping a washout that has no fixed cycle count to follow', () => {
+    const cycle = { kind: 'cycleWeeks', inner: { kind: 'everyNDays', n: 2 }, weeksOn: 6, weeksOff: 2, cycles: 2, washoutWeeks: 4 }
+    expect(parseBackup(backup({ protocols: [{ ...protocol, schedule: cycle }] })).protocols[0]?.schedule).toEqual(cycle)
+    const noCycles = { kind: 'cycleWeeks', inner: { kind: 'daily' }, weeksOn: 6, weeksOff: 2, washoutWeeks: 4 }
+    expect(parseBackup(backup({ protocols: [{ ...protocol, schedule: noCycles }] })).protocols[0]?.schedule).toEqual({
+      kind: 'cycleWeeks',
+      inner: { kind: 'daily' },
+      weeksOn: 6,
+      weeksOff: 2,
+    })
   })
 
   it('rejects schedules that would break the app or make no sense', () => {
@@ -63,6 +77,12 @@ describe('parseBackup', () => {
       { kind: 'custom', dates: [] },
       { kind: 'custom', dates: ['2026-02-31'] },
       { kind: 'custom', dates: ['not a date'] },
+      { kind: 'cycleWeeks', inner: { kind: 'daily' }, weeksOn: 0, weeksOff: 1 },
+      { kind: 'cycleWeeks', inner: { kind: 'daily' }, weeksOn: 1.5, weeksOff: 1 },
+      { kind: 'cycleWeeks', inner: { kind: 'daily' }, weeksOn: 1, weeksOff: 1, cycles: 0 },
+      { kind: 'cycleWeeks', inner: { kind: 'custom', dates: ['2026-03-04'] }, weeksOn: 1, weeksOff: 1 },
+      { kind: 'cycleWeeks', inner: { kind: 'cycleWeeks', inner: { kind: 'daily' }, weeksOn: 1, weeksOff: 1 }, weeksOn: 1, weeksOff: 1 },
+      { kind: 'cycleWeeks', weeksOn: 1, weeksOff: 1 },
       'daily',
       null,
     ]

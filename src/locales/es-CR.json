@@ -110,14 +110,32 @@
     "mixSummarySolution": "Lista para usar · extraer {{units}} unidades ({{ml}} mL) para {{dose}}",
     "namePlaceholderHint": "ej. Mi mezcla de la mañana",
     "savedBodySolution": "Siguiente paso: calcular cuánto extraer para {{dose}}. La calculadora lo hace con la concentración del frasco.",
-    "invalidDays": "Ingresá un número entero de días, hasta {{max}}."
+    "invalidDays": "Ingresá un número entero de días, hasta {{max}}.",
+    "cycleDoseOn": "En las semanas activas, dosis",
+    "weeksOn": "Semanas activas",
+    "weeksOff": "Semanas de descanso",
+    "fixedCycles": "Terminar después de cierta cantidad de ciclos",
+    "cycleCount": "Cantidad de ciclos",
+    "washoutWeeks": "Período de lavado después del último ciclo, en semanas (opcional)",
+    "invalidWeeks": "Ingresá un número entero de semanas, hasta {{max}}.",
+    "invalidCycles": "Ingresá un número entero de ciclos, hasta {{max}}."
   },
   "schedule": {
     "daily": "Diario",
     "everyNDays": "Cada N días",
     "weekdays": "Días específicos",
-    "cycle": "Ciclo (activo/descanso)",
-    "custom": "Días personalizados"
+    "cycle": "Ciclo (días activos/descanso)",
+    "custom": "Días personalizados",
+    "cycleWeeks": "Ciclo (semanas activas/descanso)"
+  },
+  "cycle": {
+    "offNextDose": "Semana de descanso · próxima dosis {{date}}",
+    "summary": "{{on}} sem. activas / {{off}} de descanso",
+    "on": "Activo · semana {{week}} de {{weeks}}",
+    "onOf": "Activo · semana {{week}} de {{weeks}} · ciclo {{cycle}} de {{total}}",
+    "off": "Descanso · semana {{week}} de {{weeks}} · retoma el {{date}}",
+    "washout": "Lavado · semana {{week}} de {{weeks}} · termina el {{date}}",
+    "done": "Todos los ciclos completados"
   },
   "weekday": {
     "sun": "Do",

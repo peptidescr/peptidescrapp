@@ -110,14 +110,32 @@
     "mixSummarySolution": "Ready to use · draw {{units}} units ({{ml}} mL) for {{dose}}",
     "namePlaceholderHint": "e.g. Morning stack",
     "savedBodySolution": "Next step: work out how much to draw for {{dose}}. The calculator does it from the concentration on the bottle.",
-    "invalidDays": "Enter a whole number of days, up to {{max}}."
+    "invalidDays": "Enter a whole number of days, up to {{max}}.",
+    "cycleDoseOn": "While on, dose",
+    "weeksOn": "Weeks on",
+    "weeksOff": "Weeks off",
+    "fixedCycles": "Stop after a set number of cycles",
+    "cycleCount": "Number of cycles",
+    "washoutWeeks": "Washout after the last cycle, in weeks (optional)",
+    "invalidWeeks": "Enter a whole number of weeks, up to {{max}}.",
+    "invalidCycles": "Enter a whole number of cycles, up to {{max}}."
   },
   "schedule": {
     "daily": "Daily",
     "everyNDays": "Every N days",
     "weekdays": "Specific weekdays",
-    "cycle": "Cycle (on/off)",
-    "custom": "Custom days"
+    "cycle": "Cycle (days on/off)",
+    "custom": "Custom days",
+    "cycleWeeks": "Cycle (weeks on/off)"
+  },
+  "cycle": {
+    "offNextDose": "Off week · next dose {{date}}",
+    "summary": "{{on}} wk on / {{off}} wk off",
+    "on": "On · week {{week}} of {{weeks}}",
+    "onOf": "On · week {{week}} of {{weeks}} · cycle {{cycle}} of {{total}}",
+    "off": "Off · week {{week}} of {{weeks}} · resumes {{date}}",
+    "washout": "Washout · week {{week}} of {{weeks}} · ends {{date}}",
+    "done": "All cycles complete"
   },
   "weekday": {
     "sun": "Su",

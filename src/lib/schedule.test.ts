@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  cyclePhase,
   findUnloggedOccurrences,
   getDueOccurrences,
   getMissedOccurrences,
@@ -309,5 +310,106 @@ describe('trackingStartsAt', () => {
 
   it('leaves protocols without the field untouched', () => {
     expect(getOccurrencesInRange(base, day(2026, 1, 5), day(2026, 1, 5, 23, 59))).toHaveLength(2)
+  })
+})
+
+describe('isScheduledDay — cycleWeeks', () => {
+  // 2026-01-05 is a Monday.
+  const start = '2026-01-05'
+
+  it('runs the inner pattern for the on weeks, then nothing for the off weeks, repeating', () => {
+    const ctx = { schedule: { kind: 'cycleWeeks' as const, inner: { kind: 'daily' as const }, weeksOn: 2, weeksOff: 1 }, startDate: start }
+    expect(isScheduledDay(ctx, day(2026, 1, 5))).toBe(true)
+    expect(isScheduledDay(ctx, day(2026, 1, 18))).toBe(true) // last on day (offset 13)
+    expect(isScheduledDay(ctx, day(2026, 1, 19))).toBe(false) // off week
+    expect(isScheduledDay(ctx, day(2026, 1, 25))).toBe(false)
+    expect(isScheduledDay(ctx, day(2026, 1, 26))).toBe(true) // next cycle
+  })
+
+  it('follows the calendar for set weekdays', () => {
+    const ctx = {
+      schedule: { kind: 'cycleWeeks' as const, inner: { kind: 'weekdays' as const, days: [1, 3, 5] as Weekday[] }, weeksOn: 2, weeksOff: 1 },
+      startDate: start,
+    }
+    expect(isScheduledDay(ctx, day(2026, 1, 5))).toBe(true) // Mon
+    expect(isScheduledDay(ctx, day(2026, 1, 6))).toBe(false) // Tue
+    expect(isScheduledDay(ctx, day(2026, 1, 16))).toBe(true) // Fri, week 2
+    expect(isScheduledDay(ctx, day(2026, 1, 19))).toBe(false) // Mon, off week
+    expect(isScheduledDay(ctx, day(2026, 1, 26))).toBe(true) // Mon, next cycle
+  })
+
+  it('restarts every N days at the start of each on-block', () => {
+    const ctx = {
+      schedule: { kind: 'cycleWeeks' as const, inner: { kind: 'everyNDays' as const, n: 3 }, weeksOn: 1, weeksOff: 1 },
+      startDate: start,
+    }
+    expect([5, 8, 11].map((d) => isScheduledDay(ctx, day(2026, 1, d)))).toEqual([true, true, true])
+    expect(isScheduledDay(ctx, day(2026, 1, 14))).toBe(false) // off week, even though 9 is a multiple of 3
+    // Second block starts on offset 14 (Jan 19): a dose there, though 14 isn't a multiple of 3.
+    expect([19, 20, 22].map((d) => isScheduledDay(ctx, day(2026, 1, d)))).toEqual([true, false, true])
+  })
+
+  it('stops after a set number of cycles, and has no next dose after the last', () => {
+    const ctx: ScheduleContext = {
+      schedule: { kind: 'cycleWeeks', inner: { kind: 'daily' }, weeksOn: 1, weeksOff: 1, cycles: 2, washoutWeeks: 2 },
+      startDate: start,
+      reminderTimes: ['08:00'],
+    }
+    expect(isScheduledDay(ctx, day(2026, 1, 25))).toBe(true) // last day of cycle 2
+    expect(isScheduledDay(ctx, day(2026, 2, 2))).toBe(false) // would be cycle 3
+    expect(getNextOccurrence(ctx, day(2026, 1, 26))).toBeNull()
+    expect(getNextOccurrence(ctx, day(2026, 1, 13))?.date).toBe('2026-01-19')
+  })
+
+  it('rejects impossible cycles', () => {
+    const bad = (schedule: object) => () =>
+      isScheduledDay({ schedule: { kind: 'cycleWeeks', inner: { kind: 'daily' }, weeksOn: 1, weeksOff: 1, ...schedule } as never, startDate: start }, day(2026, 1, 5))
+    expect(bad({ weeksOn: 0 })).toThrow(RangeError)
+    expect(bad({ weeksOff: -1 })).toThrow(RangeError)
+    expect(bad({ cycles: 0 })).toThrow(RangeError)
+    expect(bad({ inner: { kind: 'everyNDays', n: 0 } })).toThrow(RangeError)
+  })
+})
+
+describe('cyclePhase', () => {
+  const start = '2026-01-05'
+  const ctx = {
+    schedule: { kind: 'cycleWeeks' as const, inner: { kind: 'daily' as const }, weeksOn: 2, weeksOff: 1, cycles: 2, washoutWeeks: 2 },
+    startDate: start,
+  }
+
+  it('reports the on and off weeks, and when the next phase starts', () => {
+    expect(cyclePhase(ctx, day(2026, 1, 12))).toEqual({
+      phase: 'on', cycle: 1, totalCycles: 2, week: 2, weeks: 2, nextPhaseOn: day(2026, 1, 19),
+    })
+    expect(cyclePhase(ctx, day(2026, 1, 20))).toEqual({
+      phase: 'off', cycle: 1, totalCycles: 2, week: 1, weeks: 1, nextPhaseOn: day(2026, 1, 26),
+    })
+  })
+
+  it('reports the washout after the last cycle, then done', () => {
+    // Cycle 2's on-block is Jan 26 – Feb 8; the washout replaces its off week.
+    expect(cyclePhase(ctx, day(2026, 2, 8))?.phase).toBe('on')
+    expect(cyclePhase(ctx, day(2026, 2, 16))).toEqual({
+      phase: 'washout', cycle: 2, totalCycles: 2, week: 2, weeks: 2, nextPhaseOn: day(2026, 2, 23),
+    })
+    expect(cyclePhase(ctx, day(2026, 2, 23))?.phase).toBe('done')
+  })
+
+  it('goes straight to done after the last cycle without a washout, or past the end date', () => {
+    const noWashout = { ...ctx, schedule: { ...ctx.schedule, washoutWeeks: undefined } }
+    expect(cyclePhase(noWashout, day(2026, 2, 9))?.phase).toBe('done')
+    expect(cyclePhase({ ...ctx, endDate: '2026-01-10' }, day(2026, 1, 11))?.phase).toBe('done')
+  })
+
+  it('repeats forever without a set number of cycles', () => {
+    const forever = { ...ctx, schedule: { ...ctx.schedule, cycles: undefined, washoutWeeks: undefined } }
+    expect(cyclePhase(forever, day(2027, 1, 4))?.phase).toBeDefined()
+    expect(cyclePhase(forever, day(2026, 3, 9))).toMatchObject({ phase: 'on', cycle: 4, totalCycles: undefined })
+  })
+
+  it('is null for other schedules and before the start', () => {
+    expect(cyclePhase({ schedule: { kind: 'daily' }, startDate: start }, day(2026, 1, 6))).toBeNull()
+    expect(cyclePhase(ctx, day(2026, 1, 4))).toBeNull()
   })
 })

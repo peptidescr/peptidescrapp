@@ -21,14 +21,16 @@
 import { CUSTOM_CATEGORY, type Compound } from '../content/compounds'
 import type { DoseLog, Protocol, SavedReconstitution, Settings, UserTemplate, Vial } from './db'
 import {
+  MAX_CYCLES,
   MAX_DAY_COUNT,
   MAX_DOSE_AMOUNT,
+  MAX_WEEK_COUNT,
   MAX_NAME_LENGTH,
   MAX_NOTES_LENGTH,
   sanitizeMultiline,
   sanitizeText,
 } from './sanitize'
-import type { Schedule, Weekday } from './schedule'
+import type { CycleInnerSchedule, Schedule, Weekday } from './schedule'
 
 export const BACKUP_VERSION = 3
 const SUPPORTED_VERSIONS: readonly unknown[] = [1, 2, 3]
@@ -130,9 +132,34 @@ function schedule(value: unknown): Schedule {
       }
       return { kind: 'custom', dates: [...new Set(value.dates.map((d) => isoDate(d, 'schedule.dates')))].sort() }
     }
+    case 'cycleWeeks': {
+      // Checked before parsing, so a file can't nest cycles inside cycles.
+      if (!isRecord(value.inner) || !['daily', 'everyNDays', 'weekdays'].includes(String(value.inner.kind))) {
+        fail('schedule.inner')
+      }
+      const inner = schedule(value.inner) as CycleInnerSchedule
+      const result: Schedule = {
+        kind: 'cycleWeeks',
+        inner,
+        weeksOn: wholeNumber(value.weeksOn, 'schedule.weeksOn', 1, MAX_WEEK_COUNT),
+        weeksOff: wholeNumber(value.weeksOff, 'schedule.weeksOff', 0, MAX_WEEK_COUNT),
+      }
+      if (value.cycles !== undefined) result.cycles = wholeNumber(value.cycles, 'schedule.cycles', 1, MAX_CYCLES)
+      // A washout only means something after a fixed number of cycles.
+      if (value.washoutWeeks !== undefined && result.cycles !== undefined) {
+        result.washoutWeeks = wholeNumber(value.washoutWeeks, 'schedule.washoutWeeks', 1, MAX_WEEK_COUNT)
+      }
+      return result
+    }
     default:
       return fail('schedule.kind')
   }
+}
+
+function wholeNumber(value: unknown, what: string, min: number, max: number): number {
+  const n = finiteNumber(value, what, min, max)
+  if (!Number.isInteger(n)) fail(what)
+  return n
 }
 
 /** Saved mixes are derived, convenience data: a bad one is dropped rather than failing the whole restore. */

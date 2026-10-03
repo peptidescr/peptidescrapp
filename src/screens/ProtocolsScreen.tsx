@@ -55,13 +55,16 @@ import { scheduleUpcomingReminders } from '../lib/notifications'
 import { alphabeticalOptions } from '../lib/options'
 import { requestPushSync } from '../lib/push'
 import {
+  MAX_CYCLES,
   MAX_DAY_COUNT,
   MAX_NAME_LENGTH,
-  parseBoundedInteger,
+  MAX_WEEK_COUNT,
   parsePositiveAmount,
   sanitizeText,
 } from '../lib/sanitize'
-import type { Schedule, Weekday } from '../lib/schedule'
+import { cyclePhase, type CycleInnerSchedule, type Schedule, type Weekday } from '../lib/schedule'
+import { parseScheduleFields, scheduleFields, type ScheduleFields } from '../lib/scheduleForm'
+import { cyclePhaseText } from '../lib/cycleText'
 import { useLiveQuery } from '../lib/useLiveQuery'
 import { formatDecimal, type Locale, type MassUnit } from '../lib/units'
 
@@ -74,7 +77,8 @@ async function rescheduleReminders(): Promise<void> {
 }
 
 const WEEKDAY_LABELS_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const
-const SCHEDULE_KINDS: Schedule['kind'][] = ['daily', 'everyNDays', 'weekdays', 'cycle', 'custom']
+const SCHEDULE_KINDS: Schedule['kind'][] = ['daily', 'everyNDays', 'weekdays', 'cycle', 'cycleWeeks', 'custom']
+const CYCLE_INNER_KINDS: CycleInnerSchedule['kind'][] = ['daily', 'everyNDays', 'weekdays']
 const ROUTES: Route[] = ['subcutaneous', 'intramuscular', 'other']
 
 type Mode =
@@ -249,6 +253,7 @@ function ProtocolRow({
 
   const stats = useMemo(() => computeProtocolStats(protocol, doseLogs, new Date()), [protocol, doseLogs])
   const adherence = useMemo(() => computeAdherence(protocol, doseLogs, new Date()), [protocol, doseLogs])
+  const phase = protocol.isActive ? cyclePhase(protocol, new Date()) : null
 
   async function toggleActive() {
     setMenuOpen(false)
@@ -323,13 +328,21 @@ function ProtocolRow({
           appear; "ongoing" is the default and no longer needs saying. */}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-4 pt-1 text-sm text-foreground">
         <span>
-          {t(`schedule.${protocol.schedule.kind}`)} · {protocol.doseAmount} {protocol.doseUnit}
+          {protocol.schedule.kind === 'cycleWeeks'
+            ? t('cycle.summary', { on: protocol.schedule.weeksOn, off: protocol.schedule.weeksOff })
+            : t(`schedule.${protocol.schedule.kind}`)}{' '}
+          · <span className="whitespace-nowrap">{protocol.doseAmount} {protocol.doseUnit}</span>
         </span>
         {!protocol.isActive && <Badge variant="outline">{t('protocols.pausedBadge')}</Badge>}
         {stats.missedCount > 0 && (
           <Badge variant="destructive">{t('protocols.missedCount', { count: stats.missedCount })}</Badge>
         )}
       </div>
+      {phase && (
+        <p className={`px-4 pt-1 text-xs ${phase.phase === 'on' ? 'text-primary' : 'text-muted-foreground'}`}>
+          {cyclePhaseText(phase, t)}
+        </p>
+      )}
       {adherence.percent !== null && (
         <p className="px-4 pt-1 text-xs text-muted-foreground">
           {t('adherence.protocol', { percent: adherence.percent })}
@@ -498,20 +511,10 @@ export function ProtocolForm({
   const [doseUnit, setDoseUnit] = useState<MassUnit | 'IU'>(
     template?.doseUnit ?? initialCompound?.defaultUnit ?? 'mg',
   )
-  const [scheduleKind, setScheduleKind] = useState<Schedule['kind']>(template?.schedule.kind ?? 'daily')
-  const [everyN, setEveryN] = useState(
-    template?.schedule.kind === 'everyNDays' ? String(template.schedule.n) : '2',
-  )
-  const [weekdays, setWeekdays] = useState<Weekday[]>(
-    template?.schedule.kind === 'weekdays' ? template.schedule.days : [1, 3, 5],
-  )
-  const [daysOn, setDaysOn] = useState(
-    template?.schedule.kind === 'cycle' ? String(template.schedule.daysOn) : '5',
-  )
-  const [daysOff, setDaysOff] = useState(
-    template?.schedule.kind === 'cycle' ? String(template.schedule.daysOff) : '2',
-  )
-  const [customDates, setCustomDates] = useState<string[]>([])
+  const [fields, setFields] = useState<ScheduleFields>(() => scheduleFields(template?.schedule))
+  const setField = <K extends keyof ScheduleFields>(key: K, value: ScheduleFields[K]) =>
+    setFields((f) => ({ ...f, [key]: value }))
+  const scheduleKind = fields.kind
   const [reminderTimes, setReminderTimes] = useState<string[]>(template?.reminderTimes ?? ['08:00'])
   const [startDate, setStartDate] = useState(toIsoDate(new Date()))
   const [hasEndDate, setHasEndDate] = useState(false)
@@ -523,14 +526,7 @@ export function ProtocolForm({
     setCompoundId(existing.compoundId)
     setDoseAmount(String(existing.doseAmount))
     setDoseUnit(existing.doseUnit)
-    setScheduleKind(existing.schedule.kind)
-    if (existing.schedule.kind === 'everyNDays') setEveryN(String(existing.schedule.n))
-    if (existing.schedule.kind === 'weekdays') setWeekdays(existing.schedule.days)
-    if (existing.schedule.kind === 'cycle') {
-      setDaysOn(String(existing.schedule.daysOn))
-      setDaysOff(String(existing.schedule.daysOff))
-    }
-    if (existing.schedule.kind === 'custom') setCustomDates(existing.schedule.dates)
+    setFields(scheduleFields(existing.schedule))
     setReminderTimes(existing.reminderTimes.length ? existing.reminderTimes : ['08:00'])
     setStartDate(existing.startDate)
     setHasEndDate(Boolean(existing.endDate))
@@ -552,42 +548,21 @@ export function ProtocolForm({
   // Parsed, range-checked values. Save stays disabled until each field that
   // applies is valid — bad input is refused, never quietly turned into a default.
   const doseValue = parsePositiveAmount(doseAmount)
-  const everyNValue = parseBoundedInteger(everyN, 1, MAX_DAY_COUNT)
-  const daysOnValue = parseBoundedInteger(daysOn, 1, MAX_DAY_COUNT)
-  const daysOffValue = parseBoundedInteger(daysOff, 0, MAX_DAY_COUNT)
+  const parsed = parseScheduleFields(fields)
+  const schedule = parsed.schedule
+  const showsEveryN = scheduleKind === 'everyNDays' || (scheduleKind === 'cycleWeeks' && fields.cycleInner === 'everyNDays')
+  const showsWeekdays = scheduleKind === 'weekdays' || (scheduleKind === 'cycleWeeks' && fields.cycleInner === 'weekdays')
 
-  function scheduleFromForm(): Schedule {
-    switch (scheduleKind) {
-      case 'daily':
-        return { kind: 'daily' }
-      case 'everyNDays':
-        return { kind: 'everyNDays', n: everyNValue ?? 1 }
-      case 'weekdays':
-        return { kind: 'weekdays', days: weekdays.length ? weekdays : [1] }
-      case 'cycle':
-        return { kind: 'cycle', daysOn: daysOnValue ?? 1, daysOff: daysOffValue ?? 0 }
-      case 'custom':
-        return { kind: 'custom', dates: [...customDates].sort() }
-    }
-  }
-
-  const needsCustomDays = scheduleKind === 'custom' && customDates.length === 0
-  const scheduleFieldsValid =
-    scheduleKind === 'everyNDays'
-      ? everyNValue !== null
-      : scheduleKind === 'cycle'
-        ? daysOnValue !== null && daysOffValue !== null
-        : true
+  const needsCustomDays = scheduleKind === 'custom' && fields.customDates.length === 0
   const canSave =
     compound !== undefined &&
     doseValue !== null &&
     reminderTimes.length > 0 &&
     !needsCustomDays &&
-    scheduleFieldsValid
+    schedule !== null
 
   async function handleSave() {
-    if (!compound || doseValue === null) return
-    const schedule = scheduleFromForm()
+    if (!compound || doseValue === null || schedule === null) return
     // A hand-picked schedule has no meaningful start/end of its own — its
     // first and last picked days are the start and end, which also keeps
     // "ongoing" and "next dose" logic elsewhere honest without special cases.
@@ -644,7 +619,8 @@ export function ProtocolForm({
   }
 
   function toggleWeekday(day: Weekday) {
-    setWeekdays((days) => (days.includes(day) ? days.filter((d) => d !== day) : [...days, day].sort()))
+    const days = fields.weekdays
+    setField('weekdays', days.includes(day) ? days.filter((d) => d !== day) : [...days, day].sort())
   }
 
   if (saved && onReconstitute) {
@@ -657,7 +633,7 @@ export function ProtocolForm({
     )
   }
 
-  const selectedCustomDates = customDates.map((d) => parseISO(d))
+  const selectedCustomDates = fields.customDates.map((d) => parseISO(d))
   const today = startOfToday()
 
   return (
@@ -721,7 +697,7 @@ export function ProtocolForm({
       </FormField>
 
       <FormField label={t('protocols.schedule')}>
-        <Select value={scheduleKind} onValueChange={(v) => setScheduleKind(v as Schedule['kind'])}>
+        <Select value={scheduleKind} onValueChange={(v) => setField('kind', v as Schedule['kind'])}>
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
@@ -735,23 +711,48 @@ export function ProtocolForm({
         </Select>
       </FormField>
 
-      {scheduleKind === 'everyNDays' && (
-        <FormField label={t('protocols.everyNDays')}>
-          <NumericInput kind="integer" value={everyN} onValueChange={setEveryN} aria-invalid={everyNValue === null} />
-          {everyNValue === null && <FieldError>{t('protocols.invalidDays', { max: MAX_DAY_COUNT })}</FieldError>}
+      {/* A weeks cycle runs one of the plain patterns while it's on: pick
+          which, then the same every-N / weekday fields below serve both. */}
+      {scheduleKind === 'cycleWeeks' && (
+        <FormField label={t('protocols.cycleDoseOn')}>
+          <Select value={fields.cycleInner} onValueChange={(v) => setField('cycleInner', v as CycleInnerSchedule['kind'])}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CYCLE_INNER_KINDS.map((kind) => (
+                <SelectItem key={kind} value={kind}>
+                  {t(`schedule.${kind}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </FormField>
       )}
 
-      {scheduleKind === 'weekdays' && (
+      {showsEveryN && (
+        <FormField label={t('protocols.everyNDays')}>
+          <NumericInput
+            kind="integer"
+            value={fields.everyN}
+            onValueChange={(v) => setField('everyN', v)}
+            aria-invalid={parsed.everyN === null}
+          />
+          {parsed.everyN === null && <FieldError>{t('protocols.invalidDays', { max: MAX_DAY_COUNT })}</FieldError>}
+        </FormField>
+      )}
+
+      {showsWeekdays && (
         <FormField label={t('protocols.weekdays')}>
           <div className="flex flex-wrap gap-2">
             {WEEKDAY_LABELS_KEYS.map((key, index) => (
               <button
                 key={key}
                 type="button"
+                aria-pressed={fields.weekdays.includes(index as Weekday)}
                 onClick={() => toggleWeekday(index as Weekday)}
                 className={`min-h-11 min-w-11 rounded-full border text-sm font-medium transition-colors ${
-                  weekdays.includes(index as Weekday)
+                  fields.weekdays.includes(index as Weekday)
                     ? 'border-primary bg-accent text-primary'
                     : 'border-border text-muted-foreground'
                 }`}
@@ -764,14 +765,79 @@ export function ProtocolForm({
       )}
 
       {scheduleKind === 'cycle' && (
-        <div className="flex gap-3">
+        <div className="flex items-end gap-3">
           <FormField label={t('protocols.daysOn')}>
-            <NumericInput kind="integer" value={daysOn} onValueChange={setDaysOn} aria-invalid={daysOnValue === null} />
+            <NumericInput
+              kind="integer"
+              value={fields.daysOn}
+              onValueChange={(v) => setField('daysOn', v)}
+              aria-invalid={parsed.daysOn === null}
+            />
           </FormField>
           <FormField label={t('protocols.daysOff')}>
-            <NumericInput kind="integer" value={daysOff} onValueChange={setDaysOff} aria-invalid={daysOffValue === null} />
+            <NumericInput
+              kind="integer"
+              value={fields.daysOff}
+              onValueChange={(v) => setField('daysOff', v)}
+              aria-invalid={parsed.daysOff === null}
+            />
           </FormField>
         </div>
+      )}
+
+      {scheduleKind === 'cycleWeeks' && (
+        <>
+          {/* items-end: a label that wraps (Spanish "Semanas de descanso") must not push its input out of line. */}
+          <div className="flex items-end gap-3">
+            <FormField label={t('protocols.weeksOn')}>
+              <NumericInput
+                kind="integer"
+                value={fields.weeksOn}
+                onValueChange={(v) => setField('weeksOn', v)}
+                aria-invalid={parsed.weeksOn === null}
+              />
+            </FormField>
+            <FormField label={t('protocols.weeksOff')}>
+              <NumericInput
+                kind="integer"
+                value={fields.weeksOff}
+                onValueChange={(v) => setField('weeksOff', v)}
+                aria-invalid={parsed.weeksOff === null}
+              />
+            </FormField>
+          </div>
+          {(parsed.weeksOn === null || parsed.weeksOff === null) && (
+            <FieldError>{t('protocols.invalidWeeks', { max: MAX_WEEK_COUNT })}</FieldError>
+          )}
+          <label className="flex min-h-11 items-center justify-between gap-3">
+            <span className="text-sm font-medium text-foreground">{t('protocols.fixedCycles')}</span>
+            <Switch checked={fields.fixedCycles} onCheckedChange={(v) => setField('fixedCycles', v)} />
+          </label>
+          {fields.fixedCycles && (
+            <>
+              <FormField label={t('protocols.cycleCount')}>
+                <NumericInput
+                  kind="integer"
+                  value={fields.cycleCount}
+                  onValueChange={(v) => setField('cycleCount', v)}
+                  aria-invalid={parsed.cycles === null}
+                />
+                {parsed.cycles === null && <FieldError>{t('protocols.invalidCycles', { max: MAX_CYCLES })}</FieldError>}
+              </FormField>
+              <FormField label={t('protocols.washoutWeeks')}>
+                <NumericInput
+                  kind="integer"
+                  value={fields.washoutWeeks}
+                  onValueChange={(v) => setField('washoutWeeks', v)}
+                  aria-invalid={parsed.washoutWeeks === null}
+                />
+                {parsed.washoutWeeks === null && (
+                  <FieldError>{t('protocols.invalidWeeks', { max: MAX_WEEK_COUNT })}</FieldError>
+                )}
+              </FormField>
+            </>
+          )}
+        </>
       )}
 
       {scheduleKind === 'custom' && (
@@ -782,12 +848,12 @@ export function ProtocolForm({
             <Calendar
               mode="multiple"
               selected={selectedCustomDates}
-              onSelect={(dates) => setCustomDates((dates ?? []).map(toIsoDate).sort())}
+              onSelect={(dates) => setField('customDates', (dates ?? []).map(toIsoDate).sort())}
               locale={i18n.language === 'en' ? enUS : es}
               // Past days can't be newly picked (they'd instantly read as
               // missed), but a day already in an edited protocol stays
               // deselectable.
-              disabled={(date) => date < today && !customDates.includes(toIsoDate(date))}
+              disabled={(date) => date < today && !fields.customDates.includes(toIsoDate(date))}
               classNames={{
                 month_grid: 'w-full border-collapse mt-2',
                 weekday: 'flex-1 text-muted-foreground text-xs font-medium text-center',
@@ -800,7 +866,7 @@ export function ProtocolForm({
           <p className={`text-sm ${needsCustomDays ? 'text-destructive' : 'text-muted-foreground'}`} aria-live="polite">
             {needsCustomDays
               ? t('protocols.customDaysRequired')
-              : t('protocols.customDaysCount', { count: customDates.length })}
+              : t('protocols.customDaysCount', { count: fields.customDates.length })}
           </p>
         </div>
       )}

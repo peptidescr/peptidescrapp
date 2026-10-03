@@ -24,13 +24,29 @@ import {
 /** date-fns `getDay()` convention: 0 = Sunday .. 6 = Saturday. */
 export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6
 
+/** The repeating patterns a weeks cycle can run while it's "on". */
+export type CycleInnerSchedule = { kind: 'daily' } | { kind: 'everyNDays'; n: number } | { kind: 'weekdays'; days: Weekday[] }
+
 export type Schedule =
-  | { kind: 'daily' }
-  | { kind: 'everyNDays'; n: number }
-  | { kind: 'weekdays'; days: Weekday[] }
+  | CycleInnerSchedule
   | { kind: 'cycle'; daysOn: number; daysOff: number }
   /** Hand-picked calendar days (yyyy-MM-dd), for irregular schedules no repeating pattern fits. */
   | { kind: 'custom'; dates: string[] }
+  /**
+   * An inner pattern run for `weeksOn` weeks, then nothing for `weeksOff`,
+   * repeating from the start date ("Mon/Wed/Fri for 8 weeks, 4 off"). With
+   * `cycles` set it stops after that many on-blocks; `washoutWeeks` is then
+   * the rest period after the last one (it schedules nothing — see cyclePhase,
+   * which is what reports it), after which the protocol is complete.
+   */
+  | {
+      kind: 'cycleWeeks'
+      inner: CycleInnerSchedule
+      weeksOn: number
+      weeksOff: number
+      cycles?: number
+      washoutWeeks?: number
+    }
 
 /** The subset of a Protocol that scheduling needs — kept local to avoid a circular import with db.ts. */
 export interface ScheduleContext {
@@ -92,6 +108,33 @@ function validateSchedule(schedule: Schedule): void {
         throw new RangeError('custom.dates must not be empty')
       }
       return
+    case 'cycleWeeks':
+      validateSchedule(schedule.inner)
+      if (!Number.isInteger(schedule.weeksOn) || schedule.weeksOn < 1) {
+        throw new RangeError('cycleWeeks.weeksOn must be a positive integer')
+      }
+      if (!Number.isInteger(schedule.weeksOff) || schedule.weeksOff < 0) {
+        throw new RangeError('cycleWeeks.weeksOff must be a non-negative integer')
+      }
+      if (schedule.cycles !== undefined && (!Number.isInteger(schedule.cycles) || schedule.cycles < 1)) {
+        throw new RangeError('cycleWeeks.cycles must be a positive integer')
+      }
+      if (schedule.washoutWeeks !== undefined && (!Number.isInteger(schedule.washoutWeeks) || schedule.washoutWeeks < 1)) {
+        throw new RangeError('cycleWeeks.washoutWeeks must be a positive integer')
+      }
+      return
+  }
+}
+
+/** A repeating pattern's answer for a day `offset` days into it (the protocol, or one on-block of a weeks cycle). */
+function isInnerScheduledDay(schedule: CycleInnerSchedule, offset: number, day: Date): boolean {
+  switch (schedule.kind) {
+    case 'daily':
+      return true
+    case 'everyNDays':
+      return offset % schedule.n === 0
+    case 'weekdays':
+      return schedule.days.includes(getDay(day) as Weekday)
   }
 }
 
@@ -113,11 +156,9 @@ export function isScheduledDay(ctx: Pick<ScheduleContext, 'schedule' | 'startDat
 
   switch (ctx.schedule.kind) {
     case 'daily':
-      return true
     case 'everyNDays':
-      return offset % ctx.schedule.n === 0
     case 'weekdays':
-      return ctx.schedule.days.includes(getDay(day) as Weekday)
+      return isInnerScheduledDay(ctx.schedule, offset, day)
     case 'cycle': {
       const period = ctx.schedule.daysOn + ctx.schedule.daysOff
       if (period === 0) return false
@@ -125,6 +166,83 @@ export function isScheduledDay(ctx: Pick<ScheduleContext, 'schedule' | 'startDat
     }
     case 'custom':
       return ctx.schedule.dates.includes(toIsoDate(day))
+    case 'cycleWeeks': {
+      const { inner, weeksOn, weeksOff, cycles } = ctx.schedule
+      const period = (weeksOn + weeksOff) * 7
+      const cycleIndex = Math.floor(offset / period)
+      if (cycles !== undefined && cycleIndex >= cycles) return false
+      const dayInCycle = offset % period
+      // Every N days counts from the first day of each on-block, so each block starts with a dose.
+      return dayInCycle < weeksOn * 7 && isInnerScheduledDay(inner, dayInCycle, day)
+    }
+  }
+}
+
+export interface CyclePhase {
+  /** 'washout' and 'done' only happen with a set number of cycles. */
+  phase: 'on' | 'off' | 'washout' | 'done'
+  /** Which cycle this is, from 1. */
+  cycle: number
+  totalCycles?: number
+  /** Which week of this phase, from 1, and how many weeks it lasts (both 0 once done). */
+  week: number
+  weeks: number
+  /** The day the next phase starts — dosing resumes on it after 'off'. Absent once done. */
+  nextPhaseOn?: Date
+}
+
+/**
+ * Where a weeks-cycle protocol is on a given day; null for any other kind of
+ * schedule or before it starts. Only for display: what's actually scheduled
+ * always comes from isScheduledDay.
+ */
+export function cyclePhase(ctx: Pick<ScheduleContext, 'schedule' | 'startDate' | 'endDate'>, day: Date): CyclePhase | null {
+  if (ctx.schedule.kind !== 'cycleWeeks') return null
+  const start = parseISO(ctx.startDate)
+  const offset = differenceInCalendarDays(day, start)
+  if (offset < 0) return null
+  const { weeksOn, weeksOff, cycles, washoutWeeks } = ctx.schedule
+  const done: CyclePhase = { phase: 'done', cycle: cycles ?? 1, totalCycles: cycles, week: 0, weeks: 0 }
+  if (ctx.endDate && differenceInCalendarDays(day, parseISO(ctx.endDate)) > 0) return done
+
+  const onDays = weeksOn * 7
+  const period = (weeksOn + weeksOff) * 7
+  if (cycles !== undefined) {
+    const afterLastOn = (cycles - 1) * period + onDays
+    if (offset >= afterLastOn) {
+      const washoutDays = (washoutWeeks ?? 0) * 7
+      if (offset >= afterLastOn + washoutDays) return done
+      return {
+        phase: 'washout',
+        cycle: cycles,
+        totalCycles: cycles,
+        week: Math.floor((offset - afterLastOn) / 7) + 1,
+        weeks: washoutWeeks!,
+        nextPhaseOn: addDays(start, afterLastOn + washoutDays),
+      }
+    }
+  }
+  const cycleIndex = Math.floor(offset / period)
+  const dayInCycle = offset % period
+  const base = { cycle: cycleIndex + 1, totalCycles: cycles }
+  if (dayInCycle < onDays) {
+    return {
+      ...base,
+      phase: 'on',
+      week: Math.floor(dayInCycle / 7) + 1,
+      weeks: weeksOn,
+      // With no off weeks an on-block runs straight into the next, so there's
+      // no change to announce — unless it's the last block of a fixed run.
+      nextPhaseOn:
+        weeksOff > 0 || cycleIndex + 1 === cycles ? addDays(start, cycleIndex * period + onDays) : undefined,
+    }
+  }
+  return {
+    ...base,
+    phase: 'off',
+    week: Math.floor((dayInCycle - onDays) / 7) + 1,
+    weeks: weeksOff,
+    nextPhaseOn: addDays(start, (cycleIndex + 1) * period),
   }
 }
 

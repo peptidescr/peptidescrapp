@@ -26,7 +26,7 @@ import {
   type TodayStatus,
 } from '../lib/homeData'
 import { getNotificationCapability } from '../lib/notifications'
-import type { Occurrence } from '../lib/schedule'
+import { cyclePhase, type Occurrence } from '../lib/schedule'
 import { useLiveQuery } from '../lib/useLiveQuery'
 import { updateSettings, useSettings } from '../lib/useSettings'
 import { computeVialAlerts, vialAlertKey } from '../lib/vials'
@@ -582,11 +582,19 @@ function NextUpCard({
   // updating anything. See NOTES.md.
   const canLogToday = isSameDay(occurrence.scheduledAt, now)
   const dayWord = canLogToday ? t('home.today') : formatDate(occurrence.scheduledAt)
+  // In a weeks cycle's off weeks, why the next dose is so far away is the
+  // useful part. The date stays the dose's own (beside its time), not the
+  // day the on-block starts, which a weekday pattern may not dose on.
+  const offWeek = cyclePhase(protocol, now)?.phase === 'off'
 
   return (
     <DoseCard
       tone="upcoming"
-      statusLabel={`${dayWord} · ${formatCountdown(now, occurrence.scheduledAt, t)}`}
+      statusLabel={
+        offWeek
+          ? t('cycle.offNextDose', { date: dayWord })
+          : `${dayWord} · ${formatCountdown(now, occurrence.scheduledAt, t)}`
+      }
       time={occurrence.scheduledAt}
       protocol={protocol}
       compoundName={compound?.name}
