@@ -56,6 +56,7 @@ export function doseLogsToCsv(doseLogs: DoseLog[], vials: Vial[] = []): string {
     'notes',
     'vialLot',
     'vialBatch',
+    'injectionSite',
   ]
   const vialsById = new Map(vials.map((v) => [v.id, v]))
   const rows = doseLogs.map((log) => {
@@ -72,6 +73,7 @@ export function doseLogsToCsv(doseLogs: DoseLog[], vials: Vial[] = []): string {
       csvSafeText(log.notes ?? ''),
       csvSafeText(vial?.lot ?? ''),
       csvSafeText(vial?.batch ?? ''),
+      log.site ?? '',
     ]
   })
   return [header, ...rows].map((row) => row.map(csvField).join(',')).join('\r\n')

@@ -33,6 +33,8 @@ import { NumericInput } from '@/components/ui/numeric-input'
 import { db, type DoseLog, type DoseStatus, type Protocol } from '../lib/db'
 import { computeDaySlots, computeMonthMarks, type DayMarks } from '../lib/historyData'
 import { doseOn, formatDose } from '../lib/titration'
+import { SITE_IDS, SITES_BY_ROUTE, type SiteId } from '../lib/injectionSites'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useLiveQuery } from '../lib/useLiveQuery'
 import {
   formatDecimal,
@@ -235,6 +237,7 @@ function LogRow({ log, locale, onEdit }: { log: DoseLog; locale: Locale; onEdit:
         </span>
         <span className="text-xs text-muted-foreground">
           {formatTime(new Date(log.administeredAt))} · {doseLabel(log, locale)}
+          {log.site && <> · {t(`sites.${log.site}`)}</>}
         </span>
       </span>
       <span
@@ -426,6 +429,14 @@ function HistoryEditForm({ log, onDone }: { log: DoseLog; onDone: () => void }) 
   const [unit, setUnit] = useState<MassUnit>(initialUnit)
   const [status, setStatus] = useState<DoseStatus>(log.status)
   const [notes, setNotes] = useState(log.notes ?? '')
+  const [site, setSite] = useState<SiteId | 'none'>(log.site ?? 'none')
+  // Offered when the dose already has a site or its protocol tracks them;
+  // the choice is the protocol's route's sites, plus whatever was recorded.
+  const protocol = useLiveQuery(() => (log.protocolId ? db.protocols.get(log.protocolId) : undefined), [log.protocolId])
+  const siteChoices = useMemo(() => {
+    const fromRoute = protocol?.siteTracking ? SITES_BY_ROUTE[protocol.route] : []
+    return SITE_IDS.filter((s) => fromRoute.includes(s) || s === log.site)
+  }, [protocol, log.site])
 
   const numericAmount = parsePositiveAmount(amount)
 
@@ -439,6 +450,8 @@ function HistoryEditForm({ log, onDone }: { log: DoseLog; onDone: () => void }) 
       administeredAt: administeredAt.toISOString(),
       status,
       notes: sanitizeMultiline(notes).trim() || undefined,
+      // Only a taken dose went anywhere.
+      site: status === 'taken' && site !== 'none' ? site : undefined,
       updatedAt: new Date().toISOString(),
     }
     if (isIU) {
@@ -511,6 +524,24 @@ function HistoryEditForm({ log, onDone }: { log: DoseLog; onDone: () => void }) 
           ))}
         </div>
       </FormField>
+
+      {siteChoices.length > 0 && status === 'taken' && (
+        <FormField label={t('history.site')}>
+          <Select value={site} onValueChange={(v) => setSite(v as SiteId | 'none')}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">{t('history.siteNone')}</SelectItem>
+              {siteChoices.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {t(`sites.${s}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FormField>
+      )}
 
       <FormField label={t('history.notes')}>
         <textarea

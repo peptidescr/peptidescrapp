@@ -1742,3 +1742,60 @@ end"). There's add/remove, a 12-step cap, and invalid input disables Save.
   characters, so a raw NBSP landed in `formatDose`. It's now `String.fromCharCode(0xa0)`, and a
   test pins the output. The batch-1 store test's right-to-left override character is now explicit
   too.
+
+## Phase 2, batch 2 (4 of 5): injection-site rotation (October 2026)
+
+Opt-in per protocol, as decided with the developer: when it's on, tapping **Taken** opens a picker
+with the most-rested site preselected, one more tap to confirm. Protocols without it log exactly as
+before. Skipped never asks.
+
+**Sites** (`src/lib/injectionSites.ts`), the developer's "standard set, editable":
+- Subcutaneous: the 4 abdomen quadrants, thighs L/R, backs of the upper arms L/R, glutes L/R.
+- Intramuscular: deltoids, glutes, thighs L/R.
+- Route "other" has none, and the option isn't offered.
+- Thigh and glute ids are shared between the two routes. It's the same area of the body, so they
+  share rest tracking.
+
+**Rest:** counted across **all** protocols (same patch of skin, whatever went into it), from taken
+doses that recorded a site.
+- The suggestion is never-used first, then the least recently used; ties go to the fixed order.
+- The app shows days ("rested 9 days", "used today", "not used yet") and makes no claim about how
+  long a site should rest.
+
+**Data:** `Protocol.siteTracking = { sites }` (present means on) and `DoseLog.site`. Both are
+optional and unindexed, so there's no Dexie bump. `logProtocolDose` takes the site; only a taken
+dose stores one.
+
+**UI:**
+- **Picker:** `SitePickerSheet` shows a Front/Back toggle when the sites span both views, the body
+  map, and a full-width row per site with its rest days. A "Log at <site>" button confirms; Cancel
+  logs nothing. It's mounted only while open, so each opening starts from a fresh suggestion.
+- **Body map:** `BodyMap` is an inline SVG drawn as a **mirror**, so the body's left is on the
+  screen's left in both views, marked L/R. Zones are focusable and labelled, but the rows are the
+  primary touch targets.
+- **Protocol card:** "Next site: Left thigh · rested 9 days".
+- **Form:** a "Track injection sites" switch plus chips for the route's sites. Changing the route
+  resets the chips to the new route's set, and an empty selection disables Save.
+- **History:** rows show the site, and the edit form has a site select (for taken doses whose
+  protocol tracks sites, or that already have one).
+- The CSV gains an `injectionSite` column.
+
+**Backups:** known site ids are kept; unknown ones are dropped rather than failing the restore.
+A tracking list left with no known site turns tracking off.
+
+**Verified:**
+- Typecheck, 315/315 tests (new: suggestion order, cross-protocol rest, skipped doses ignored, rest
+  days, route filtering, backup handling), lint (known `App.tsx` error only), i18n 410/410, both
+  builds.
+- Live in headless Chrome on Peptides CR, English at 390px and Spanish at 320px:
+  - Taken opened the picker with the longest-rested site preselected; another protocol's use of
+    the upper-left quadrant counted.
+  - The back view showed the arm and glute sites.
+  - Confirming logged the site.
+  - The card named the next site and History showed it.
+  - The form loaded tracking back, and switching to intramuscular swapped in the IM sites.
+  - No overflow and no console errors.
+- Two defects were found that way and fixed:
+  - With ten sites the sheet's flex column squashed the map to nearly nothing (`shrink-0`, and a
+    check now asserts its size).
+  - "upper right" + "suggested" read as one word, because only a margin separated them.

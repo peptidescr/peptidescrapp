@@ -31,6 +31,7 @@ import {
   sanitizeText,
 } from './sanitize'
 import type { CycleInnerSchedule, Schedule, Weekday } from './schedule'
+import { isSiteId, type SiteId } from './injectionSites'
 import { MAX_TITRATION_STEPS, type Titration } from './titration'
 
 export const BACKUP_VERSION = 3
@@ -196,6 +197,16 @@ function titration(value: unknown): Titration {
   }
 }
 
+/**
+ * Site rotation is a preference, so a malformed one is dropped rather than
+ * failing the restore; unknown site ids are dropped, and none left means off.
+ */
+function siteTracking(value: unknown): { sites: SiteId[] } | undefined {
+  if (!isRecord(value) || !Array.isArray(value.sites)) return undefined
+  const sites = [...new Set(value.sites.filter(isSiteId))]
+  return sites.length > 0 ? { sites } : undefined
+}
+
 function protocol(value: unknown): Protocol {
   if (!isRecord(value)) fail('protocol')
   if (!Array.isArray(value.reminderTimes) || value.reminderTimes.length === 0 || value.reminderTimes.length > MAX_REMINDER_TIMES) {
@@ -221,6 +232,8 @@ function protocol(value: unknown): Protocol {
   if (value.trackingStartsAt !== undefined) result.trackingStartsAt = isoDateTime(value.trackingStartsAt, 'protocol.trackingStartsAt')
   const mix = reconstitution(value.reconstitution)
   if (mix) result.reconstitution = mix
+  const tracking = siteTracking(value.siteTracking)
+  if (tracking) result.siteTracking = tracking
   if (value.titration !== undefined) {
     result.titration = titration(value.titration)
     // The app keeps the plain dose equal to the first step (see titration.ts); a file can't break that.
@@ -242,6 +255,8 @@ function doseLog(value: unknown): DoseLog {
   }
   if (value.protocolId !== undefined) result.protocolId = str(value.protocolId, 'doseLog.protocolId')
   if (value.vialId !== undefined) result.vialId = str(value.vialId, 'doseLog.vialId')
+  // An unknown site is dropped, not fatal: the dose itself is still a true record.
+  if (result.status === 'taken' && isSiteId(value.site)) result.site = value.site
   if (value.doseMcg !== undefined) result.doseMcg = finiteNumber(value.doseMcg, 'doseLog.doseMcg', 0, 1e12)
   if (value.doseIU !== undefined) result.doseIU = finiteNumber(value.doseIU, 'doseLog.doseIU', 0, 1e12)
   if (typeof value.notes === 'string') {
@@ -363,6 +378,7 @@ function userTemplate(value: unknown): UserTemplate {
     createdAt: isoDateTime(value.createdAt, 'template.createdAt'),
   }
   if (asProtocol.titration) result.titration = asProtocol.titration
+  if (asProtocol.siteTracking) result.siteTracking = asProtocol.siteTracking
   return result
 }
 

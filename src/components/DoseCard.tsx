@@ -9,7 +9,9 @@ import { getCompoundById } from '../content/compounds'
 import { formatDate, formatTime } from '../lib/dates'
 import type { Protocol } from '../lib/db'
 import { logProtocolDose } from '../lib/doseLog'
+import { rotationSites, type SiteId } from '../lib/injectionSites'
 import { doseOn, formatDose } from '../lib/titration'
+import { SitePickerSheet } from './SitePickerSheet'
 import type { DueItem } from '../lib/homeData'
 
 export function LogButtons({
@@ -28,11 +30,14 @@ export function LogButtons({
 }) {
   const { t } = useTranslation()
   const [busy, setBusy] = useState(false)
+  const [pickingSite, setPickingSite] = useState(false)
+  // Opted in to site rotation (and on a route that has sites): Taken asks where it went first.
+  const tracksSites = rotationSites(protocol.route, protocol.siteTracking?.sites ?? []).length > 0
 
-  async function handle(status: 'taken' | 'skipped') {
+  async function handle(status: 'taken' | 'skipped', site?: SiteId) {
     setBusy(true)
     try {
-      await logProtocolDose(protocol, status, administeredAt ?? new Date())
+      await logProtocolDose(protocol, status, administeredAt ?? new Date(), site)
       toast.success(status === 'taken' ? t('home.toastTaken') : t('home.toastSkipped'))
     } finally {
       setBusy(false)
@@ -43,7 +48,11 @@ export function LogButtons({
   // width and the only filled button; Skipped is a quiet outline beside it.
   return (
     <div className="flex gap-2">
-      <Button disabled={busy} onClick={() => handle('taken')} className="flex-[2] text-sm font-semibold">
+      <Button
+        disabled={busy}
+        onClick={() => (tracksSites ? setPickingSite(true) : void handle('taken'))}
+        className="flex-[2] text-sm font-semibold"
+      >
         <Check />
         {t('home.logTaken')}
       </Button>
@@ -55,6 +64,16 @@ export function LogButtons({
       >
         {t('home.logSkipped')}
       </Button>
+      {pickingSite && (
+        <SitePickerSheet
+          protocol={protocol}
+          onCancel={() => setPickingSite(false)}
+          onConfirm={(site) => {
+            setPickingSite(false)
+            void handle('taken', site)
+          }}
+        />
+      )}
     </div>
   )
 }

@@ -67,6 +67,8 @@ import { cyclePhase, type CycleInnerSchedule, type Schedule, type Weekday } from
 import { parseScheduleFields, scheduleFields, type ScheduleFields } from '../lib/scheduleForm'
 import { parseTitrationFields, titrationFields, type TitrationFields } from '../lib/titrationForm'
 import { doseOn, formatDose, nextDoseChange, sameDose } from '../lib/titration'
+import { rotationSites, siteRest, SITES_BY_ROUTE, suggestSite, type SiteId } from '../lib/injectionSites'
+import { restText } from '../lib/siteText'
 import { cyclePhaseText } from '../lib/cycleText'
 import { useLiveQuery } from '../lib/useLiveQuery'
 import { formatDecimal, type Locale, type MassUnit } from '../lib/units'
@@ -260,6 +262,12 @@ function ProtocolRow({
   const stats = useMemo(() => computeProtocolStats(protocol, doseLogs, new Date()), [protocol, doseLogs])
   const adherence = useMemo(() => computeAdherence(protocol, doseLogs, new Date()), [protocol, doseLogs])
   const phase = protocol.isActive ? cyclePhase(protocol, new Date()) : null
+  const nextSite = useMemo(() => {
+    if (!protocol.isActive || !protocol.siteTracking) return null
+    const sites = rotationSites(protocol.route, protocol.siteTracking.sites)
+    const site = suggestSite(sites, doseLogs)
+    return site ? siteRest([site], doseLogs, new Date())[0]! : null
+  }, [protocol, doseLogs])
   const today = new Date()
   const currentDose = doseOn(protocol, today)
   const nextChange = protocol.isActive ? nextDoseChange(protocol, today) : null
@@ -361,6 +369,11 @@ function ProtocolRow({
           <Badge variant="destructive">{t('protocols.missedCount', { count: stats.missedCount })}</Badge>
         )}
       </div>
+      {nextSite && (
+        <p className="px-4 pt-1 text-xs text-muted-foreground">
+          {t('sites.nextSite', { site: t(`sites.${nextSite.site}`), rest: restText(nextSite.restDays, t) })}
+        </p>
+      )}
       {phase && (
         <p className={`px-4 pt-1 text-xs ${phase.phase === 'on' ? 'text-primary' : 'text-muted-foreground'}`}>
           {cyclePhaseText(phase, t)}
@@ -556,6 +569,8 @@ export function ProtocolForm({
   const [hasEndDate, setHasEndDate] = useState(false)
   const [endDate, setEndDate] = useState('')
   const [route, setRoute] = useState<Route>(template?.route ?? 'subcutaneous')
+  const [trackSites, setTrackSites] = useState(false)
+  const [sites, setSites] = useState<SiteId[]>(() => [...SITES_BY_ROUTE[template?.route ?? 'subcutaneous']])
   const [titrationState, setTitrationState] = useState<TitrationFields>(() => titrationFields())
   const setTitration = (patch: Partial<TitrationFields>) => setTitrationState((f) => ({ ...f, ...patch }))
 
@@ -570,6 +585,8 @@ export function ProtocolForm({
     setHasEndDate(Boolean(existing.endDate))
     setEndDate(existing.endDate ?? '')
     setRoute(existing.route)
+    setTrackSites(existing.siteTracking !== undefined)
+    setSites(existing.siteTracking ? [...existing.siteTracking.sites] : [...SITES_BY_ROUTE[existing.route]])
     setTitrationState(titrationFields(existing.titration))
     setLoaded(true)
   }
@@ -594,13 +611,19 @@ export function ProtocolForm({
   const showsWeekdays = scheduleKind === 'weekdays' || (scheduleKind === 'cycleWeeks' && fields.cycleInner === 'weekdays')
 
   const needsCustomDays = scheduleKind === 'custom' && fields.customDates.length === 0
+  // Site rotation only exists for routes that have sites (not "other").
+  const routeSites = SITES_BY_ROUTE[route]
+  const tracksSites = trackSites && routeSites.length > 0
+  const chosenSites = rotationSites(route, sites)
+  const needsSites = tracksSites && chosenSites.length === 0
   const canSave =
     compound !== undefined &&
     doseValue !== null &&
     reminderTimes.length > 0 &&
     !needsCustomDays &&
     schedule !== null &&
-    parsedTitration.titration !== null
+    parsedTitration.titration !== null &&
+    !needsSites
 
   async function handleSave() {
     if (!compound || doseValue === null || schedule === null || parsedTitration.titration === null) return
@@ -638,6 +661,7 @@ export function ProtocolForm({
       // of compound would show the wrong draw volume.
       reconstitution: existing?.compoundId === compound.id ? existing.reconstitution : undefined,
       titration: parsedTitration.titration,
+      siteTracking: tracksSites ? { sites: chosenSites } : undefined,
     }
     await db.protocols.put(protocol)
     void rescheduleReminders()
@@ -974,7 +998,14 @@ export function ProtocolForm({
       )}
 
       <FormField label={t('protocols.route')}>
-        <Select value={route} onValueChange={(v) => setRoute(v as Route)}>
+        <Select
+          value={route}
+          onValueChange={(v) => {
+            setRoute(v as Route)
+            // Each route has its own sites; start the new one with all of them.
+            setSites([...SITES_BY_ROUTE[v as Route]])
+          }}
+        >
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
@@ -987,6 +1018,39 @@ export function ProtocolForm({
           </SelectContent>
         </Select>
       </FormField>
+
+      {routeSites.length > 0 && (
+        <div className="flex flex-col gap-3">
+          <label className="flex min-h-11 items-center justify-between gap-3">
+            <span className="flex flex-col">
+              <span className="text-sm font-medium text-foreground">{t('protocols.trackSites')}</span>
+              <span className="text-xs text-muted-foreground">{t('protocols.trackSitesHint')}</span>
+            </span>
+            <Switch checked={trackSites} onCheckedChange={setTrackSites} />
+          </label>
+          {trackSites && (
+            <div className="flex flex-wrap gap-2" role="group" aria-label={t('sites.listLabel')}>
+              {routeSites.map((site) => {
+                const on = sites.includes(site)
+                return (
+                  <button
+                    key={site}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => setSites(on ? sites.filter((s) => s !== site) : [...sites, site])}
+                    className={`min-h-11 rounded-full border px-3 text-sm transition-colors ${
+                      on ? 'border-primary bg-accent text-primary' : 'border-border text-muted-foreground'
+                    }`}
+                  >
+                    {t(`sites.${site}`)}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+          {needsSites && <FieldError>{t('protocols.sitesRequired')}</FieldError>}
+        </div>
+      )}
 
       <Button onClick={handleSave} disabled={!canSave} className="mt-2">
         {t('common.save')}

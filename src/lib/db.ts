@@ -1,6 +1,7 @@
 import Dexie, { type EntityTable } from 'dexie'
 import { COMPOUNDS, type Compound } from '../content/compounds'
 import type { Schedule } from './schedule'
+import type { SiteId } from './injectionSites'
 import type { Titration } from './titration'
 import type { Locale, SyringeType, ThemeMode } from './units'
 
@@ -33,6 +34,12 @@ export interface Protocol {
    * a given day. Optional and unindexed — no Dexie bump.
    */
   titration?: Titration
+  /**
+   * Injection-site rotation, when the protocol opts in (see
+   * src/lib/injectionSites.ts): the sites it rotates through. Absent = not
+   * tracked, and logging a dose never asks.
+   */
+  siteTracking?: { sites: SiteId[] }
 }
 
 /**
@@ -77,6 +84,8 @@ export interface DoseLog {
    * before vial tracking existed are simply unlinked.
    */
   vialId?: string
+  /** Where a taken dose went, when its protocol tracks injection sites. */
+  site?: SiteId
   doseMcg?: number
   doseIU?: number
   administeredAt: string // ISO datetime
@@ -177,6 +186,7 @@ export interface UserTemplate {
   reminderTimes: string[]
   route: Route
   titration?: Titration
+  siteTracking?: { sites: SiteId[] }
   createdAt: string // ISO datetime
 }
 

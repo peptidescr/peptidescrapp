@@ -346,3 +346,25 @@ describe('parseBackup, titration', () => {
     }
   })
 })
+
+describe('parseBackup, injection sites', () => {
+  it('keeps known sites on taken doses and protocols, dropping unknown ones', () => {
+    const result = parseBackup(
+      backup({
+        protocols: [{ ...protocol, siteTracking: { sites: ['thigh-left', 'knee', 'thigh-left', 'glute-right'] } }],
+        doseLogs: [
+          { ...log, site: 'thigh-left' },
+          { ...log, id: 'l2', site: 'knee' },
+          { ...log, id: 'l3', status: 'skipped', site: 'thigh-left' },
+        ],
+      }),
+    )
+    expect(result.protocols[0]?.siteTracking).toEqual({ sites: ['thigh-left', 'glute-right'] })
+    expect(result.doseLogs.map((l) => l.site)).toEqual(['thigh-left', undefined, undefined])
+  })
+
+  it('turns tracking off rather than failing when no known site is left', () => {
+    const result = parseBackup(backup({ protocols: [{ ...protocol, siteTracking: { sites: ['knee'] } }] }))
+    expect(result.protocols[0]?.siteTracking).toBeUndefined()
+  })
+})
