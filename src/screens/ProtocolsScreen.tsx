@@ -416,9 +416,11 @@ function ProtocolRow({
                 dose: `${formatDecimal(protocol.reconstitution.doseAmount, locale, 3)} ${protocol.reconstitution.doseUnit}`,
               })}
           </p>
+          {/* Capped at about phone width: it scales with its width, and on a desktop-wide card it would stand hundreds of pixels tall. */}
           <SyringeGraphic
             drawUnits={protocol.reconstitution.drawSyringeUnits}
             syringeType={protocol.reconstitution.syringeType}
+            className="w-full max-w-xs"
           />
           {mixIsForOtherDose && (
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2">
