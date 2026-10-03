@@ -683,5 +683,36 @@
   "reorder": {
     "cta": "Volver a pedir",
     "aria": "Volver a pedir {{product}} en la tienda de {{appName}}"
+  },
+  "report": {
+    "open": "Informe",
+    "title": "Informe para tu médico",
+    "print": "Imprimir o guardar en PDF",
+    "howTo": "Elegí un período y luego \"Imprimir o guardar en PDF\". En el teléfono, la pantalla de impresión también permite compartirlo.",
+    "heading": "Resumen de dosis y progreso",
+    "period": "Del {{from}} al {{to}}",
+    "generated": "hecho el {{date}}",
+    "disclaimer": "Un registro personal que la persona lleva en esta app. Contiene lo que registró, no es un consejo médico ni una evaluación.",
+    "protocols": "Protocolos",
+    "protocol": "Protocolo",
+    "doseSchedule": "Dosis y calendario",
+    "adherence": "Aplicadas en el período",
+    "since": "desde el {{date}}",
+    "steps": "Pasos: {{steps}}",
+    "weight": "Peso",
+    "weightLine": "De {{start}} a {{latest}} ({{change}}) en el período. Las marcas abajo indican dosis aplicadas.",
+    "noWeights": "No hay pesos registrados en este período.",
+    "sideEffects": "Efectos secundarios registrados",
+    "noSideEffects_one": "Ninguno en el {{count}} día con registro.",
+    "noSideEffects_other": "Ninguno en los {{count}} días con registro.",
+    "noCheckIns": "No hay registros diarios en este período.",
+    "symptom": "Síntoma",
+    "daysReported": "Días (de {{count}} con registro)",
+    "severity": "Severidad",
+    "severityLine": "peor {{worst}}, promedio {{mean}} de 3",
+    "doseLog": "Registro de dosis",
+    "compound": "Compuesto",
+    "status": "Estado",
+    "none": "Nada en este período."
   }
 }

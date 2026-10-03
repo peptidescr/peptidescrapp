@@ -77,12 +77,12 @@ storing each customer's address on a server, which the privacy terms say we don'
    glutes for subcutaneous injections, and deltoids, glutes and thighs for intramuscular. Each
    customer can turn off the ones they don't use. Is that the right set for your products? The
    app only shows how long each site has rested; it doesn't say how long a site *should* rest.
-5. **Shipping time per store.** Low-vial alerts now carry a **Reorder** button that opens the
-   matching product on your store. To also say "order by <date>", we need each store's typical
-   days from order to delivery. Until you confirm them, no date is shown.
 4. **Titration counts calendar weeks**, including any off weeks in a cycle, so each dose change
    lands on a fixed date that can be announced in advance. Tell us if your customers would expect
    off weeks not to count.
+5. **Shipping time per store.** Low-vial alerts now carry a **Reorder** button that opens the
+   matching product on your store. To also say "order by <date>", we need each store's typical
+   days from order to delivery. Until you confirm them, no date is shown.
 
 ## What this is
 

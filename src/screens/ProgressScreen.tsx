@@ -1,4 +1,4 @@
-import { HeartPulse, Plus, Scale, SlidersHorizontal, Trash2 } from 'lucide-react'
+import { FileText, HeartPulse, Plus, Scale, SlidersHorizontal, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { AppHeader } from '../components/AppHeader'
 import { CheckInSheet } from '../components/CheckInSheet'
+import { DoctorReport } from '../components/DoctorReport'
 import { ProgressTrends } from '../components/ProgressTrends'
 import { ResultsSettingsSheet } from '../components/ResultsSettingsSheet'
 import { WeightSheet } from '../components/WeightSheet'
@@ -43,6 +44,7 @@ export function ProgressScreen() {
   const checkIns = useLiveQuery(() => db.checkIns.orderBy('date').reverse().limit(14).toArray(), [])
   const firstDose = useLiveQuery(() => db.doseLogs.where('status').equals('taken').sortBy('administeredAt'), [])
   const [sheet, setSheet] = useState<'weight' | 'settings' | { checkIn: string } | null>(null)
+  const [reportOpen, setReportOpen] = useState(false)
 
   const symptoms = useMemo(() => symptomList(settings?.symptoms), [settings?.symptoms])
   const progress = useMemo(() => weightProgress(weights ?? [], settings?.goalWeightGrams), [weights, settings?.goalWeightGrams])
@@ -58,9 +60,15 @@ export function ProgressScreen() {
       <AppHeader
         title={t('nav.progress')}
         action={
-          <Button variant="secondary" size="sm" onClick={() => setSheet('settings')} aria-label={t('progress.settingsTitle')}>
-            <SlidersHorizontal className="size-4" />
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" onClick={() => setReportOpen(true)}>
+              <FileText className="size-4" />
+              {t('report.open')}
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => setSheet('settings')} aria-label={t('progress.settingsTitle')}>
+              <SlidersHorizontal className="size-4" />
+            </Button>
+          </div>
         }
       />
 
@@ -175,6 +183,7 @@ export function ProgressScreen() {
         </section>
       )}
 
+      {reportOpen && <DoctorReport unit={unit} onClose={() => setReportOpen(false)} />}
       {sheet === 'weight' && <WeightSheet unit={unit} onClose={() => setSheet(null)} />}
       {sheet === 'settings' && <ResultsSettingsSheet settings={settings} onClose={() => setSheet(null)} />}
       {sheet !== null && typeof sheet === 'object' && (

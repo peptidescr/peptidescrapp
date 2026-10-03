@@ -683,5 +683,36 @@
   "reorder": {
     "cta": "Reorder",
     "aria": "Reorder {{product}} on the {{appName}} store"
+  },
+  "report": {
+    "open": "Report",
+    "title": "Report for your doctor",
+    "print": "Print or save as PDF",
+    "howTo": "Choose a period, then \"Print or save as PDF\". On a phone, the print screen also lets you share it.",
+    "heading": "Dosing and progress summary",
+    "period": "{{from}} to {{to}}",
+    "generated": "made {{date}}",
+    "disclaimer": "A personal record kept by the user in this app. It contains what they logged, not medical advice or an assessment.",
+    "protocols": "Protocols",
+    "protocol": "Protocol",
+    "doseSchedule": "Dose and schedule",
+    "adherence": "Taken in period",
+    "since": "since {{date}}",
+    "steps": "Steps: {{steps}}",
+    "weight": "Weight",
+    "weightLine": "From {{start}} to {{latest}} ({{change}}) over the period. Ticks along the bottom mark doses taken.",
+    "noWeights": "No weights logged in this period.",
+    "sideEffects": "Side effects reported",
+    "noSideEffects_one": "None reported on the {{count}} day checked in.",
+    "noSideEffects_other": "None reported on the {{count}} days checked in.",
+    "noCheckIns": "No check-ins in this period.",
+    "symptom": "Symptom",
+    "daysReported": "Days (of {{count}} checked in)",
+    "severity": "Severity",
+    "severityLine": "worst {{worst}}, average {{mean}} of 3",
+    "doseLog": "Dose log",
+    "compound": "Compound",
+    "status": "Status",
+    "none": "Nothing in this period."
   }
 }

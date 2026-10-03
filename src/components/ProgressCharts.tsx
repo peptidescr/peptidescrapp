@@ -68,7 +68,7 @@ const Swatch = ({ fill }: { fill: string }) => (
 function TableToggle({ children }: { children: ReactNode }) {
   const { t } = useTranslation()
   return (
-    <details className="text-sm">
+    <details className="no-print text-sm">
       <summary className="min-h-11 cursor-pointer py-3 text-primary">{t('charts.showTable')}</summary>
       <div className="overflow-x-auto">{children}</div>
     </details>
@@ -90,6 +90,7 @@ export function WeightDoseChart({
   goalGrams,
   toUnit,
   fmt,
+  doseMarks = [],
 }: {
   points: WeightPoint[]
   steps: DoseStep[]
@@ -100,6 +101,8 @@ export function WeightDoseChart({
   toUnit: (grams: number) => number
   /** Grams → "92.4 kg". */
   fmt: (grams: number) => string
+  /** Taken doses to mark as ticks along the bottom (the doctor's report shows them). */
+  doseMarks?: Date[]
 }) {
   const { t } = useTranslation()
   const [ref, width] = useWidth()
@@ -147,9 +150,26 @@ export function WeightDoseChart({
   const activePoint = active === null ? null : points[active]
   return (
     <div className="flex flex-col gap-3">
-      {present.length > 1 && (
+      {(present.length > 1 || doseMarks.length > 0) && (
         <Legend
-          items={present.map((s) => ({ key: s.key, label: stepLabel(s, t), swatch: <Dot fill={DOSE_FILL(s.shade)} /> }))}
+          items={[
+            ...(present.length > 1
+              ? present.map((s) => ({ key: s.key, label: stepLabel(s, t), swatch: <Dot fill={DOSE_FILL(s.shade)} /> }))
+              : []),
+            ...(doseMarks.length > 0
+              ? [
+                  {
+                    key: 'marks',
+                    label: t('charts.doseTaken'),
+                    swatch: (
+                      <svg width="4" height="10" aria-hidden className="shrink-0">
+                        <line x1="2" x2="2" y1="1" y2="9" stroke="var(--brand-ink)" strokeOpacity={0.6} strokeWidth={2} strokeLinecap="round" />
+                      </svg>
+                    ),
+                  },
+                ]
+              : []),
+          ]}
         />
       )}
       <div ref={ref} className="relative">
@@ -190,6 +210,21 @@ export function WeightDoseChart({
               {formatDate(to)}
             </text>
 
+            {doseMarks
+              .filter((d) => d >= from && d <= to)
+              .map((d, i) => (
+                <line
+                  key={`d${i}`}
+                  x1={x(d)}
+                  x2={x(d)}
+                  y1={HEIGHT - PAD.bottom - 8}
+                  y2={HEIGHT - PAD.bottom}
+                  stroke="var(--brand-ink)"
+                  strokeOpacity={0.6}
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                />
+              ))}
             {points.slice(1).map((p, i) => {
               const prev = points[i]!
               return (

@@ -2009,3 +2009,37 @@ otherwise go looking for a supplier.
   console errors.
 - Not exercised live: the spare count dropping when the next vial is started. That's a one-line
   update inside `startVial`'s transaction.
+
+## Tier 1 (5 of 5): report for a doctor (October 2026)
+
+Shotsy's "feel prepared at every appointment". **Report** on Progress opens a full-screen
+summary for a chosen period (1 mo / 3 mo / 6 mo / All). **Print or save as PDF** hands it to the
+browser's print dialog, which saves a PDF or shares it on a phone. There's no PDF library, and
+nothing leaves the device unless the person sends it.
+
+**Content** (`buildReport`, `src/lib/report.ts`, pure and tested). It's a record, not an
+interpretation:
+- **Protocols:** active ones, plus any that logged a dose in the period. Each shows compound,
+  route, start, today's dose and schedule, titration steps, and adherence over the same period
+  (taken / skipped / missed).
+- **Weight:** start → latest (change), and the weight-by-dose chart with **dose markers**: a tick
+  along the bottom for each taken dose (a new `doseMarks` option on `WeightDoseChart`).
+- **Side effects reported:** per symptom, days reported out of days checked in, worst and mean
+  severity.
+- **Dose log:** date and time, compound, dose, status and site.
+- Notes are left out on purpose. They can be private, and the person can add context themselves.
+
+**Printing:** the view is portalled to the end of `<body>`. An `@media print` block in `index.css`
+hides `#root` only while the report exists (`body:has(.report-portal)`), un-fixes the overlay so it
+flows across pages, and hides controls (`.no-print`, including the charts' "Show as a table").
+`beforeprint`/`afterprint` switch the page to the light theme and back, so it prints dark on white
+in either theme.
+
+**Verified:**
+- Typecheck, 355/355 tests (new: period filtering, protocols included, adherence over the period,
+  the symptom summary), lint (known `App.tsx` error only), i18n 592/592, PCR build.
+- Live on the PCR build with six weeks of seeded data. The report showed all four sections, the
+  titration steps ("2.5 mg × 3 weeks → 5 mg") and 7 dose ticks.
+- `Page.printToPDF` (the real print path) produced a two-page A4 PDF: light, everything legible,
+  the line in two dose shades with ticks, and the dose log with sites.
+- The theme was back to dark afterwards. No console errors.
