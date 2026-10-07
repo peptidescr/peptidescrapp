@@ -5,6 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="%BRAND_THEME_DARK%" />
     <meta name="description" content="%BRAND_DESCRIPTION%" />
+    <!-- One address for search engines, whichever one a visitor used (see src/brand/seo.ts). -->
+    <link rel="canonical" href="%BRAND_SITE_URL%/" />
+
+    <!-- Link previews: Facebook, WhatsApp, iMessage, LinkedIn, Slack; X falls back to these too. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="%BRAND_STORE_NAME%" />
+    <meta property="og:title" content="%BRAND_TITLE%" />
+    <meta property="og:description" content="%BRAND_DESCRIPTION%" />
+    <meta property="og:url" content="%BRAND_SITE_URL%/" />
+    <meta property="og:locale" content="%BRAND_OG_LOCALE%" />
+    <meta property="og:image" content="%BRAND_SHARE_IMAGE%" />
+    <meta property="og:image:width" content="%BRAND_SHARE_IMAGE_WIDTH%" />
+    <meta property="og:image:height" content="%BRAND_SHARE_IMAGE_HEIGHT%" />
+    <meta property="og:image:alt" content="%BRAND_HEADLINE%" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- Structured data: the site, the app, and the store that publishes them. -->
+    <script type="application/ld+json">%BRAND_JSON_LD%</script>
 
     <link rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-32.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="/brand/icon-192.png" />
@@ -50,7 +68,21 @@
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <!--
+      The loading splash, and the page's text for anything that reads the HTML
+      without running the app: search engines' first pass, link previews, AI
+      crawlers. React replaces it as soon as it starts, with
+      src/components/BootSplash.tsx (the same markup) until settings load, so
+      people see one steady splash, not a flash of something else. Keep the
+      two the same.
+    -->
+    <div id="root">
+      <main class="flex min-h-dvh flex-col items-center justify-center gap-4 bg-background px-6 text-center">
+        <img src="/brand/icon-192.png" alt="%BRAND_STORE_NAME%" width="72" height="72" class="size-18 rounded-2xl" />
+        <h1 class="max-w-sm font-display text-xl font-bold leading-snug text-foreground">%BRAND_HEADLINE%</h1>
+        <p class="max-w-sm text-sm text-muted-foreground">%BRAND_DESCRIPTION%</p>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

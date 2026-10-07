@@ -37,7 +37,7 @@ export const BRAND: Brand =
     ? {
         ...PCR_BRAND,
         contact: {
-          website: { href: 'https://peptidescostarica.net', label: 'peptidescostarica.net' },
+          website: { href: PCR_BRAND.store.url, label: 'peptidescostarica.net' },
           address: 'Jacó · San José, Costa Rica',
           whatsapp: '50684046973',
           phones: [
@@ -50,7 +50,7 @@ export const BRAND: Brand =
     : {
         ...UPD_BRAND,
         contact: {
-          website: { href: 'https://www.usapeptidedepot.com', label: 'usapeptidedepot.com' },
+          website: { href: UPD_BRAND.store.url, label: 'usapeptidedepot.com' },
           phones: [{ href: 'tel:+18314715559', label: '+1 (831) 471-5559' }],
           email: 'info@usapeptidedepot.com',
         },

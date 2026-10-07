@@ -299,7 +299,8 @@
       "title": "Elegí tu idioma"
     },
     "welcome": {
-      "title": "Te damos la bienvenida a {{appName}}"
+      "title": "Te damos la bienvenida a {{appName}}",
+      "body": "Llevá el registro de tus rutinas de péptidos de investigación y calculá las cantidades de reconstitución."
     },
     "disclaimer": {
       "mustAccept": "Necesitás aceptar esto para usar {{appName}}."

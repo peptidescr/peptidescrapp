@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AnimatePresence, motion } from 'motion/react'
 import { APP_BAR_HEIGHT, AppBar } from './components/AppBar'
+import { BootSplash } from './components/BootSplash'
 import { TabBar, type Tab } from './components/TabBar'
 import { Toaster } from './components/ui/sonner'
 import { LEGAL_VERSION } from './content/legal'
@@ -195,7 +196,7 @@ function App() {
   }
 
   if (gate === 'loading') {
-    return <div className="min-h-dvh bg-background" />
+    return <BootSplash />
   }
 
   if (gate === 'onboarding') {

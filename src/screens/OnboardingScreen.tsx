@@ -175,6 +175,9 @@ function LanguageStep({ onNext }: { onNext: () => void }) {
     <StepShell
       centered
       title={SUPPORTED_LOCALES.length > 1 ? t('onboarding.language.title') : t('onboarding.welcome.title')}
+      // What the app is, in a sentence: the first thing a new visitor reads, and
+      // the text search engines index once they've run the app.
+      body={t('onboarding.welcome.body')}
       hero={
         <img
           src="/brand/logo-full.png"

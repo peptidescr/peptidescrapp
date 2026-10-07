@@ -299,7 +299,8 @@
       "title": "Choose your language"
     },
     "welcome": {
-      "title": "Welcome to {{appName}}"
+      "title": "Welcome to {{appName}}",
+      "body": "Track your research peptide routines and calculate reconstitution amounts."
     },
     "disclaimer": {
       "mustAccept": "You need to accept this to use {{appName}}."

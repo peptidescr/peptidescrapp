@@ -18,6 +18,33 @@ current, and (2) its legal text with your lawyer. It is new wording in the same 
 USA Peptide Depot's, built on what peptidescostarica.net itself says ("research use only,
 not for human or veterinary use"), because that brand only ever had placeholder text.
 
+**Search engines and link previews (October 2026).** Both sites were live but gave search
+engines almost nothing: no robots.txt or sitemap (both returned "not found"), and a page whose
+only text, before the app starts, was empty. Now on both:
+- **robots.txt and a sitemap** at `/robots.txt` and `/sitemap.xml`, built for each site's own
+  address.
+- **One official address** (`app.usapeptidedepot.com`, `app.peptidescostarica.net`), declared on
+  every page, so the Netlify address and test deploys never compete with it. Test deploys are
+  also marked "don't index".
+- **A share card.** Links pasted into WhatsApp, iMessage, Facebook, LinkedIn or Slack show a
+  branded preview image, title and description.
+- **Structured data** telling search engines what the app is and that it's published by your
+  store, connecting it to usapeptidedepot.com / peptidescostarica.net.
+- **Real text on the page.** While the app loads, a branded splash shows what it is: the logo,
+  "Research Peptide Tracker & Reconstitution Calculator" and a one-line description (in Spanish
+  on Peptides CR). The first setup screen now also says in a sentence what the app does.
+
+**What only you can do, and what matters most for getting indexed:**
+1. **Link to the app from each store.** Neither usapeptidedepot.com nor peptidescostarica.net
+   links to its app today, and links are how search engines find a site and judge it. A link
+   in the main menu or footer (e.g. "Dose tracker & calculator") does more than everything
+   above put together.
+2. **Add each app to Google Search Console** (and Bing Webmaster Tools, which also covers
+   DuckDuckGo and Yahoo). If you already have a "Domain" property for usapeptidedepot.com or
+   peptidescostarica.net there, the app subdomain is already covered. Then submit the sitemap
+   (`https://app.usapeptidedepot.com/sitemap.xml`, `https://app.peptidescostarica.net/sitemap.xml`)
+   and use "Request indexing" on the home page.
+
 **Rebranded September 2026**, at the client's request, from the original Peptides Costa
 Rica branding to USA Peptide Depot (usapeptidedepot.com) — new colors, logo/icons, and app
 name, sourced directly from the new site rather than guessed. Everything below that predates

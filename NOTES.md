@@ -1470,3 +1470,69 @@ English, with a welcome step, no language row, UPD contact, legal v3 and green p
 is Spanish, with language cards, the language row, restored CR contact with WhatsApp, legal
 v4 and navy palette. Lint has one pre-existing error (`react-hooks/set-state-in-effect`
 in `App.tsx`'s theme effect), untouched here.
+
+## Search engines and link previews (October 2026)
+
+The two live sites (`app.usapeptidedepot.com`, `app.peptidescostarica.net`) had just had their
+title and description reworked (164a1cd). Everything else was missing:
+- `/robots.txt` and `/sitemap.xml` returned 404;
+- there was no canonical link, no share tags and no structured data;
+- the body was an empty `<div id="root">`, so crawlers that don't run JavaScript read nothing;
+- after rendering, Google saw onboarding's first screen: "Welcome to …" (or a language picker)
+  and a button;
+- neither store's homepage links to its app.
+
+Done on the branch `seo`, off `main` (what's live), not `staging`. The developer chose to let
+visible text change: a loading splash, and a description on the first setup screen.
+
+- **Brand data** (`brands.ts`): `headline` (the "what it is" half of the title, now composed as
+  `${headline} | ${store.name}`), `siteUrl` (the production address, fixed so the netlify.app
+  address and deploy previews never compete with it), and `store` (name and URL, now also the
+  source for the contact card's website link).
+- **`src/brand/seo.ts`** (pure, tested): robots.txt, sitemap.xml (one URL, `lastmod` = build
+  date), JSON-LD, the Open Graph locale, and HTML escaping.
+  - robots.txt allows everything but `/api/` (the Netlify functions) and names the sitemap.
+  - The JSON-LD is an `@graph` of the store as `Organization`, the site as `WebSite` and the app
+    as `WebApplication` (free, any OS, both languages on PCR), linked by `publisher`. There are no
+    ratings or offers because there are none to state.
+- **vite.config.ts**:
+  - `brandHtml` fills the new placeholders, HTML-escaped (the titles contain "&"). JSON-LD is
+    inserted raw, made script-safe by `seo.ts`.
+  - `seoFiles` emits robots.txt and sitemap.xml and serves them in dev.
+  - `isIndexable()` reads Netlify's `CONTEXT`. Anything other than `production` (a deploy preview
+    or branch deploy) gets `<meta name="robots" content="noindex">` and a robots.txt with no
+    sitemap and no block, because a block would hide the noindex from crawlers. A local build has
+    no `CONTEXT` and is treated as production.
+- **index.html head**: canonical, `og:*` (`site_name` = store, locale `en_US`/`es_CR`, a 1200×630
+  image), `twitter:card` `summary_large_image`, and the JSON-LD.
+- **Share image** (`public/<brand>/og-image.jpg`, 54 KB and 71 KB):
+  - Rendered with headless Chrome from an HTML composition: the brand's hero gradient, its logo,
+    the headline in its display font, a one-line tagline and the app's address.
+  - The tagline only names what's on `main` (schedules, reminders, mixing math), not the
+    Progress tab, which is still on `staging`.
+  - It's a JPEG at the site root, so the service worker's precache (png/svg under `brand/` and
+    `globPatterns`) doesn't download it to every phone.
+  - To change it: rebuild an HTML page the same way and screenshot it at 1200×630, DPR 1.
+- **Splash**: `#root` now holds a static `<main>` (logo, `<h1>` headline, the description), so the
+  HTML alone carries real text. React replaces it on start with `BootSplash` (identical markup)
+  while settings load, which used to be a blank div, so the hand-over shows one steady splash
+  instead of splash → blank → app. Both copies are in the default language (Spanish on PCR).
+- **Onboarding**: the first screen (the welcome on UPD, the language picker on PCR) now has
+  `onboarding.welcome.body` under its title. That's what Google indexes after rendering.
+
+**Verified:**
+- Typecheck, 192/192 tests (new: `seo.test.ts`, 7), lint (the known `App.tsx` error only, also
+  present on `main` without this change), i18n 286/286, both builds.
+- The build output has robots.txt, the sitemap and the head tags; `og-image.jpg` is absent from
+  `sw.js`. A `CONTEXT=deploy-preview` build gets noindex and a sitemap-less robots.txt.
+- Live (`check-seo`) on UPD at 390px and PCR in Spanish at 320px:
+  - with JavaScript off: one visible, styled `<h1>` with the headline;
+  - with a Googlebot user agent: the first screen shows the welcome/language title plus the
+    description, one `<h1>`, the canonical, share image and parseable JSON-LD, and no noindex;
+  - `/robots.txt`, `/sitemap.xml` and `/og-image.jpg` return 200;
+  - a returning user lands on Home with no splash text left behind;
+  - no console errors.
+
+**Not code:** the two biggest levers are the client's. They're in HANDOVER: link to each app from
+its store's site, and add the app to Search Console and Bing Webmaster Tools, then submit the
+sitemap.
