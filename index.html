@@ -24,7 +24,14 @@
     <!-- Structured data: the site, the app, and the store that publishes them. -->
     <script type="application/ld+json">%BRAND_JSON_LD%</script>
 
-    <link rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-32.png" />
+    <!--
+      Google shows one icon per site in search results, and only one that is
+      square and a multiple of 48px (48, 96, 144…), so a 96px icon is listed
+      first. /favicon.ico (16, 32 and 48px) is the address crawlers and older
+      browsers try without being told. Both are made from brand/icon-512.png.
+    -->
+    <link rel="icon" type="image/png" sizes="96x96" href="/brand/favicon-96.png" />
+    <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
     <link rel="icon" type="image/png" sizes="192x192" href="/brand/icon-192.png" />
     <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
 

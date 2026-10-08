@@ -1533,6 +1533,23 @@ visible text change: a loading splash, and a description on the first setup scre
   - a returning user lands on Home with no splash text left behind;
   - no console errors.
 
+**Favicon in Google results (follow-up).** Once the site was indexed, results showed Google's
+plain globe instead of the logo. Google's favicon service had nothing stored for either app
+subdomain (`google.com/s2/favicons?domain=…` returned 404), though it had icons for both store
+domains. Google uses one icon per host, and it must be square and a multiple of 48px. The head
+listed a 32×32 icon first, the 192 second (which does qualify), and an Apple icon at 180×180,
+while `/favicon.ico` returned 404. Changes:
+- a `brand/favicon-96.png`, listed first;
+- a real `/favicon.ico` with 16, 32 and 48px PNG frames;
+- the 192px icon kept;
+- `favicon-32.png` removed (the .ico covers the browser tab).
+
+Both new files were made from `icon-512.png` (Chrome's `createImageBitmap` with high-quality
+resampling; the .ico is the PNGs wrapped in an ICO header). Checked in the browser: every
+declared icon returns 200 at its stated size, and the .ico decodes. Google only refreshes
+favicons when it recrawls, so the logo shows up later, not on deploy; "Request indexing" in
+Search Console speeds that up.
+
 **Not code:** the two biggest levers are the client's. They're in HANDOVER: link to each app from
 its store's site, and add the app to Search Console and Bing Webmaster Tools, then submit the
 sitemap.

@@ -43,7 +43,9 @@ only text, before the app starts, was empty. Now on both:
    DuckDuckGo and Yahoo). If you already have a "Domain" property for usapeptidedepot.com or
    peptidescostarica.net there, the app subdomain is already covered. Then submit the sitemap
    (`https://app.usapeptidedepot.com/sitemap.xml`, `https://app.peptidescostarica.net/sitemap.xml`)
-   and use "Request indexing" on the home page.
+   and use "Request indexing" on the home page. That also prompts Google to pick up the site's
+   icon: until it does, results show a plain globe instead of the logo, which can take a few
+   days to weeks to change.
 
 **Rebranded September 2026**, at the client's request, from the original Peptides Costa
 Rica branding to USA Peptide Depot (usapeptidedepot.com) — new colors, logo/icons, and app
