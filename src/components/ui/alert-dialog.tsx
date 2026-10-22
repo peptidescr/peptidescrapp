@@ -1,5 +1,5 @@
 import * as AlertDialogPrimitive from '@radix-ui/react-alert-dialog'
-import type { ComponentProps } from 'react'
+import { forwardRef, type ComponentProps, type ComponentPropsWithoutRef, type ElementRef } from 'react'
 import { cn } from '@/lib/utils'
 import { useBackClosable } from '@/lib/useBackLayer'
 import { buttonVariants } from './button-variants'
@@ -10,20 +10,22 @@ export function AlertDialog(props: ComponentProps<typeof AlertDialogPrimitive.Ro
 }
 export const AlertDialogTrigger = AlertDialogPrimitive.Trigger
 
-export function AlertDialogOverlay({
-  className,
-  ...props
-}: ComponentProps<typeof AlertDialogPrimitive.Overlay>) {
+/** forwardRef: Radix's Portal/Presence hand it a ref, and React 18 warns for a plain function component. */
+export const AlertDialogOverlay = forwardRef<
+  ElementRef<typeof AlertDialogPrimitive.Overlay>,
+  ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Overlay>
+>(function AlertDialogOverlay({ className, ...props }, ref) {
   return (
     <AlertDialogPrimitive.Overlay
+      ref={ref}
       className={cn(
-        'fixed inset-0 z-50 bg-black/50 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0',
+        'fixed inset-0 z-50 bg-tier-dark/50 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0',
         className,
       )}
       {...props}
     />
   )
-}
+})
 
 export function AlertDialogContent({
   className,
@@ -34,7 +36,7 @@ export function AlertDialogContent({
       <AlertDialogOverlay />
       <AlertDialogPrimitive.Content
         className={cn(
-          'fixed inset-x-4 bottom-4 z-50 flex flex-col gap-4 rounded-2xl border border-border bg-popover p-5 text-popover-foreground shadow-lg data-[state=open]:animate-in data-[state=open]:slide-in-from-bottom-4 data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:slide-out-to-bottom-4 data-[state=closed]:fade-out-0 sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-full sm:max-w-sm sm:-translate-x-1/2 sm:-translate-y-1/2',
+          'fixed inset-x-4 bottom-4 z-50 flex flex-col gap-4 rounded-3xl bg-popover p-5 text-popover-foreground shadow-xl data-[state=open]:animate-in data-[state=open]:slide-in-from-bottom-4 data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:slide-out-to-bottom-4 data-[state=closed]:fade-out-0 sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-full sm:max-w-sm sm:-translate-x-1/2 sm:-translate-y-1/2',
           className,
         )}
         {...props}

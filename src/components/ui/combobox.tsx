@@ -182,7 +182,7 @@ export function Combobox({
             }}
             onBlur={commitTypedText}
             onKeyDown={handleKeyDown}
-            className="min-h-11 w-full rounded-full border border-input bg-card pl-4 pr-10 text-base text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40"
+            className="min-h-12 w-full rounded-xl border border-input bg-card pl-4 pr-10 text-base text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40"
           />
           <button
             type="button"
@@ -214,7 +214,7 @@ export function Combobox({
           onInteractOutside={(e) => {
             if (anchorRef.current?.contains(e.target as Node)) e.preventDefault()
           }}
-          className="z-50 w-[var(--radix-popover-trigger-width)] rounded-2xl border border-border bg-popover p-1 text-popover-foreground shadow-md outline-none"
+          className="z-50 w-[var(--radix-popover-trigger-width)] rounded-2xl border border-border/60 bg-popover p-1 text-popover-foreground shadow-card outline-none"
         >
           <div ref={listRef} id={listId} role="listbox" className="max-h-64 overflow-y-auto overscroll-contain">
             {filtered.length === 0 ? (
@@ -238,7 +238,7 @@ export function Combobox({
                     onClick={() => choose(option)}
                     onMouseEnter={() => setHighlight(index)}
                     className={cn(
-                      'relative flex min-h-11 cursor-pointer select-none flex-col justify-center rounded-lg py-2 pl-3 pr-8 text-base',
+                      'relative flex min-h-11 cursor-pointer select-none flex-col justify-center rounded-xl py-2 pl-3 pr-8 text-base',
                       index === highlight && 'bg-accent text-accent-foreground',
                     )}
                   >
@@ -262,7 +262,7 @@ export function Combobox({
                 close()
                 footerAction.onSelect()
               }}
-              className="mt-1 flex min-h-11 w-full items-center gap-2 rounded-lg border-t border-border px-3 py-2 text-left text-base font-medium text-primary"
+              className="mt-1 flex min-h-11 w-full items-center gap-2 rounded-xl border-t border-border px-3 py-2 text-left text-base font-bold text-primary"
             >
               <Plus className="size-4 shrink-0" />
               {footerAction.label}

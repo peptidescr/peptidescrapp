@@ -74,7 +74,7 @@
      convention, not a brand colour, and deliberately distinct from
      --brand-warn's non-alarming amber (which is about measurement accuracy,
      never framed as danger — see units.ts). */
-  --destructive: #dc2626;
+  --destructive: #c81e1e;
   --destructive-foreground: #ffffff;
   /* Missed/overdue dose cards: a crisp ring plus a soft tinted drop shadow.
      See DoseCard.tsx. */

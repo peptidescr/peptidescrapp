@@ -4,13 +4,14 @@ import { cn } from '@/lib/utils'
 /**
  * A two-to-four way switch: one track, one selected option. It replaces the
  * hand-rolled versions that had grown separately in Protocols (tabs), Settings
- * (language, appearance) and the calculator — each a slightly different
- * height, radius and selected colour.
+ * (language) and the calculator — each a slightly different height, radius and
+ * selected colour. It is also the segmented control of the approved design
+ * ("Redeem / Tier perks", Track's "Today / Protocols / ...").
  *
- * The selected option is a soft tint of the accent rather than a solid fill,
- * so a row of these on a screen doesn't shout louder than the real primary
- * action beside it. Buttons carry `aria-pressed`, so selection is announced
- * rather than colour-only.
+ * The track is the soft tint and the selected option a white pill with
+ * brand-coloured text, so a row of these doesn't shout louder than the real
+ * primary action beside it. Buttons carry `aria-pressed`, so selection is
+ * announced rather than colour-only. Options are equal width.
  */
 export function Segmented<T extends string>({
   value,
@@ -26,11 +27,7 @@ export function Segmented<T extends string>({
   className?: string
 }) {
   return (
-    <div
-      role="group"
-      aria-label={ariaLabel}
-      className={cn('flex gap-1 rounded-full border border-border bg-card p-1', className)}
-    >
+    <div role="group" aria-label={ariaLabel} className={cn('flex gap-1 rounded-xl bg-tint p-1', className)}>
       {options.map((option) => {
         const selected = option.value === value
         return (
@@ -40,8 +37,8 @@ export function Segmented<T extends string>({
             aria-pressed={selected}
             onClick={() => onChange(option.value)}
             className={cn(
-              'min-h-9 min-w-0 flex-1 rounded-full px-3 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              selected ? 'bg-accent text-primary' : 'text-muted-foreground',
+              'min-h-11 min-w-0 flex-1 rounded-lg px-2 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              selected ? 'bg-card font-bold text-primary shadow-sm' : 'font-semibold text-muted-foreground',
             )}
           >
             {option.label}

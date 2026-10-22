@@ -1,10 +1,20 @@
 import type { HTMLAttributes } from 'react'
 import { cn } from '@/lib/utils'
 
-export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+/**
+ * The approved card: white, 16px radius, a very soft shadow. It carries no
+ * padding by default because several callers are lists that run their rows to
+ * the card's edge (`divide-y`); pass `padded` for the usual 16px of padding, or
+ * use CardContent.
+ */
+export function Card({ className, padded = false, ...props }: HTMLAttributes<HTMLDivElement> & { padded?: boolean }) {
   return (
     <div
-      className={cn('rounded-2xl border border-border bg-card text-card-foreground', className)}
+      className={cn(
+        'rounded-2xl border border-border/60 bg-card text-card-foreground shadow-card',
+        padded && 'p-4',
+        className,
+      )}
       {...props}
     />
   )

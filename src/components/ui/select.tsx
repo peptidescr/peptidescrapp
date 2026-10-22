@@ -15,7 +15,7 @@ export function SelectTrigger({
   return (
     <SelectPrimitive.Trigger
       className={cn(
-        'flex min-h-11 w-full items-center justify-between gap-2 rounded-full border border-input bg-card px-4 text-base text-foreground outline-none data-[placeholder]:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40',
+        'flex min-h-12 w-full items-center justify-between gap-2 rounded-xl border border-input bg-card px-4 text-base text-foreground outline-none data-[placeholder]:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40',
         className,
       )}
       {...props}
@@ -38,7 +38,7 @@ export function SelectContent({
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
         className={cn(
-          'relative z-50 max-h-[min(24rem,var(--radix-select-content-available-height))] min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-2xl border border-border bg-popover text-popover-foreground shadow-md',
+          'relative z-50 max-h-[min(24rem,var(--radix-select-content-available-height))] min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-2xl border border-border/60 bg-popover text-popover-foreground shadow-card',
           position === 'popper' &&
             'data-[side=bottom]:translate-y-1 data-[side=top]:-translate-y-1',
           className,
@@ -77,7 +77,7 @@ export function SelectItem({
   return (
     <SelectPrimitive.Item
       className={cn(
-        'relative flex min-h-11 w-full cursor-pointer select-none items-center rounded-lg py-2 pr-8 pl-2 text-base outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-40 data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground',
+        'relative flex min-h-11 w-full cursor-pointer select-none items-center rounded-xl py-2 pr-8 pl-3 text-base outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-40 data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground',
         className,
       )}
       {...props}

@@ -9,7 +9,8 @@
     "delete": "Eliminar",
     "edit": "Editar",
     "back": "Atrás",
-    "noMatches": "Sin coincidencias"
+    "noMatches": "Sin coincidencias",
+    "close": "Cerrar"
   },
   "nav": {
     "home": "Inicio",

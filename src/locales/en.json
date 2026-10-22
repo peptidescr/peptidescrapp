@@ -9,7 +9,8 @@
     "delete": "Delete",
     "edit": "Edit",
     "back": "Back",
-    "noMatches": "No matches"
+    "noMatches": "No matches",
+    "close": "Close"
   },
   "nav": {
     "home": "Home",
