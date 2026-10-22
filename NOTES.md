@@ -2147,3 +2147,126 @@ developer:
   - system back closes the weight sheet and the report first, staying on Progress;
   - a dose edit goes back to History;
   - saving a new protocol lands on the list, not the picker.
+
+
+## Retention redesign, Part A (October 2026)
+
+The client approved four screens in two brand skins (Home + reorder, Rewards, Refer & earn, the
+calculator); the screenshots are in `docs/design/retention/` and were the visual spec. Part A is the
+look and navigation for both brands with every existing feature kept. Part B (store sign-in, Your
+usual + reorder, rewards, referrals, the in-app Shop) and Part C (UPD store connection) are later.
+No commerce UI is built or shown: only seams, hidden behind `BRAND.features.store`.
+
+**Design system**
+- **Tokens** (`src/brand/<brand>/tokens.css`): light values in `:root`, sampled from the screenshots
+  with a canvas pixel reader (hero band, page, tint, tier card, attention button, syringe fill, ink).
+  New roles: `--brand-tint`, `-tier-dark`, `-attention(-dk/-fg)`, `-accent-light`, `-positive(-lt)`,
+  `-on-primary(-muted/-tile)`, `-shadow-card`; mapped into `@theme` in `index.css`. `accent`, `muted`
+  and `secondary` are all the soft tint now. Every body-text pairing is >= 4.5:1 in both brands.
+- **Deviations from the brief's table, on purpose:** UPD's attention colour is the sampled `#C2410C`
+  (the brief said `#BF4F0B`, their store's button colour; both clear 4.5:1 with white). Inactive tab
+  labels use `--brand-muted` (the mock-up's `#828eac` is 3.3:1). `--destructive` is `#c81e1e` (the old
+  `#dc2626` was 4.4:1 on the PCR page tint) and `--brand-warn` is a shade darker (4.3:1 before).
+- **Light only.** `THEME_SWITCHING_ENABLED = false` in `src/lib/theme.ts` pins every stored mode to
+  light (also in the pre-paint script in `index.html`, and the manifest and `theme-color`). The
+  Appearance control and the app bar toggle are hidden behind the same flag; `Settings.theme` is left
+  alone, so backups still carry it. The old dark palette stays, unreachable, at the bottom of each
+  `tokens.css`, with a TODO for the new roles. Theme application moved to `useTheme`
+  (`useSyncExternalStore`), which also removed the old `set-state-in-effect` error in `App.tsx`.
+  iOS standalone uses the `default` status bar (white text on a light page was invisible).
+- **Fonts: not changed.** The screenshots use other faces (UPD's looks like Outfit; PCR's we could not
+  identify). Each brand keeps its self-hosted fonts; type sizes were tuned to the mock-ups' density
+  instead. Open question in `HANDOVER.md`.
+- **Primitives** (`src/components/ui/`): new `HeroHeader` + `HeroOverlap`, `InfoRowCard`,
+  `SectionLabel`, `ChipGroup` (equal-width, wraps with the last row stretched, so a trailing Custom is
+  full width), `Chip`, `Stepper`, `TierBadge`/`StatusPill`, `StatTile`, `ProgressRing`,
+  `SegmentedProgressTrack` (+ `segmentedProgress`, tested). The ring, track, stepper and pills are
+  built and unused until Part B. Every existing primitive was restyled (12px controls, 16px cards with
+  a soft shadow, tint segmented track, white sheets). `Button` gained `fullWidth` and `attention` /
+  `locked` / `tint` variants and now wraps a long label instead of widening the page.
+- Found by auditing: `Button` and the dialog overlays are `forwardRef` now (React warned when Radix
+  handed them a ref); the switch has a 44px hit area; calendar days are 44px tall; a selected day that
+  is also today was primary-on-primary; the dialogs' "Close" label is translated.
+
+**Navigation** (`src/lib/pages.ts`, `App.tsx`, `TabBar.tsx`)
+- Tabs: Home - Track - Shop - Rewards - Tools; production shows Home - Track - Tools
+  (`visibleTabs`). A page for Shop/Rewards falls back to Home with the flag off (`reachablePage`).
+  The active tab shows a filled icon (drawn in `TabBar`, as lucide's are outline-only). Verified with
+  3 and 5 tabs at 375 and 320, in Spanish too; the Spanish labels are "Registro" and "Utilidades"
+  because "Seguimiento" and "Herramientas" truncated with 5 tabs.
+- Page model: `track` carries a segment (today | protocols | history | progress) plus the old
+  sub-pages; `tools` carries the tool. **Tab taps and sub-pages push; switching a segment replaces**
+  (`replacePage`), so back leaves Track instead of walking through the segments. Pages opened from a
+  segment (protocol form, template picker, dose edit) hide the segment control.
+- **Where things moved:** old Home's dose cards, streak, summary, next-up and recent activity are
+  Track > Today (`TodayView`); Home is the dashboard (`HomeScreen`). Both read `useHomeState`.
+  Protocols, History (calendar) and Progress are Track segments. The calculator is Tools.
+  Home keeps the get-started checklist, the backup nudge and the "How are you today?" prompt. Settings
+  is the gear in the app bar (in the hero on Home); Home has no app bar, so the hero carries the back
+  arrow too.
+- **Deep links** (`src/lib/deepLinks.ts`): the service worker attaches `data.open` to each reminder
+  (`today` for a dose, `home` for a vial) and opens `/?open=<target>` or messages an open window;
+  `initialPages`/`App` map it to a page. Foreground notifications carry the same target
+  (`targetForReminderTag`; `sw-notifications.js` holds a plain-JS copy). Vial-alert and protocol links
+  still open that protocol's edit page under Track > Protocols.
+- Tests: `pages.test.ts` (push/pop/replace, segments, sub-pages, the store-flag fallback, visible tabs),
+  `backStack.test.ts` (the real wiring: Home > Track > three segments > back is Home; a sheet closes
+  first; a deep link; saved-protocol skipping), `deepLinks.test.ts`.
+
+**Home** has the hero (date over the greeting, since there is no name yet), the Next dose card
+(`NextDoseCard`: the soonest due or missed dose, else the next upcoming, with Taken / Skipped through
+the existing `LogButtons`, so site rotation and the late-dose sheet still apply; a link to Today; an
+empty state linking to Protocols), vial alerts with the existing Reorder link, the calculator
+shortcut, and `HomeCommerceSlots` (empty, rendered only when the store flag is on).
+
+**Calculator** (`CalculatorScreen`): the approved layout with a Custom chip on every row.
+- Presets (`calculatorPresets.ts`): vial mass 2/5/10/15/50 mg, diluent 1/2/3/5 mL, aliquot
+  100/250/500/1000 mcg. The compound's own vial sizes are added to the vial row. **Nothing is
+  preselected**, so the app still never suggests a dilution or a dose (the compound's first vial size
+  is the only default, as before). IU compounds and pre-mixed solutions get no generic presets (an IU
+  or mL amount means something different per product): their vial row is the compound's own sizes, and
+  an IU dose is just the numeric input. A pre-mixed solution's dose presets keep the unit in use,
+  because its concentration shares the mg/mcg unit (a preset used to flip "5 mg/mL" to "5 mcg/mL").
+- **The diluent-product quick-fill row (BAC water 3 / 10 mL) is gone**, replaced by the presets and
+  Custom; it was the one control without a direct successor. `useDiluents` is still exported.
+- **Syringe barrel is now a choice** (1 mL / 0.5 mL / 0.3 mL for U-100), default the 1 mL / 100-unit
+  scale of the design; before, the smallest barrel that held the draw was drawn. A draw too big for the
+  chosen barrel moves up to the next (`layoutSyringe(..., minCapacityUnits)`). The scale is numbered
+  0/25/50/75/100 (`labels`, separate from the ticks). The syringe type (U-100/U-50/U-40) is unchanged.
+- Display only: `formatVolumeMlFixed` ("0.100") and `formatGrouped` ("2,500") in `units.ts`, tested.
+  No dose maths changed. "Need more BAC water? Add" (`BacWaterCard`) renders nothing until Part B.
+
+**Other screens:** Protocols, History and Progress lost their own big titles (now screen-reader
+headings) since Track names them; section headings are `SectionLabel`; one `Chip` replaces five
+hand-rolled pills; inputs, pickers and icon tiles are rounded squares; Settings hides Appearance (and,
+on UPD, drops the empty preferences card), uses a WhatsApp teal that passes contrast and has 44px
+links; Onboarding's install step reuses `InstallInstructions`, which fixed two keys it referenced that
+never existed (`settings.install.iosInstructions` / `genericInstructions`); "How it works" now
+describes Home, Track and Tools (the old copy described five tabs). The doctor report only picked up
+tokens (and a white print background); it prints dark on white.
+
+**Store seams:** `features: { store: boolean }` and `heroLogo` in `BrandConfig`; `src/brand/index.ts`
+sets `features.store` from `VITE_STORE_ENABLED === 'true'` (brands.ts is also read in Node, where
+`import.meta.env` does not exist); `.env.example` documents it. `src/lib/store/` is types only: the
+`StoreAdapter` sketch.
+
+**Deliberately left alone:** `db.ts` and every table, the backup format and validation, schedule,
+titration, vial and reconstitution maths; the Phase 2 body-map design (only enlarged: its upper abdomen
+zones are 38 x 42 px, under 44, because four zones share a small torso); the calendar's seven day cells
+are 44 px tall but 37-44 wide (seven columns cannot all be 44 wide at 320 px); unrelated unused
+translation keys.
+
+**Verified:**
+- Typecheck, 424/424 tests (was 369), lint (clean: the old `App.tsx` error is gone), i18n parity 623/623
+  with no missing keys, and `build:pcr` and `build:upd`. A production build was served and taken
+  through real onboarding: 3 tabs, light, no console errors.
+- A dependency-free headless-Chrome harness (CDP over Node's WebSocket; kept outside the repo) drove
+  both brands at 375, 320 and the screenshots' 338 px: onboarding, Home, every Track segment, Tools,
+  Settings and every sheet and sub-page, auditing each for horizontal overflow, touch targets,
+  contrast and unnamed controls, and Spanish for English leaks. Home, Tools, the tab bar and the hero
+  were compared side by side with the approved screens. Calculator paths checked live: presets,
+  Custom, an IU compound, a blend, a pre-mixed solution, syringe type and barrel, the titration
+  Recalculate hand-off, saving to a protocol, and Start a vial with this mix.
+- Zero console errors in every pass; no horizontal scroll; body-text contrast >= 4.5:1.
+- Fixed on the way: a Spanish button label forced a 320 px page wider (buttons wrap now); the report's
+  back button shrank to 24 px; hard-coded "Calendar / Hour / Minute" labels are translated.

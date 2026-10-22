@@ -26,6 +26,28 @@ text, and the display name changed. See `NOTES.md`'s "Rebrand" entry for the ful
 what changed and, just as importantly, what was deliberately left alone (in particular: no
 user's local data is affected — the rebrand never touches how or where data is stored).
 
+**A new look and a new layout (October 2026).** Both apps now match the four screens the client
+approved (Home, Rewards, Refer & earn, and the calculator), each in its own brand skin.
+- **The look.** Everything is **light** now: a soft page background, white cards, and the
+  brand colour (navy for Peptides CR, forest green for USA Peptide Depot) on the top band,
+  buttons and the selected tab. Dark mode is gone for now.
+- **Three tabs, ready for five.** The bottom bar is **Home · Track · Tools**. **Shop** and
+  **Rewards** are built into the bar but switched off; they turn on in the next part of the
+  project, when the store connection ships.
+- **Where things went.** **Home** is a dashboard: your next dose with Taken / Skipped,
+  vial alerts, a shortcut to the calculator, and your reminders. **Track** holds everything
+  you used to track, under one switch: **Today** (what used to be Home's dose cards, streak
+  and recent activity), **Protocols**, **History** (with the month calendar) and **Progress**.
+  **Tools** is the reconstitution calculator, laid out like the approved screen, with a
+  **Custom** option on every row so any value still works. Settings is the gear at the top
+  (in the Home banner on Home). Nothing was removed: protocols, dose logging, vials and
+  alerts, titration, cycling, site rotation, templates, custom compounds, the doctor
+  report, backups, reminders and onboarding are all still there, restyled.
+- **Tapping a reminder** now opens **Track › Today** for a dose, and Home for a vial.
+- **Questions for you:** the approved screens use a different typeface from the apps' own (USA
+  Peptide Depot's looks like Outfit; Peptides CR's we could not identify). We kept each brand's
+  own fonts. Tell us if the client wants the screens' typefaces, and send the font files.
+
 **Phase 2, first batch (September 2026): the vial layer.** Now in both sites:
 - **Vial tracking**, with lot, batch, label expiry and the customer's own discard-by date.
   Doses count down automatically as they're logged.
@@ -276,12 +298,14 @@ enough.
 
 ## Two things that are genuine tradeoffs, worth knowing about
 
-- **Always-dark theme.** The app no longer has a light mode — it opens dark for everyone,
-  regardless of the customer's own phone setting. Deliberate, to match the "modern,
-  premium, PeptIQ-like" look that was asked for — but it's a real product decision, not
-  just a visual tweak. If the client's customers expect the app to follow their phone's
-  own light/dark setting, say so and light mode comes back easily — nothing was deleted,
-  the old values are sitting in a comment in `src/brand/upd/tokens.css`.
+- **Light-only theme.** *(Updated October 2026: this replaces the always-dark note that was
+  here.)* The app is now light for everyone, regardless of the customer's own phone setting,
+  to match the approved retention screens. There is no light/dark/system choice in Settings
+  any more. It is a real product decision, not just a visual tweak: if customers expect the
+  app to follow their phone's setting, a dark mode can come back. Nothing was deleted: the
+  old dark values are kept, unused, at the bottom of each brand's `tokens.css`, and one
+  switch (`THEME_SWITCHING_ENABLED` in `src/lib/theme.ts`) turns the choice back on once dark
+  values exist for the new colours.
 - **Bundle size.** The modern UI pass added a real dependency footprint (Radix UI, Motion,
   a calendar library, icons) — the app's JS roughly doubled to get the more polished,
   animated feel. Still loads fine, but worth knowing if the client's customers are often
