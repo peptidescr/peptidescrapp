@@ -1,5 +1,6 @@
 import { getCompoundById } from '../content/compounds'
 import i18n from '../i18n'
+import { targetForReminderTag } from './deepLinks'
 import { formatClock } from './dates'
 import { db, type Protocol } from './db'
 import { contextOf, loggedTimesFor } from './homeData'
@@ -80,6 +81,7 @@ async function showNotification({ title, body, tag }: ReminderContent): Promise<
     tag,
     icon: '/brand/icon-192.png',
     badge: '/brand/icon-192.png',
+    data: { open: targetForReminderTag(tag) },
   }
   try {
     const registration = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : undefined
@@ -310,6 +312,7 @@ export async function scheduleUpcomingReminders(protocols: Protocol[]): Promise<
           tag,
           icon: '/brand/icon-192.png',
           badge: '/brand/icon-192.png',
+          data: { open: targetForReminderTag(tag) },
           // @ts-expect-error showTrigger isn't in TS's NotificationOptions yet
           showTrigger: new TimestampTrigger(occurrence.scheduledAt.getTime()),
         })

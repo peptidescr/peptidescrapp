@@ -19,7 +19,11 @@
     "history": "History",
     "settings": "Settings",
     "ariaLabel": "Main navigation",
-    "progress": "Progress"
+    "progress": "Progress",
+    "track": "Track",
+    "shop": "Shop",
+    "rewards": "Rewards",
+    "tools": "Tools"
   },
   "calculator": {
     "title": "Mixing calculator",
@@ -255,7 +259,15 @@
     "getStarted_tryCalculator": "Try the mixing calculator",
     "getStarted_backUp": "Back up your data",
     "recentActivityTitle": "Recent activity",
-    "recentActivitySeeAll": "See all"
+    "recentActivitySeeAll": "See all",
+    "nextDoseTitle": "Next dose",
+    "nextDoseSeeToday": "See today's doses",
+    "nextDoseMoreDue_one": "{{count}} more dose due",
+    "nextDoseMoreDue_other": "{{count}} more doses due",
+    "nextDoseEmptyBody": "Add a protocol to get reminders and log doses in one tap.",
+    "nextDoseEmptyCta": "Go to Protocols",
+    "calculatorCardTitle": "Reconstitution calculator",
+    "calculatorCardBody": "Concentration and syringe units in seconds"
   },
   "history": {
     "searchPlaceholder": "Search by compound or note",
@@ -736,5 +748,12 @@
     "compound": "Compound",
     "status": "Status",
     "none": "Nothing in this period."
+  },
+  "track": {
+    "ariaLabel": "Tracking views",
+    "today": "Today"
+  },
+  "tools": {
+    "title": "Tools"
   }
 }

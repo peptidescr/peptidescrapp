@@ -2,15 +2,23 @@
 // Plain JS on purpose: it runs outside the app bundle, so it can't import app code.
 
 // --- Tapping a reminder ----------------------------------------------------
-// Focuses the already-open app window, or opens the app if it's closed.
+// Focuses the already-open app window, or opens the app if it's closed, and says
+// where to go: a dose reminder to Track > Today, a vial reminder to Home (see
+// src/lib/deepLinks.ts, which maps these names to pages). A window that is
+// already open is told by message; a closed app is opened with ?open=<target>.
+// Notifications from before this carried no target and open the app where it was.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
+  const target = (event.notification.data && event.notification.data.open) || ''
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
       for (const client of windows) {
-        if ('focus' in client) return client.focus()
+        if ('focus' in client) {
+          if (target) client.postMessage({ type: 'open', target })
+          return client.focus()
+        }
       }
-      return self.clients.openWindow('/')
+      return self.clients.openWindow(target ? '/?open=' + encodeURIComponent(target) : '/')
     }),
   )
 })
@@ -161,6 +169,8 @@ self.addEventListener('push', (event) => {
         tag: tag || 'peptidescr-dose',
         icon: '/brand/icon-192.png',
         badge: '/brand/icon-192.png',
+        // Where a tap goes (see the notificationclick handler above).
+        data: { open: tag.split('|')[0] === 'vial' ? 'home' : 'today' },
       })
     })(),
   )

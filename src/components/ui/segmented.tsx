@@ -19,12 +19,15 @@ export function Segmented<T extends string>({
   options,
   ariaLabel,
   className,
+  compact = false,
 }: {
   value: T
   onChange: (value: T) => void
   options: { value: T; label: ReactNode }[]
   ariaLabel?: string
   className?: string
+  /** Tighter text and padding, for four or more options on a narrow phone. */
+  compact?: boolean
 }) {
   return (
     <div role="group" aria-label={ariaLabel} className={cn('flex gap-1 rounded-xl bg-tint p-1', className)}>
@@ -37,7 +40,8 @@ export function Segmented<T extends string>({
             aria-pressed={selected}
             onClick={() => onChange(option.value)}
             className={cn(
-              'min-h-11 min-w-0 flex-1 rounded-lg px-2 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              'min-h-11 min-w-0 flex-1 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              compact ? 'px-0.5 text-[12.5px] tracking-tight' : 'px-2 text-sm',
               selected ? 'bg-card font-bold text-primary shadow-sm' : 'font-semibold text-muted-foreground',
             )}
           >

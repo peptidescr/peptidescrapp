@@ -19,7 +19,11 @@
     "history": "Historial",
     "settings": "Ajustes",
     "ariaLabel": "Navegación principal",
-    "progress": "Progreso"
+    "progress": "Progreso",
+    "track": "Registro",
+    "shop": "Tienda",
+    "rewards": "Premios",
+    "tools": "Utilidades"
   },
   "calculator": {
     "title": "Calculadora de mezcla",
@@ -255,7 +259,15 @@
     "getStarted_tryCalculator": "Probá la calculadora de mezcla",
     "getStarted_backUp": "Respaldá tus datos",
     "recentActivityTitle": "Actividad reciente",
-    "recentActivitySeeAll": "Ver todo"
+    "recentActivitySeeAll": "Ver todo",
+    "nextDoseTitle": "Próxima dosis",
+    "nextDoseSeeToday": "Ver las dosis de hoy",
+    "nextDoseMoreDue_one": "{{count}} dosis más pendiente",
+    "nextDoseMoreDue_other": "{{count}} dosis más pendientes",
+    "nextDoseEmptyBody": "Agregá un protocolo para recibir recordatorios y registrar tus dosis con un toque.",
+    "nextDoseEmptyCta": "Ir a Protocolos",
+    "calculatorCardTitle": "Calculadora de reconstitución",
+    "calculatorCardBody": "Concentración y unidades de jeringa en segundos"
   },
   "history": {
     "searchPlaceholder": "Buscar por compuesto o nota",
@@ -736,5 +748,12 @@
     "compound": "Compuesto",
     "status": "Estado",
     "none": "Nada en este período."
+  },
+  "track": {
+    "ariaLabel": "Vistas de seguimiento",
+    "today": "Hoy"
+  },
+  "tools": {
+    "title": "Utilidades"
   }
 }
