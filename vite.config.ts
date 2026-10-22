@@ -118,8 +118,10 @@ export default defineConfig(({ mode }) => {
           start_url: '/',
           scope: '/',
           display: 'standalone',
-          background_color: brand.themeColors.dark,
-          theme_color: brand.themeColors.dark,
+          // The app is light-only (THEME_SWITCHING_ENABLED), so the splash and the
+          // title bar are the page background, not the old dark one.
+          background_color: brand.themeColors.light,
+          theme_color: brand.themeColors.light,
           icons: [
             { src: '/brand/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
             { src: '/brand/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },

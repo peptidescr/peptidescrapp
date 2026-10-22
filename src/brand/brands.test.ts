@@ -14,6 +14,22 @@ describe('brand configs', () => {
     expect(UPD_BRAND.defaultLocale).toBe('en')
   })
 
+  it.each([PCR_BRAND, UPD_BRAND])('$id ships with the store features off', (brand) => {
+    // Shop, Rewards and Home's store cards are Part B: a site turns them on
+    // with VITE_STORE_ENABLED (src/brand/index.ts), never by default.
+    expect(brand.features.store).toBe(false)
+  })
+
+  it.each([PCR_BRAND, UPD_BRAND])('$id has a hero logo from its own brand folder', (brand) => {
+    expect(brand.heroLogo.src).toMatch(/^\/brand\/.+\.png$/)
+    expect(brand.heroLogo.width).toBeGreaterThan(0)
+    expect(brand.heroLogo.height).toBeGreaterThan(0)
+  })
+
+  it.each([PCR_BRAND, UPD_BRAND])('$id has a light theme colour that is a page-background hex', (brand) => {
+    expect(brand.themeColors.light).toMatch(/^#[0-9a-f]{6}$/)
+  })
+
   it('rejects an unknown brand id instead of silently picking one', () => {
     expect(getBrand('pcr')).toBe(PCR_BRAND)
     expect(getBrand('upd')).toBe(UPD_BRAND)

@@ -21,6 +21,24 @@
   --font-display: var(--font-display);
 
   /*
+   * The retention-redesign roles (see each brand's tokens.css for what they
+   * are). Late-bound like everything else here, so a dark palette only has to
+   * redefine the --brand-* names.
+   */
+  --color-tint: var(--brand-tint);
+  --color-tier-dark: var(--brand-tier-dark);
+  --color-attention: var(--brand-attention);
+  --color-attention-dk: var(--brand-attention-dk);
+  --color-attention-foreground: var(--brand-attention-fg);
+  --color-accent-light: var(--brand-accent-light);
+  --color-positive: var(--brand-positive);
+  --color-positive-lt: var(--brand-positive-lt);
+  --color-on-primary: var(--brand-on-primary);
+  --color-on-primary-muted: var(--brand-on-primary-muted);
+  --color-on-primary-tile: var(--brand-on-primary-tile);
+  --shadow-card: var(--brand-shadow-card);
+
+  /*
    * shadcn/ui's standard semantic token vocabulary, bridged onto our brand
    * palette above rather than given independent values — this is the only
    * place that mapping lives, so each brand's tokens.css stays the one file to
@@ -36,9 +54,11 @@
   --color-popover-foreground: var(--brand-ink);
   --color-primary: var(--brand-primary);
   --color-primary-foreground: var(--brand-primary-fg);
-  --color-secondary: var(--brand-surface-2);
+  /* Secondary, muted and accent surfaces are all the soft tint: the segmented
+     track, the secondary button, selected rows, icon tiles. */
+  --color-secondary: var(--brand-tint);
   --color-secondary-foreground: var(--brand-ink);
-  --color-muted: var(--brand-surface-2);
+  --color-muted: var(--brand-tint);
   --color-muted-foreground: var(--brand-muted);
   --color-accent: var(--brand-primary-lt);
   --color-accent-foreground: var(--brand-primary);

@@ -17,6 +17,15 @@ import type { ThemeMode } from './units'
 export type ResolvedTheme = 'light' | 'dark'
 
 /**
+ * The app is light-only since the retention redesign (Part A). While this is
+ * false, the Light/Dark/System control and the app bar's quick toggle are
+ * hidden and every mode resolves to 'light'. The stored `Settings.theme` is
+ * left alone (backups still carry it), so flipping this back on, together with
+ * a dark token block in each brand's tokens.css, restores dark mode.
+ */
+export const THEME_SWITCHING_ENABLED = false
+
+/**
  * Pre-paint cache key (localStorage). Holds only the *resolved* theme
  * ('light' | 'dark'), never the raw mode — index.html's inline script reads
  * this synchronously, before any module script runs, to set `data-theme` on
@@ -44,10 +53,17 @@ export function prefersDarkColorScheme(): boolean {
 }
 
 /**
- * Mode → concrete theme. `prefersDark` is injectable (rather than read
- * internally every call) so this stays a pure function for testing.
+ * Mode → concrete theme. `prefersDark` and `switching` are injectable (rather
+ * than read internally every call) so this stays a pure function for testing.
+ * While theme switching is off every mode, whatever a settings row or an
+ * imported backup holds, resolves to light.
  */
-export function resolveTheme(mode: ThemeMode, prefersDark: boolean = prefersDarkColorScheme()): ResolvedTheme {
+export function resolveTheme(
+  mode: ThemeMode,
+  prefersDark: boolean = prefersDarkColorScheme(),
+  switching: boolean = THEME_SWITCHING_ENABLED,
+): ResolvedTheme {
+  if (!switching) return 'light'
   if (mode === 'light') return 'light'
   if (mode === 'dark') return 'dark'
   return prefersDark ? 'dark' : 'light'

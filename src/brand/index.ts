@@ -27,6 +27,11 @@ export interface Brand extends BrandConfig {
  * substituted, the bundler deletes the dead branch outright, so neither
  * build carries the other brand's name or contact details.
  *
+ * `features` is where a site's environment turns things on: brands.ts holds the
+ * production defaults (all off) because vite.config.ts reads it in Node, where
+ * import.meta.env doesn't exist. Only an explicit VITE_STORE_ENABLED=true shows
+ * the Shop and Rewards tabs and Home's store cards (Part B).
+ *
  * Peptides CR's contact card is restored as it was before the September
  * 2026 rebrand (commit 53c0889). Confirm with the client that the CR
  * WhatsApp/phone and the Jacó · San José address are still current before
@@ -36,6 +41,7 @@ export const BRAND: Brand =
   import.meta.env.VITE_BRAND === 'pcr'
     ? {
         ...PCR_BRAND,
+        features: { store: import.meta.env.VITE_STORE_ENABLED === 'true' },
         contact: {
           website: { href: 'https://peptidescostarica.net', label: 'peptidescostarica.net' },
           address: 'Jacó · San José, Costa Rica',
@@ -49,6 +55,7 @@ export const BRAND: Brand =
       }
     : {
         ...UPD_BRAND,
+        features: { store: import.meta.env.VITE_STORE_ENABLED === 'true' },
         contact: {
           website: { href: 'https://www.usapeptidedepot.com', label: 'usapeptidedepot.com' },
           phones: [{ href: 'tel:+18314715559', label: '+1 (831) 471-5559' }],
