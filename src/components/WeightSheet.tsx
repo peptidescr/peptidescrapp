@@ -46,7 +46,7 @@ export function WeightSheet({ unit, onClose }: { unit: WeightUnit; onClose: () =
         </SheetHeader>
         <SheetBody className="flex flex-col gap-4">
           <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-foreground">{t('progress.weightLabel', { unit })}</span>
+            <span className="font-display text-sm font-semibold text-foreground">{t('progress.weightLabel', { unit })}</span>
             <NumericInput
               kind="decimal"
               value={value}
@@ -61,7 +61,7 @@ export function WeightSheet({ unit, onClose }: { unit: WeightUnit; onClose: () =
             )}
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-foreground">{t('history.date')}</span>
+            <span className="font-display text-sm font-semibold text-foreground">{t('history.date')}</span>
             <DatePicker value={date} onChange={(d) => setDate(d > today ? today : d)} />
           </label>
           <Button disabled={!valid || busy} onClick={() => void handleSave()}>

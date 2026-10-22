@@ -42,7 +42,7 @@ export function SaveTemplateDialog({ protocol, onClose }: { protocol: Protocol; 
           }}
         >
           <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-foreground">{t('templates.nameLabel')}</span>
+            <span className="font-display text-sm font-semibold text-foreground">{t('templates.nameLabel')}</span>
             <Input value={name} maxLength={MAX_NAME_LENGTH} onChange={(e) => setName(sanitizeText(e.target.value))} autoFocus />
           </label>
           <div className="flex gap-2">

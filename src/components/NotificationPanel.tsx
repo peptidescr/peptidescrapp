@@ -149,7 +149,7 @@ export function NotificationPanel({
           {!hasAnything && (
             <div className="flex flex-col items-center gap-2 py-8 text-center">
               <CheckCircle2 className="size-8 text-primary" />
-              <p className="text-sm font-medium text-foreground">{t('notifications.emptyTitle')}</p>
+              <p className="font-display text-sm font-semibold text-foreground">{t('notifications.emptyTitle')}</p>
               <p className="text-sm text-muted-foreground">{t('notifications.emptyBody')}</p>
             </div>
           )}

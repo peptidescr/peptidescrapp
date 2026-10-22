@@ -1,10 +1,10 @@
 import { FileText, HeartPulse, Plus, Scale, SlidersHorizontal, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { SectionLabel } from '@/components/ui/section-label'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
-import { AppHeader } from '../components/AppHeader'
 import { CheckInSheet } from '../components/CheckInSheet'
 import { DoctorReport } from '../components/DoctorReport'
 import { ProgressTrends } from '../components/ProgressTrends'
@@ -56,24 +56,21 @@ export function ProgressScreen() {
   const fmt = (grams: number) => `${formatDecimal(weightIn(grams, unit), locale, 1)}${NBSP}${unit}`
 
   return (
-    <div className="flex flex-col gap-6 px-4 pb-6 pt-2">
-      <AppHeader
-        title={t('nav.progress')}
-        action={
-          <div className="flex gap-2">
-            <Button variant="secondary" size="sm" onClick={() => setReportOpen(true)}>
-              <FileText className="size-4" />
-              {t('report.open')}
-            </Button>
-            <Button variant="secondary" size="sm" onClick={() => setSheet('settings')} aria-label={t('progress.settingsTitle')}>
-              <SlidersHorizontal className="size-4" />
-            </Button>
-          </div>
-        }
-      />
+    <div className="flex flex-col gap-5 px-4 pb-6 pt-2">
+      {/* The Track tab already says where this is, so the heading is for screen readers only. */}
+      <h2 className="sr-only">{t('nav.progress')}</h2>
+      <div className="flex justify-end gap-2">
+        <Button variant="secondary" size="sm" onClick={() => setReportOpen(true)}>
+          <FileText className="size-4" />
+          {t('report.open')}
+        </Button>
+        <Button variant="secondary" size="icon" onClick={() => setSheet('settings')} aria-label={t('progress.settingsTitle')}>
+          <SlidersHorizontal className="size-4" />
+        </Button>
+      </div>
 
       <Card className="flex flex-col gap-4 p-4">
-        <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+        <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
           <Scale className="size-4" />
           {t('progress.weightTitle')}
         </div>
@@ -120,7 +117,7 @@ export function ProgressScreen() {
       </Card>
 
       <Card className="flex flex-col gap-3 p-4">
-        <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+        <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
           <HeartPulse className="size-4" />
           {t('progress.todayTitle')}
         </div>
@@ -138,7 +135,7 @@ export function ProgressScreen() {
 
       {(checkIns ?? []).some((c) => c.date !== today) && (
         <section className="flex flex-col gap-2">
-          <h2 className="text-sm font-semibold text-muted-foreground">{t('progress.recentCheckIns')}</h2>
+          <SectionLabel>{t('progress.recentCheckIns')}</SectionLabel>
           <Card className="divide-y divide-border overflow-hidden">
             {(checkIns ?? [])
               .filter((c) => c.date !== today)
@@ -160,7 +157,7 @@ export function ProgressScreen() {
 
       {(weights ?? []).length > 0 && (
         <section className="flex flex-col gap-2">
-          <h2 className="text-sm font-semibold text-muted-foreground">{t('progress.recentWeights')}</h2>
+          <SectionLabel>{t('progress.recentWeights')}</SectionLabel>
           <Card className="divide-y divide-border overflow-hidden">
             {[...(weights ?? [])]
               .reverse()

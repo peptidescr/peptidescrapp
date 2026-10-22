@@ -432,14 +432,12 @@
     "howItWorks": {
       "title": "How {{appName}} works",
       "subtitle": "Everything stays on this device — here's what each part does.",
-      "calculatorTitle": "Calculator",
-      "calculatorBody": "Work out exactly what to draw, from a vial or a ready-made solution.",
-      "protocolsTitle": "Protocols",
-      "protocolsBody": "Set up a compound, a dose, and a schedule — start from a template or build your own.",
       "homeTitle": "Home",
-      "homeBody": "See what's due today and log a dose with one tap.",
-      "historyTitle": "History",
-      "historyBody": "Your full record — searchable, editable, and yours to export anytime."
+      "homeBody": "Your next dose with one-tap logging, plus vial alerts and shortcuts.",
+      "trackTitle": "Track",
+      "trackBody": "Today's doses, your protocols (start from a template or build your own), your full history and your progress.",
+      "toolsTitle": "Tools",
+      "toolsBody": "The reconstitution calculator: work out exactly what to draw, from a vial or a ready-made solution."
     },
     "startingPoint": {
       "title": "Your starting point",

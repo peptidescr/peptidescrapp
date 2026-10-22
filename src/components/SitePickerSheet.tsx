@@ -53,7 +53,7 @@ export function SitePickerSheet({
         <div className="flex shrink-0 flex-col gap-3 px-5 pb-5 pt-2">
           {selected && selectedRest && (
             <div aria-live="polite" className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3">
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent text-primary">
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-tint text-primary">
                 <MapPin className="size-4" aria-hidden />
               </span>
               <span className="flex min-w-0 flex-col">

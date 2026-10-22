@@ -62,7 +62,7 @@ export function AppHeader({
 
   return (
     <div className="flex min-h-11 items-center justify-between gap-2">
-      <h1 className="min-w-0 font-display text-2xl font-bold leading-tight text-foreground">{title}</h1>
+      <h1 className="min-w-0 font-display text-[1.375rem] font-bold leading-tight text-foreground">{title}</h1>
       {action}
     </div>
   )

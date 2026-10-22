@@ -158,7 +158,7 @@ function Figure({
   }
 
   return (
-    <figure className="flex w-[min(8.5rem,40vw,22dvh)] flex-col gap-1">
+    <figure className="flex w-[min(10rem,43vw,26dvh)] flex-col gap-1">
       <figcaption className="text-center text-xs font-semibold text-muted-foreground">
         {view === 'front' ? t('sites.frontView') : t('sites.backView')}
       </figcaption>

@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { SectionLabel } from '@/components/ui/section-label'
 import { Card } from '@/components/ui/card'
 import { Segmented } from '@/components/ui/segmented'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -88,7 +89,7 @@ export function ProgressTrends({
 
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="text-sm font-semibold text-muted-foreground">{t('charts.title')}</h2>
+      <SectionLabel>{t('charts.title')}</SectionLabel>
       {/* One filter row, above everything it scopes. */}
       <div className="flex flex-col gap-2">
         <Segmented<ChartRange>

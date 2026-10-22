@@ -432,14 +432,12 @@
     "howItWorks": {
       "title": "Así funciona {{appName}}",
       "subtitle": "Todo queda en este dispositivo — así es cada parte de la app.",
-      "calculatorTitle": "Calculadora",
-      "calculatorBody": "Calculá exactamente qué extraer, desde un vial o una solución ya lista.",
-      "protocolsTitle": "Protocolos",
-      "protocolsBody": "Configurá un compuesto, una dosis y un horario — empezá con una plantilla o hacelo a tu manera.",
       "homeTitle": "Inicio",
-      "homeBody": "Mirá qué te toca hoy y registrá una dosis con un toque.",
-      "historyTitle": "Historial",
-      "historyBody": "Tu registro completo — buscá, editá, y exportalo cuando quieras."
+      "homeBody": "Tu próxima dosis con registro en un toque, más alertas de viales y atajos.",
+      "trackTitle": "Registro",
+      "trackBody": "Las dosis de hoy, tus protocolos (empezá con una plantilla o hacelo a tu manera), tu historial completo y tu progreso.",
+      "toolsTitle": "Utilidades",
+      "toolsBody": "La calculadora de reconstitución: calculá exactamente qué extraer, desde un vial o una solución ya lista."
     },
     "startingPoint": {
       "title": "Tu punto de partida",

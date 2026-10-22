@@ -1,6 +1,7 @@
 import { ChevronRight, Mail, MessageCircle, Phone, Plus } from 'lucide-react'
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { SectionLabel } from '@/components/ui/section-label'
 import { toast } from 'sonner'
 import {
   AlertDialog,
@@ -45,7 +46,7 @@ import {
   requestNotificationPermission,
   sendTestNotification,
 } from '../lib/notifications'
-import { applyTheme, resolveTheme } from '../lib/theme'
+import { applyTheme, resolveTheme, THEME_SWITCHING_ENABLED } from '../lib/theme'
 import type { Locale, ThemeMode } from '../lib/units'
 import { updateSettings, useSettings } from '../lib/useSettings'
 
@@ -76,7 +77,7 @@ export function SettingsScreen() {
 function SectionCard({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-2">
-      <h2 className="text-sm font-semibold text-muted-foreground">{title}</h2>
+      <SectionLabel>{title}</SectionLabel>
       <Card>
         <CardContent>{children}</CardContent>
       </Card>
@@ -134,6 +135,11 @@ function CustomCompoundsSection() {
  * own. Each control persists via updateSettings, then applies its side effect.
  * 'system' with no stored preference is the theme default, matching
  * `settings?.theme ?? 'system'` everywhere else this is read.
+ *
+ * Each row only exists when it has a choice to offer: language when the build
+ * has more than one, appearance only while theme switching is on (the app is
+ * light-only for now, see THEME_SWITCHING_ENABLED). With neither, there is no
+ * card at all rather than an empty one.
  */
 function PreferencesSection() {
   const { t, i18n } = useTranslation()
@@ -151,13 +157,16 @@ function PreferencesSection() {
     applyTheme(resolveTheme(next))
   }
 
+  const showLanguage = SUPPORTED_LOCALES.length > 1
+  if (!showLanguage && !THEME_SWITCHING_ENABLED) return null
+
   return (
     <Card>
       <CardContent className="gap-5">
         {/* Only when this build offers more than one language (BRAND.locales). */}
-        {SUPPORTED_LOCALES.length > 1 && (
+        {showLanguage && (
           <div className="flex flex-col gap-2">
-            <p className="text-sm font-medium text-foreground">{t('settings.language')}</p>
+            <p className="font-display text-sm font-semibold text-foreground">{t('settings.language')}</p>
             <Segmented
               ariaLabel={t('settings.language')}
               value={locale}
@@ -169,15 +178,17 @@ function PreferencesSection() {
             />
           </div>
         )}
-        <div className="flex flex-col gap-2">
-          <p className="text-sm font-medium text-foreground">{t('settings.appearance.title')}</p>
-          <Segmented
-            ariaLabel={t('settings.appearance.title')}
-            value={theme}
-            onChange={(next) => void setTheme(next)}
-            options={THEME_MODES.map((mode) => ({ value: mode, label: t(`settings.appearance.${mode}`) }))}
-          />
-        </div>
+        {THEME_SWITCHING_ENABLED && (
+          <div className="flex flex-col gap-2">
+            <p className="font-display text-sm font-semibold text-foreground">{t('settings.appearance.title')}</p>
+            <Segmented
+              ariaLabel={t('settings.appearance.title')}
+              value={theme}
+              onChange={(next) => void setTheme(next)}
+              options={THEME_MODES.map((mode) => ({ value: mode, label: t(`settings.appearance.${mode}`) }))}
+            />
+          </div>
+        )}
       </CardContent>
     </Card>
   )
@@ -421,7 +432,7 @@ function LegalSection() {
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="min-h-11 self-start text-sm text-primary"
+        className="min-h-11 self-start text-sm font-semibold text-primary"
       >
         {expanded ? t('settings.legal.hide') : t('settings.legal.view')}
       </button>
@@ -444,11 +455,12 @@ function ContactSection() {
     <SectionCard title={t('settings.contact.title')}>
       <img src="/brand/logo-full.png" alt={BRAND.appName} className="h-16 w-auto self-start rounded-xl" />
       {contact.address && <p className="text-sm text-muted-foreground">{contact.address}</p>}
-      <a href={contact.website.href} className="text-sm text-primary" target="_blank" rel="noreferrer">
+      <a href={contact.website.href} className="flex min-h-11 items-center text-sm font-semibold text-primary" target="_blank" rel="noreferrer">
         {contact.website.label}
       </a>
       {contact.whatsapp && (
-        <Button asChild className="justify-start bg-[#25D366] text-white active:bg-[#1da851]">
+        // WhatsApp's own dark teal: its light green (#25D366) is only ~2:1 with white text.
+        <Button asChild className="justify-start bg-[#075E54] text-white active:bg-[#054740]">
           <a href={`https://wa.me/${contact.whatsapp}`} target="_blank" rel="noreferrer">
             <MessageCircle className="size-4" />
             {t('settings.contact.whatsapp')}
@@ -456,12 +468,12 @@ function ContactSection() {
         </Button>
       )}
       {contact.phones.map((phone) => (
-        <a key={phone.href} href={phone.href} className="flex items-center gap-2 text-sm text-primary">
+        <a key={phone.href} href={phone.href} className="flex min-h-11 items-center gap-2 text-sm font-semibold text-primary">
           <Phone className="size-4" />
           {phone.label}
         </a>
       ))}
-      <a href={`mailto:${contact.email}`} className="flex items-center gap-2 text-sm text-primary">
+      <a href={`mailto:${contact.email}`} className="flex min-h-11 items-center gap-2 text-sm font-semibold text-primary">
         <Mail className="size-4" />
         {contact.email}
       </a>

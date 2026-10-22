@@ -75,7 +75,7 @@ export function ResultsSettingsSheet({ settings, onClose }: { settings: Settings
           <section className="flex flex-col gap-2">
             <h3 className="text-sm font-semibold text-foreground">{t('progress.goalLabel', { unit })}</h3>
             <div className="flex gap-2">
-              <NumericInput kind="decimal" value={goal} onValueChange={setGoal} aria-invalid={!goalValid} className="flex-1" />
+              <NumericInput kind="decimal" value={goal} onValueChange={setGoal} aria-invalid={!goalValid} aria-label={t('progress.goalLabel', { unit })} className="flex-1" />
               <Button variant="secondary" disabled={!goalValid} onClick={() => void saveGoal()}>
                 {t('common.save')}
               </Button>
@@ -139,6 +139,7 @@ export function ResultsSettingsSheet({ settings, onClose }: { settings: Settings
                   value={newSymptom}
                   maxLength={MAX_NAME_LENGTH}
                   placeholder={t('progress.addSymptomPlaceholder')}
+                  aria-label={t('progress.addSymptomPlaceholder')}
                   onChange={(e) => setNewSymptom(sanitizeText(e.target.value))}
                   className="flex-1"
                 />

@@ -4,6 +4,8 @@ import { createContext, useContext, useMemo, useState, type ReactNode } from 're
 import type { DayButtonProps } from 'react-day-picker'
 import { enUS, es } from 'react-day-picker/locale'
 import { useTranslation } from 'react-i18next'
+import { Chip } from '@/components/ui/chip'
+import { SectionLabel } from '@/components/ui/section-label'
 import { toast } from 'sonner'
 import { DatePicker } from '@/components/DatePicker'
 import { TimePicker } from '@/components/TimePicker'
@@ -133,8 +135,9 @@ export function HistoryScreen({
   }
 
   return (
-    <div className="flex flex-col gap-6 px-4 pb-6 pt-2">
-      <AppHeader title={t('nav.history')} />
+    <div className="flex flex-col gap-5 px-4 pb-6 pt-2">
+      {/* The Track tab already says where this is, so the heading is for screen readers only. */}
+      <h2 className="sr-only">{t('nav.history')}</h2>
 
       <Segmented
         ariaLabel={t('nav.history')}
@@ -200,22 +203,16 @@ function HistoryList({
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder={t('history.searchPlaceholder')}
+          aria-label={t('history.searchPlaceholder')}
           className="pl-10"
         />
       </div>
 
       <div className="flex gap-2">
         {(['all', 'taken', 'skipped'] as const).map((f) => (
-          <button
-            key={f}
-            type="button"
-            onClick={() => onStatusFilterChange(f)}
-            className={`min-h-9 rounded-full border px-3 text-sm font-medium transition-colors ${
-              statusFilter === f ? 'border-primary bg-accent text-primary' : 'border-border text-muted-foreground'
-            }`}
-          >
+          <Chip key={f} selected={statusFilter === f} onClick={() => onStatusFilterChange(f)}>
             {f === 'all' ? t('history.filterAll') : t(`history.status.${f}`)}
-          </button>
+          </Chip>
         ))}
       </div>
 
@@ -227,7 +224,7 @@ function HistoryList({
           once in the heading instead of being repeated inside every row. */}
       {groups.map((group) => (
         <section key={group.key} className="flex flex-col gap-2">
-          <h2 className="text-sm font-semibold text-muted-foreground">{dayHeading(group.date, t)}</h2>
+          <SectionLabel>{dayHeading(group.date, t)}</SectionLabel>
           <Card className="divide-y divide-border">
             {group.logs.map((log) => (
               <LogRow key={log.id} log={log} locale={locale} onEdit={() => onEditLog(log.id)} />
@@ -374,7 +371,7 @@ function HistoryMonth({
       </Card>
 
       <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-semibold text-muted-foreground">{dayHeading(selected, t)}</h2>
+        <SectionLabel>{dayHeading(selected, t)}</SectionLabel>
         {dayLogs.length === 0 && slots.length === 0 && (
           <p className="text-sm text-muted-foreground">{t('calendar.dayEmpty')}</p>
         )}
@@ -548,7 +545,7 @@ function HistoryEditForm({ log, onDone }: { log: DoseLog; onDone: () => void }) 
             value={amount}
             onValueChange={setAmount}
             aria-invalid={numericAmount === null}
-            className="min-h-11 flex-1 rounded-full border border-input bg-card px-4 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex-1"
           />
           {isIU ? (
             <span className="flex min-h-11 items-center px-3 text-muted-foreground">IU</span>
@@ -570,16 +567,9 @@ function HistoryEditForm({ log, onDone }: { log: DoseLog; onDone: () => void }) 
       <FormField label={t('history.status.label')}>
         <div className="flex gap-2">
           {(['taken', 'skipped'] as const).map((s) => (
-            <button
-              key={s}
-              type="button"
-              onClick={() => setStatus(s)}
-              className={`min-h-11 flex-1 rounded-full border text-sm font-medium transition-colors ${
-                status === s ? 'border-primary bg-accent text-primary' : 'border-border text-muted-foreground'
-              }`}
-            >
+            <Chip key={s} selected={status === s} onClick={() => setStatus(s)} className="flex-1">
               {t(`history.status.${s}`)}
-            </button>
+            </Chip>
           ))}
         </div>
       </FormField>
@@ -641,7 +631,7 @@ function HistoryEditForm({ log, onDone }: { log: DoseLog; onDone: () => void }) 
 function FormField({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-sm font-medium text-foreground">{label}</span>
+      <span className="font-display text-sm font-semibold text-foreground">{label}</span>
       {children}
     </label>
   )

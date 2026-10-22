@@ -1,6 +1,8 @@
 import { ChevronRight, PenLine, Search, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Chip } from '@/components/ui/chip'
+import { SectionLabel } from '@/components/ui/section-label'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -111,6 +113,7 @@ export function TemplatePicker({ onSelectTemplate, onSelectCustom }: TemplatePic
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t('templates.searchPlaceholder')}
+          aria-label={t('templates.searchPlaceholder')}
           className="pl-10"
         />
       </div>
@@ -126,7 +129,7 @@ export function TemplatePicker({ onSelectTemplate, onSelectCustom }: TemplatePic
 
       {mine.length > 0 && (
         <section className="flex flex-col gap-2">
-          <h3 className="text-sm font-semibold text-muted-foreground">{t('templates.mine')}</h3>
+          <SectionLabel>{t('templates.mine')}</SectionLabel>
           <Card className="divide-y divide-border overflow-hidden">
             {mine.map((template) => (
               <div key={template.id} className="flex items-center">
@@ -158,7 +161,7 @@ export function TemplatePicker({ onSelectTemplate, onSelectCustom }: TemplatePic
 
       {builtIn.length > 0 && (
         <section className="flex flex-col gap-2">
-          {mine.length > 0 && <h3 className="text-sm font-semibold text-muted-foreground">{t('templates.builtIn')}</h3>}
+          {mine.length > 0 && <SectionLabel>{t('templates.builtIn')}</SectionLabel>}
           <Card className="divide-y divide-border overflow-hidden">
             {builtIn.map((template) => (
               <button
@@ -206,15 +209,8 @@ export function TemplatePicker({ onSelectTemplate, onSelectCustom }: TemplatePic
 
 function FilterChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`min-h-9 shrink-0 whitespace-nowrap rounded-full border px-3 text-sm transition-colors ${
-        active ? 'border-primary bg-accent text-primary' : 'border-border text-muted-foreground'
-      }`}
-    >
+    <Chip selected={active} onClick={onClick} className="shrink-0 whitespace-nowrap">
       {label}
-    </button>
+    </Chip>
   )
 }

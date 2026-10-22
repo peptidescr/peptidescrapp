@@ -122,10 +122,10 @@ export function CheckInSheet({
                     aria-label={`${value} — ${t(`checkIn.${scale}.label`)}`}
                     onClick={() => toggleScale(scale, value)}
                     className={cn(
-                      'min-h-11 flex-1 rounded-full border text-sm font-semibold transition-colors',
+                      'min-h-11 flex-1 rounded-xl border text-sm font-semibold transition-colors',
                       scales[scale] === value
-                        ? 'border-primary bg-primary text-primary-foreground'
-                        : 'border-border text-muted-foreground',
+                        ? 'border-primary bg-primary font-bold text-primary-foreground'
+                        : 'border-border bg-card text-foreground',
                     )}
                   >
                     {value}

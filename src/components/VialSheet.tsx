@@ -248,8 +248,8 @@ function FormRow({
 }) {
   const { t } = useTranslation()
   return (
-    <div className="flex flex-col gap-2">
-      <span className="text-sm font-medium text-foreground">
+    <label className="flex flex-col gap-2">
+      <span className="font-display text-sm font-semibold text-foreground">
         {label}
         {optional && (
           <span className="font-normal text-muted-foreground"> · {t('vials.optional')}</span>
@@ -257,7 +257,7 @@ function FormRow({
       </span>
       {children}
       {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
-    </div>
+    </label>
   )
 }
 

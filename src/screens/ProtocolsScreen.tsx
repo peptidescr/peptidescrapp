@@ -15,6 +15,8 @@ import { AnimatePresence, motion } from 'motion/react'
 import { parseISO, startOfToday } from 'date-fns'
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Chip } from '@/components/ui/chip'
+import { SectionLabel } from '@/components/ui/section-label'
 import { toast } from 'sonner'
 import { enUS, es } from 'react-day-picker/locale'
 import { DatePicker } from '@/components/DatePicker'
@@ -146,22 +148,18 @@ export function ProtocolsScreen({ view: mode, onNavigate, onBack, onReconstitute
   const pausedProtocols = all.filter((p) => !p.isActive)
 
   return (
-    <div className="flex flex-col gap-6 px-4 pb-6 pt-2">
-      <AppHeader
-        title={t('nav.protocols')}
-        action={
-          <Button onClick={() => setMode({ kind: 'picker' })}>
-            <Plus className="size-4" />
-            {t('protocols.new')}
-          </Button>
-        }
-      />
-
-      {all.length > 0 && (
-        <p className="-mt-3 text-sm text-muted-foreground">
-          {t('protocols.headerStats', { total: all.length, active: activeProtocols.length })}
+    <div className="flex flex-col gap-5 px-4 pb-6 pt-2">
+      {/* The Track tab already says where this is, so the heading is for screen readers only. */}
+      <h2 className="sr-only">{t('nav.protocols')}</h2>
+      <div className="flex min-h-11 items-center justify-between gap-3">
+        <p className="min-w-0 text-sm text-muted-foreground">
+          {all.length > 0 ? t('protocols.headerStats', { total: all.length, active: activeProtocols.length }) : ''}
         </p>
-      )}
+        <Button size="sm" onClick={() => setMode({ kind: 'picker' })}>
+          <Plus className="size-4" />
+          {t('protocols.new')}
+        </Button>
+      </div>
 
       <Segmented
         value={listTab}
@@ -205,11 +203,11 @@ export function ProtocolsScreen({ view: mode, onNavigate, onBack, onReconstitute
           ]).map(({ key, items }) =>
             items.length === 0 ? null : (
               <section key={key} className="flex flex-col gap-3">
-                <h2 className="text-sm font-semibold text-muted-foreground">
+                <SectionLabel>
                   {key === 'active'
                     ? t('protocols.sectionActive')
                     : t('protocols.sectionPaused', { count: items.length })}
-                </h2>
+                </SectionLabel>
                 <AnimatePresence initial={false}>
                   {items.map((protocol) => (
                     <motion.div
@@ -754,7 +752,7 @@ export function ProtocolForm({
             value={doseAmount}
             onValueChange={setDoseAmount}
             aria-invalid={doseAmount !== '' && doseValue === null}
-            className="min-h-11 flex-1 rounded-full border border-input bg-card px-4 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex-1"
           />
           {compound?.defaultUnit === 'IU' ? (
             <span className="flex min-h-11 items-center px-3 text-muted-foreground">IU</span>
@@ -774,7 +772,7 @@ export function ProtocolForm({
       </FormField>
 
       <label className="-mt-2 flex min-h-11 items-center justify-between gap-3">
-        <span className="text-sm font-medium text-foreground">{t('protocols.titrationToggle')}</span>
+        <span className="font-display text-sm font-semibold text-foreground">{t('protocols.titrationToggle')}</span>
         <Switch checked={titrationState.on} onCheckedChange={(on) => setTitration({ on })} />
       </label>
 
@@ -838,19 +836,14 @@ export function ProtocolForm({
         <FormField label={t('protocols.weekdays')}>
           <div className="flex flex-wrap gap-2">
             {WEEKDAY_LABELS_KEYS.map((key, index) => (
-              <button
+              <Chip
                 key={key}
-                type="button"
-                aria-pressed={fields.weekdays.includes(index as Weekday)}
+                selected={fields.weekdays.includes(index as Weekday)}
                 onClick={() => toggleWeekday(index as Weekday)}
-                className={`min-h-11 min-w-11 rounded-full border text-sm font-medium transition-colors ${
-                  fields.weekdays.includes(index as Weekday)
-                    ? 'border-primary bg-accent text-primary'
-                    : 'border-border text-muted-foreground'
-                }`}
+                className="min-w-11 px-3"
               >
                 {t(`weekday.${key}`)}
-              </button>
+              </Chip>
             ))}
           </div>
         </FormField>
@@ -902,7 +895,7 @@ export function ProtocolForm({
             <FieldError>{t('protocols.invalidWeeks', { max: MAX_WEEK_COUNT })}</FieldError>
           )}
           <label className="flex min-h-11 items-center justify-between gap-3">
-            <span className="text-sm font-medium text-foreground">{t('protocols.fixedCycles')}</span>
+            <span className="font-display text-sm font-semibold text-foreground">{t('protocols.fixedCycles')}</span>
             <Switch checked={fields.fixedCycles} onCheckedChange={(v) => setField('fixedCycles', v)} />
           </label>
           {fields.fixedCycles && (
@@ -934,7 +927,7 @@ export function ProtocolForm({
 
       {scheduleKind === 'custom' && (
         <div className="flex flex-col gap-2">
-          <span className="text-sm font-medium text-foreground">{t('protocols.customDays')}</span>
+          <span className="font-display text-sm font-semibold text-foreground">{t('protocols.customDays')}</span>
           <p className="text-sm text-muted-foreground">{t('protocols.customDaysHint')}</p>
           <div className="relative rounded-2xl border border-border bg-card p-2">
             <Calendar
@@ -1034,7 +1027,7 @@ export function ProtocolForm({
         <div className="flex flex-col gap-3">
           <label className="flex min-h-11 items-center justify-between gap-3">
             <span className="flex flex-col">
-              <span className="text-sm font-medium text-foreground">{t('protocols.trackSites')}</span>
+              <span className="font-display text-sm font-semibold text-foreground">{t('protocols.trackSites')}</span>
               <span className="text-xs text-muted-foreground">{t('protocols.trackSitesHint')}</span>
             </span>
             <Switch checked={trackSites} onCheckedChange={setTrackSites} />
@@ -1044,17 +1037,13 @@ export function ProtocolForm({
               {routeSites.map((site) => {
                 const on = sites.includes(site)
                 return (
-                  <button
+                  <Chip
                     key={site}
-                    type="button"
-                    aria-pressed={on}
+                    selected={on}
                     onClick={() => setSites(on ? sites.filter((s) => s !== site) : [...sites, site])}
-                    className={`min-h-11 rounded-full border px-3 text-sm transition-colors ${
-                      on ? 'border-primary bg-accent text-primary' : 'border-border text-muted-foreground'
-                    }`}
                   >
                     {t(`sites.${site}`)}
-                  </button>
+                  </Chip>
                 )
               })}
             </div>
@@ -1081,7 +1070,7 @@ function FieldError({ children }: { children: ReactNode }) {
 function FormField({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-sm font-medium text-foreground">{label}</span>
+      <span className="font-display text-sm font-semibold text-foreground">{label}</span>
       {children}
     </label>
   )

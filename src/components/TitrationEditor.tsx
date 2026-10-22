@@ -113,7 +113,7 @@ function StepRow({ title, action, children }: { title: string; action?: ReactNod
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-foreground">{title}</span>
+        <span className="font-display text-sm font-semibold text-foreground">{title}</span>
         {action}
       </div>
       <div className="flex items-end gap-3">{children}</div>
