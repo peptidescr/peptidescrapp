@@ -18,8 +18,10 @@ export interface SyringeScale {
   capacityUnits: number
   /** Distance between adjacent graduation marks, in units. */
   minorStep: number
-  /** Every this-many units a mark is long and numbered. */
+  /** Every this-many units a mark is long. */
   majorStep: number
+  /** Every this-many units a mark is numbered; defaults to majorStep (the 1 mL barrel numbers 0, 25, 50, 75, 100). */
+  labelStep?: number
 }
 
 const BARRELS: Record<SyringeType, SyringeScale[]> = {
@@ -27,7 +29,7 @@ const BARRELS: Record<SyringeType, SyringeScale[]> = {
   'U-100': [
     { capacityUnits: 30, minorStep: 1, majorStep: 5 },
     { capacityUnits: 50, minorStep: 1, majorStep: 5 },
-    { capacityUnits: 100, minorStep: 2, majorStep: 10 },
+    { capacityUnits: 100, minorStep: 2, majorStep: 10, labelStep: 25 },
   ],
   'U-50': [
     { capacityUnits: 25, minorStep: 1, majorStep: 5 },
@@ -45,20 +47,38 @@ export interface SyringeLayout extends SyringeScale {
   /** The draw doesn't fit even the largest barrel — the picture shows it full and says so. */
   overflow: boolean
   ticks: { units: number; major: boolean }[]
+  /** Where a number is printed, independent of the marks (the 1 mL barrel prints 0, 25, 50, 75, 100 over marks every 2 units). */
+  labels: number[]
 }
 
-export function layoutSyringe(type: SyringeType, drawUnits: number): SyringeLayout {
+/** The barrel sizes a syringe type comes in, smallest first, in that type's units (U-100: 30, 50, 100). */
+export function barrelCapacities(type: SyringeType): number[] {
+  return BARRELS[type].map((b) => b.capacityUnits)
+}
+
+/**
+ * `minCapacityUnits` is the barrel the person chose: the one drawn is the
+ * smallest that is at least that big and holds the draw, so a draw too big for
+ * the chosen barrel moves up to the next one rather than overflowing it.
+ * Without it, the smallest barrel that holds the draw.
+ */
+export function layoutSyringe(type: SyringeType, drawUnits: number, minCapacityUnits = 0): SyringeLayout {
   const barrels = BARRELS[type]
   const draw = Math.max(0, drawUnits)
-  const scale = barrels.find((b) => draw <= b.capacityUnits) ?? barrels[barrels.length - 1]!
+  const wanted = Math.max(draw, minCapacityUnits)
+  const scale = barrels.find((b) => wanted <= b.capacityUnits) ?? barrels[barrels.length - 1]!
+  const labelStep = scale.labelStep ?? scale.majorStep
   const ticks: SyringeLayout['ticks'] = []
   for (let units = 0; units <= scale.capacityUnits; units += scale.minorStep) {
     ticks.push({ units, major: units % scale.majorStep === 0 })
   }
+  const labels: number[] = []
+  for (let units = 0; units <= scale.capacityUnits; units += labelStep) labels.push(units)
   return {
     ...scale,
     fillFraction: Math.min(1, draw / scale.capacityUnits),
     overflow: draw > scale.capacityUnits,
     ticks,
+    labels,
   }
 }

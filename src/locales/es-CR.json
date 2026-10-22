@@ -26,7 +26,7 @@
     "tools": "Utilidades"
   },
   "calculator": {
-    "title": "Calculadora de mezcla",
+    "title": "Calculadora de reconstitución",
     "compound": "Compuesto",
     "vialSize": "Tamaño del vial ({{unit}})",
     "bottleVolume": "Volumen del frasco ({{unit}})",
@@ -35,7 +35,7 @@
     "desiredDose": "Dosis a registrar ({{unit}})",
     "syringeType": "Tipo de jeringa",
     "resultTitle": "Resultado",
-    "awaitingInput": "Ingresa los valores de arriba para ver el volumen a extraer.",
+    "awaitingInput": "Elegí el vial, el diluyente y la alícuota de abajo para ver la extracción.",
     "invalidInput": "Revisa los valores de arriba — algo todavía no es un número válido.",
     "resetForm": "Reiniciar",
     "explainerPowder": "Ingresá el tamaño del vial y cuánto diluyente agregaste, luego la dosis que querés registrar — el volumen a extraer se actualiza mientras escribís.",
@@ -61,7 +61,19 @@
     "alreadySaved": "Ya guardada",
     "noActiveProtocol": "Todavía no tenés un protocolo activo para {{compound}}.",
     "createProtocolCta": "Crear un protocolo",
-    "forProtocol": "Mezcla para \"{{name}}\""
+    "forProtocol": "Mezcla para \"{{name}}\"",
+    "subtitle": "Para la preparación en laboratorio de muestras de investigación liofilizadas",
+    "drawTo": "Extraer hasta",
+    "unitsWord": "unidades",
+    "onSyringe": "{{volume}} en una jeringa de {{units}} unidades ({{ml}} mL)",
+    "vialMass": "Masa del vial",
+    "vialAmount": "Cantidad del vial",
+    "bottleVolumeLabel": "Volumen del frasco",
+    "targetAliquot": "Alícuota objetivo",
+    "custom": "Otro",
+    "aliquotsPerVial": "Alícuotas por vial",
+    "syringeSize": "Tamaño de jeringa",
+    "disclaimer": "Solo como ayuda de cálculo. Verificá los volúmenes con equipo de laboratorio calibrado. Solo para uso de investigación in vitro."
   },
   "protocols": {
     "new": "Nuevo",

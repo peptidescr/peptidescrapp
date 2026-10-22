@@ -26,7 +26,7 @@
     "tools": "Tools"
   },
   "calculator": {
-    "title": "Mixing calculator",
+    "title": "Reconstitution calculator",
     "compound": "Compound",
     "vialSize": "Vial size ({{unit}})",
     "bottleVolume": "Bottle volume ({{unit}})",
@@ -35,7 +35,7 @@
     "desiredDose": "Dose to log ({{unit}})",
     "syringeType": "Syringe type",
     "resultTitle": "Result",
-    "awaitingInput": "Enter the values above to see the draw volume.",
+    "awaitingInput": "Pick the vial, diluent and target below to see the draw.",
     "invalidInput": "Check the values above — something isn't a valid number yet.",
     "resetForm": "Reset",
     "explainerPowder": "Enter the vial size and how much diluent you added, then the dose you want to log — the draw volume updates as you type.",
@@ -61,7 +61,19 @@
     "alreadySaved": "Already saved",
     "noActiveProtocol": "You don't have an active protocol for {{compound}} yet.",
     "createProtocolCta": "Create a protocol",
-    "forProtocol": "Mixing for \"{{name}}\""
+    "forProtocol": "Mixing for \"{{name}}\"",
+    "subtitle": "For laboratory preparation of lyophilized research samples",
+    "drawTo": "Draw to",
+    "unitsWord": "units",
+    "onSyringe": "{{volume}} on a {{units}}-unit ({{ml}} mL) syringe",
+    "vialMass": "Vial mass",
+    "vialAmount": "Vial amount",
+    "bottleVolumeLabel": "Bottle volume",
+    "targetAliquot": "Target aliquot",
+    "custom": "Custom",
+    "aliquotsPerVial": "Aliquots per vial",
+    "syringeSize": "Syringe size",
+    "disclaimer": "Calculation aid only. Verify volumes against calibrated laboratory equipment. For in-vitro research use only."
   },
   "protocols": {
     "new": "New",

@@ -8,24 +8,27 @@ import { formatSyringeUnits, type Locale, type SyringeType } from '../lib/units'
  * can be checked against the syringe in hand. Geometry lives in
  * src/lib/syringe.ts; this only draws it.
  *
- * Colours come from theme tokens only, so it matches either brand in either
- * theme. `tone="hero"` is for the calculator's dark brand-art result panel,
- * where everything else is white-on-colour too.
+ * Colours come from theme tokens only, so it matches either brand.
+ * `tone="hero"` is for the calculator's brand-coloured result panel, where the
+ * barrel is drawn in the on-brand ink with the light accent as the liquid.
+ * `minCapacityUnits` is the barrel the person chose (see layoutSyringe).
  */
 export function SyringeGraphic({
   drawUnits,
   syringeType,
+  minCapacityUnits,
   tone = 'surface',
   className = '',
 }: {
   drawUnits: number
   syringeType: SyringeType
+  minCapacityUnits?: number
   tone?: 'surface' | 'hero'
   className?: string
 }) {
   const { t, i18n } = useTranslation()
   const locale = i18n.language as Locale
-  const layout = layoutSyringe(syringeType, drawUnits)
+  const layout = layoutSyringe(syringeType, drawUnits, minCapacityUnits)
 
   // Barrel spans x 40..276 in a 320-wide viewBox; needle to the left, plunger rod to the right.
   const barrelStart = 40
@@ -39,13 +42,13 @@ export function SyringeGraphic({
   const c =
     tone === 'hero'
       ? {
-          outline: 'stroke-white/75',
-          liquid: 'fill-white/35',
-          tick: 'stroke-white/60',
-          label: 'fill-white/70',
-          plunger: 'fill-white/85',
-          rod: 'stroke-white/75',
-          marker: 'stroke-white',
+          outline: 'stroke-on-primary',
+          liquid: 'fill-accent-light',
+          tick: 'stroke-on-primary-muted',
+          label: 'fill-accent-light',
+          plunger: 'fill-on-primary',
+          rod: 'stroke-on-primary-muted',
+          marker: 'stroke-on-primary',
         }
       : {
           outline: 'stroke-foreground/60',
@@ -90,7 +93,7 @@ export function SyringeGraphic({
           />
         )}
 
-        {/* Graduations along the top edge, major ones numbered underneath */}
+        {/* Graduations along the top edge; the numbers sit underneath, independent of the marks */}
         {layout.ticks.map((tick) => (
           <line
             key={tick.units}
@@ -102,20 +105,21 @@ export function SyringeGraphic({
             className={c.tick}
           />
         ))}
-        {layout.ticks
-          .filter((tick) => tick.major)
-          .map((tick) => (
-            <text
-              key={tick.units}
-              x={xFor(tick.units)}
-              y={56}
-              textAnchor="middle"
-              fontSize={8.5}
-              className={c.label}
-            >
-              {tick.units}
-            </text>
-          ))}
+        {layout.labels.map((units) => (
+          <text
+            key={units}
+            // The first and last numbers are nudged in so they stay inside the picture.
+            x={xFor(units)}
+            y={56}
+            textAnchor={units === 0 ? 'start' : units === layout.capacityUnits ? 'end' : 'middle'}
+            fontSize={8.5}
+            fontFamily="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+            fontWeight={600}
+            className={c.label}
+          >
+            {units}
+          </text>
+        ))}
 
         {/* Barrel outline, drawn over the liquid so its edge stays crisp */}
         <rect
@@ -123,7 +127,7 @@ export function SyringeGraphic({
           y={barrelTop}
           width={barrelLength}
           height={barrelHeight}
-          rx={3}
+          rx={5}
           strokeWidth={1.5}
           className={`fill-none ${c.outline}`}
         />
@@ -159,7 +163,7 @@ export function SyringeGraphic({
       </svg>
       {layout.overflow && (
         <figcaption
-          className={`text-xs ${tone === 'hero' ? 'text-white/80' : 'text-muted-foreground'}`}
+          className={`text-xs ${tone === 'hero' ? 'text-on-primary-muted' : 'text-muted-foreground'}`}
         >
           {t('syringe.overflow', { capacity: layout.capacityUnits })}
         </figcaption>

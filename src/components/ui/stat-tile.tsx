@@ -18,7 +18,7 @@ export function StatTile({
   return (
     <div className={cn('min-w-0 rounded-xl bg-on-primary-tile px-3 py-2.5', className)}>
       <p className="text-[11px] font-medium leading-tight text-accent-light">{label}</p>
-      <p className="mt-1 truncate font-display text-base font-bold leading-tight tabular-nums text-on-primary">{value}</p>
+      <p className="mt-1 whitespace-nowrap font-display text-base font-bold leading-tight tabular-nums text-on-primary">{value}</p>
     </div>
   )
 }

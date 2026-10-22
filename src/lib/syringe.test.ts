@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { layoutSyringe } from './syringe'
+import { barrelCapacities, layoutSyringe } from './syringe'
 
 describe('layoutSyringe', () => {
   it('picks the smallest barrel that holds the draw', () => {
@@ -32,5 +32,36 @@ describe('layoutSyringe', () => {
     const large = layoutSyringe('U-100', 90)
     expect(large.ticks).toHaveLength(51) // 0..100 in 2-unit steps
     expect(large.ticks.filter((t) => t.major)).toHaveLength(11)
+  })
+
+  it('numbers the 1 mL barrel at 0, 25, 50, 75 and 100, and the small ones at every major mark', () => {
+    expect(layoutSyringe('U-100', 90).labels).toEqual([0, 25, 50, 75, 100])
+    expect(layoutSyringe('U-100', 10).labels).toEqual([0, 5, 10, 15, 20, 25, 30])
+    expect(layoutSyringe('U-50', 10).labels).toEqual([0, 5, 10, 15, 20, 25])
+  })
+})
+
+describe('layoutSyringe with a chosen barrel', () => {
+  it('draws the chosen barrel when the draw fits it, however small the draw', () => {
+    expect(layoutSyringe('U-100', 10, 100).capacityUnits).toBe(100)
+    expect(layoutSyringe('U-100', 10, 100).fillFraction).toBeCloseTo(0.1)
+    expect(layoutSyringe('U-100', 10, 50).capacityUnits).toBe(50)
+  })
+
+  it('moves up to the next barrel rather than overflowing the chosen one', () => {
+    expect(layoutSyringe('U-100', 35, 30).capacityUnits).toBe(50)
+    expect(layoutSyringe('U-100', 70, 50).capacityUnits).toBe(100)
+  })
+
+  it('still flags a draw that fits no barrel', () => {
+    expect(layoutSyringe('U-50', 70, 25).overflow).toBe(true)
+  })
+})
+
+describe('barrelCapacities', () => {
+  it('lists each type\'s barrels, smallest first', () => {
+    expect(barrelCapacities('U-100')).toEqual([30, 50, 100])
+    expect(barrelCapacities('U-50')).toEqual([25, 50])
+    expect(barrelCapacities('U-40')).toEqual([20, 40])
   })
 })
