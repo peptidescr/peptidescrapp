@@ -116,6 +116,8 @@ a[role='button'] {
   .report-portal {
     position: static !important;
     overflow: visible !important;
+    /* Paper is white: the page tint is for the screen. */
+    background: #fff !important;
   }
   .no-print {
     display: none !important;

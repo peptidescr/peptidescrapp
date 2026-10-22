@@ -24,7 +24,7 @@ interface DatePickerProps {
  * the underlying value stays a plain yyyy-MM-dd string either way.
  */
 export function DatePicker({ value, onChange, disabled, placeholder }: DatePickerProps) {
-  const { i18n } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [open, setOpen] = useState(false)
   /** What the user has typed; null means "not editing — show the formatted value". */
   const [text, setText] = useState<string | null>(null)
@@ -67,7 +67,7 @@ export function DatePicker({ value, onChange, disabled, placeholder }: DatePicke
             <button
               type="button"
               disabled={disabled}
-              aria-label="Calendar"
+              aria-label={t('common.calendar')}
               className="absolute inset-y-0 right-0.5 flex w-11 items-center justify-center text-muted-foreground outline-none focus-visible:text-foreground disabled:opacity-40"
             >
               <CalendarIcon className="size-4" />

@@ -95,7 +95,7 @@ export function DoctorReport({ unit, onClose }: { unit: WeightUnit; onClose: () 
           type="button"
           onClick={onClose}
           aria-label={t('common.back')}
-          className="flex size-11 items-center justify-center rounded-full text-primary"
+          className="flex size-11 shrink-0 items-center justify-center rounded-full text-primary"
         >
           <ChevronLeft className="size-6" />
         </button>
