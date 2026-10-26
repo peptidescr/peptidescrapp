@@ -9,13 +9,9 @@ import { Combobox } from '@/components/ui/combobox'
 import { NumericInput } from '@/components/ui/numeric-input'
 import { Segmented } from '@/components/ui/segmented'
 import { AppHeader } from '../components/AppHeader'
-import {
-  compareAlphabetical,
-  listDiluents,
-  listSelectableCompounds,
-  vialSizeUnit,
-  type Compound,
-} from '../content/compounds'
+import { CustomCompoundSheet } from '../components/CustomCompoundSheet'
+import { compareAlphabetical, getCompoundById, listDiluents, vialSizeUnit, type Compound } from '../content/compounds'
+import { compoundCategoryLabel, useSelectableCompounds } from '../lib/customCompounds'
 import { db, type Protocol, type SavedReconstitution } from '../lib/db'
 import {
   mixFromSolutionIU,
@@ -60,12 +56,13 @@ export function CalculatorScreen({ protocolId, onCreateProtocol }: CalculatorScr
   const locale = i18n.language as Locale
   const settings = useSettings()
 
-  const selectable = useMemo(() => listSelectableCompounds(), [])
+  const selectable = useSelectableCompounds()
   const diluents = useMemo(() => listDiluents(), [])
   const compoundOptions = useMemo(
-    () => selectable.map((c) => ({ value: c.id, label: c.name, hint: c.category })),
-    [selectable],
+    () => selectable.map((c) => ({ value: c.id, label: c.name, hint: compoundCategoryLabel(c, t) })),
+    [selectable, t],
   )
+  const [addingCompound, setAddingCompound] = useState(false)
 
   const [compoundId, setCompoundId] = useState(selectable[0]?.id ?? '')
   const compound = selectable.find((c) => c.id === compoundId) ?? selectable[0]
@@ -110,7 +107,9 @@ export function CalculatorScreen({ protocolId, onCreateProtocol }: CalculatorScr
   function handleSelectCompound(id: string) {
     setCompoundId(id)
     setSaveTargetId(null)
-    const next = selectable.find((c) => c.id === id)
+    // The live registry, not `selectable`: a compound created a moment ago
+    // (Add your own) isn't in this render's list yet.
+    const next = getCompoundById(id)
     if (next) {
       setVialSize(next.vialSizes[0] ?? 0)
       setDoseUnit(next.defaultUnit === 'mcg' ? 'mcg' : 'mg')
@@ -258,6 +257,12 @@ export function CalculatorScreen({ protocolId, onCreateProtocol }: CalculatorScr
             onValueChange={handleSelectCompound}
             options={compoundOptions}
             emptyText={t('common.noMatches')}
+            footerAction={{ label: t('compounds.addCustom'), onSelect: () => setAddingCompound(true) }}
+          />
+          <CustomCompoundSheet
+            open={addingCompound}
+            onOpenChange={setAddingCompound}
+            onSaved={(saved) => handleSelectCompound(saved.id)}
           />
         </Field>
 

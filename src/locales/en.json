@@ -370,5 +370,24 @@
     "filterAll": "All",
     "resultCount": "{{count}} templates",
     "noResults": "No templates match that search."
+  },
+  "compounds": {
+    "customCategory": "Your own",
+    "addCustom": "Add your own compound",
+    "addCustomHint": "Not in the list? Add it to log it here too.",
+    "newTitle": "Add a compound",
+    "editTitle": "Edit compound",
+    "name": "Name",
+    "namePlaceholder": "e.g. the name on the label",
+    "unit": "Measured in",
+    "form": "Comes as",
+    "formPowder": "Powder (mixed before use)",
+    "formSolution": "Ready-made liquid",
+    "saved": "Compound saved",
+    "deleted": "Compound deleted",
+    "inUse": "Used by a protocol or a logged dose, so it can't be deleted.",
+    "manageTitle": "Your compounds",
+    "manageEmpty": "Compounds you add yourself show up here.",
+    "vialSize": "Usual vial size (optional)"
   }
 }

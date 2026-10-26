@@ -370,5 +370,24 @@
     "filterAll": "Todas",
     "resultCount": "{{count}} plantillas",
     "noResults": "Ninguna plantilla coincide con esa búsqueda."
+  },
+  "compounds": {
+    "customCategory": "Tuyo",
+    "addCustom": "Agregar un compuesto propio",
+    "addCustomHint": "¿No está en la lista? Agregalo para registrarlo aquí también.",
+    "newTitle": "Agregar un compuesto",
+    "editTitle": "Editar compuesto",
+    "name": "Nombre",
+    "namePlaceholder": "p. ej. el nombre de la etiqueta",
+    "unit": "Se mide en",
+    "form": "Viene como",
+    "formPowder": "Polvo (se mezcla antes de usar)",
+    "formSolution": "Líquido ya preparado",
+    "saved": "Compuesto guardado",
+    "deleted": "Compuesto eliminado",
+    "inUse": "Lo usa un protocolo o una dosis registrada, así que no se puede eliminar.",
+    "manageTitle": "Tus compuestos",
+    "manageEmpty": "Los compuestos que agregués vos aparecen aquí.",
+    "vialSize": "Tamaño de vial habitual (opcional)"
   }
 }

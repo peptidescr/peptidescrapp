@@ -8,6 +8,7 @@ import { Toaster } from './components/ui/sonner'
 import { LEGAL_VERSION } from './content/legal'
 import { maybeCreateDailySnapshot } from './lib/backup'
 import { db, ensureCompoundsSeeded, ensureSettingsRow } from './lib/db'
+import { useCustomCompoundsLoaded } from './lib/customCompounds'
 import { DEFAULT_LOCALE, toSupportedLocale } from './i18n'
 import { scheduleUpcomingReminders, startReminderLoop } from './lib/notifications'
 import { applyTheme, resolveTheme, subscribeToSystemTheme, type ResolvedTheme } from './lib/theme'
@@ -81,8 +82,12 @@ function App() {
   // a live derivation would flip the gate and unmount the wizard before the
   // remaining steps ran. Computed once from the first settings load, then
   // only ever changed by an explicit callback below.
+  //
+  // Also waits for the user's custom compounds to load into memory (see
+  // src/lib/customCompounds.ts), so no screen ever renders one by its id.
+  const customCompoundsLoaded = useCustomCompoundsLoaded()
   const [gate, setGate] = useState<Gate>('loading')
-  if (settings && gate === 'loading') {
+  if (settings && customCompoundsLoaded && gate === 'loading') {
     const alreadyOnboardedBeforeThisFlagExisted =
       !settings.onboardingCompletedAt && settings.legalAcceptedVersion === LEGAL_VERSION
     if (alreadyOnboardedBeforeThisFlagExisted) {

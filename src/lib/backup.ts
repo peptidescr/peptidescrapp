@@ -1,27 +1,30 @@
 import { getCompoundById } from '../content/compounds'
 import { toIsoDate } from './dates'
-import { db, SETTINGS_ID, type DoseLog, type Protocol, type Settings } from './db'
-import { BACKUP_VERSION, parseBackup } from './backupValidation'
+import { db, SETTINGS_ID, type DoseLog } from './db'
+import { BACKUP_VERSION, parseBackup, type ValidBackup } from './backupValidation'
 import { csvSafeText } from './sanitize'
 import { applyTheme, resolveTheme } from './theme'
 
 const SNAPSHOT_KEEP = 7
 
-export interface BackupPayload {
-  version: typeof BACKUP_VERSION
-  exportedAt: string
-  protocols: Protocol[]
-  doseLogs: DoseLog[]
-  settings?: Settings
-}
+/** An export is always the current format — see backupValidation.ts for what each version holds. */
+export type BackupPayload = ValidBackup
 
 export async function buildBackupPayload(): Promise<BackupPayload> {
-  const [protocols, doseLogs, settings] = await Promise.all([
+  const [protocols, doseLogs, settings, customCompounds] = await Promise.all([
     db.protocols.toArray(),
     db.doseLogs.toArray(),
     db.settings.get(SETTINGS_ID),
+    db.compounds.filter((c) => c.isCustom === true).toArray(),
   ])
-  return { version: BACKUP_VERSION, exportedAt: new Date().toISOString(), protocols, doseLogs, settings }
+  return {
+    version: BACKUP_VERSION,
+    exportedAt: new Date().toISOString(),
+    protocols,
+    doseLogs,
+    settings,
+    customCompounds,
+  }
 }
 
 export function backupToJson(payload: BackupPayload): string {
@@ -59,16 +62,23 @@ export function doseLogsToCsv(doseLogs: DoseLog[]): string {
   return [header, ...rows].map((row) => row.map(csvField).join(',')).join('\r\n')
 }
 
-/** Wipes and replaces protocols/doseLogs/settings from a previously exported backup. */
-export async function importBackupPayload(input: BackupPayload): Promise<void> {
+/**
+ * Wipes and replaces all of the user's own data (protocols, dose logs,
+ * settings, custom compounds) from a previously exported backup. The
+ * catalogue rows in `compounds` are never touched.
+ */
+export async function importBackupPayload(input: unknown): Promise<void> {
   // Re-validated here too, not only where a file is picked, so no caller can
   // put unchecked data into the database.
   const payload = parseBackup(input)
-  await db.transaction('rw', db.protocols, db.doseLogs, db.settings, async () => {
+  await db.transaction('rw', db.protocols, db.doseLogs, db.settings, db.compounds, async () => {
     await db.protocols.clear()
     await db.doseLogs.clear()
+    const oldCustomIds = await db.compounds.filter((c) => c.isCustom === true).primaryKeys()
+    await db.compounds.bulkDelete(oldCustomIds)
     if (payload.protocols.length) await db.protocols.bulkAdd(payload.protocols)
     if (payload.doseLogs.length) await db.doseLogs.bulkAdd(payload.doseLogs)
+    if (payload.customCompounds.length) await db.compounds.bulkPut(payload.customCompounds)
     if (payload.settings) await db.settings.put({ ...payload.settings, id: SETTINGS_ID })
   })
 

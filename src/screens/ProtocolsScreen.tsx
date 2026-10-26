@@ -42,7 +42,9 @@ import { EmptyState } from '../components/EmptyState'
 import { AppHeader } from '../components/AppHeader'
 import { ProtocolSavedPrompt } from '../components/ProtocolSavedPrompt'
 import { TemplatePicker } from '../components/TemplatePicker'
-import { compareAlphabetical, getCompoundById, listSelectableCompounds } from '../content/compounds'
+import { CustomCompoundSheet } from '../components/CustomCompoundSheet'
+import { compareAlphabetical, getCompoundById } from '../content/compounds'
+import { compoundCategoryLabel, useSelectableCompounds } from '../lib/customCompounds'
 import { PROTOCOL_TEMPLATES, type ProtocolTemplate } from '../content/protocolTemplates'
 import { formatDateTime, toIsoDate } from '../lib/dates'
 import { db, type DoseLog, type Protocol, type Route } from '../lib/db'
@@ -447,11 +449,12 @@ export function ProtocolForm({
     () => (protocolId ? db.protocols.get(protocolId) : undefined),
     [protocolId],
   )
-  const compounds = useMemo(() => listSelectableCompounds(), [])
+  const compounds = useSelectableCompounds()
+  const [addingCompound, setAddingCompound] = useState(false)
 
   const compoundOptions = useMemo(
-    () => compounds.map((c) => ({ value: c.id, label: c.name, hint: c.category })),
-    [compounds],
+    () => compounds.map((c) => ({ value: c.id, label: c.name, hint: compoundCategoryLabel(c, t) })),
+    [compounds, t],
   )
   const scheduleOptions = useMemo(() => alphabeticalOptions(SCHEDULE_KINDS, (k) => t(`schedule.${k}`)), [t])
   const routeOptions = useMemo(() => alphabeticalOptions(ROUTES, (r) => t(`route.${r}`)), [t])
@@ -515,7 +518,15 @@ export function ProtocolForm({
     setLoaded(true)
   }
 
-  const compound = compounds.find((c) => c.id === compoundId)
+  // getCompoundById (the live registry), not `compounds`: a compound created
+  // a moment ago via "Add your own" isn't in this render's list yet.
+  const compound = getCompoundById(compoundId)
+
+  function selectCompound(id: string) {
+    setCompoundId(id)
+    const c = getCompoundById(id)
+    if (c) setDoseUnit(c.defaultUnit)
+  }
 
   // Parsed, range-checked values. Save stays disabled until each field that
   // applies is valid — bad input is refused, never quietly turned into a default.
@@ -638,13 +649,15 @@ export function ProtocolForm({
       <FormField label={t('protocols.compound')}>
         <Combobox
           value={compoundId}
-          onValueChange={(value) => {
-            setCompoundId(value)
-            const c = compounds.find((x) => x.id === value)
-            if (c) setDoseUnit(c.defaultUnit)
-          }}
+          onValueChange={selectCompound}
           options={compoundOptions}
           emptyText={t('common.noMatches')}
+          footerAction={{ label: t('compounds.addCustom'), onSelect: () => setAddingCompound(true) }}
+        />
+        <CustomCompoundSheet
+          open={addingCompound}
+          onOpenChange={setAddingCompound}
+          onSaved={(c) => selectCompound(c.id)}
         />
       </FormField>
 
