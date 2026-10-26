@@ -2419,3 +2419,15 @@ staging already had the fuller Phase 2 version, staging's won, and only what `ma
 Verified on the merged tree: typecheck, 443 tests, lint, i18n parity, both builds; in a headless browser the
 3-doses-a-day protocol, "Reconstitute now", save the mix → Home (UPD at 375, PCR in Spanish at 320), and a 3 mL
 calculation, with no console errors.
+## Polish: the body map's tap areas
+
+The site picker's tap areas were sized in SVG units, so on a phone they were smaller than 44px in one
+direction: the deltoids and arms 35px wide at 375px (29px at 320px), the abdomen zones 38-40px. They are now
+cut from the space the sites don't use (the front's abdomen takes the band from the shoulder line to the hip,
+the deltoid the band above it, the back's arm and glute the bands beside and below), and the svg is
+`overflow-visible` so a few can reach past the figure's box. Measured in the picker: at least 44x46px at 320px
+and 54x55px at 375px, no two overlapping, no sideways scroll, the drawn zones unchanged.
+
+**Not changed: the calendar days at 320px.** They are a uniform 37.4px wide there (48px tall): seven columns in
+a 288px card, and even with no padding at all they could only reach about 41px. They are 45.3px at 375px.
+`ui/calendar.tsx` already says so.

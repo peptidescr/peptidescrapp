@@ -68,15 +68,25 @@ type Shape =
   | { kind: 'rect'; x: number; y: number; w: number; h: number }
   | { kind: 'ellipse'; cx: number; cy: number; rx: number; ry: number }
 
-/** Each site's right-hand zone and tap area ([x, y, w, h]); the left one is the mirror. */
+/**
+ * Each site's right-hand zone and tap area ([x, y, w, h]); the left one is the mirror.
+ *
+ * The figure is drawn about 137px wide on a 320px phone (1.5px per unit), so a
+ * tap area needs about 31 units each way to reach 44px. They are cut from the
+ * space the sites don't use: the front's abdomen takes everything from the
+ * shoulder line down to the hip, the deltoid the band above it, and the back's
+ * arm and glute the two bands beside and below. A few reach past the viewBox
+ * (the svg is overflow-visible); the gap between the figures is wider than
+ * what the two sides borrow.
+ */
 const ZONES: Record<ZoneBase, { shape: Shape; hit: readonly [number, number, number, number] }> = {
   // Clear of the navel, at (0, 118).
-  'abdomen-upper': { shape: { kind: 'rect', x: 3, y: 101, w: 11, h: 14 }, hit: [0, 94, 22, 24] },
-  'abdomen-lower': { shape: { kind: 'rect', x: 3, y: 121, w: 12, h: 15 }, hit: [0, 118, 23, 26] },
-  thigh: { shape: { kind: 'ellipse', cx: 14, cy: 182, rx: 6.5, ry: 15 }, hit: [1, 158, 26, 54] },
-  deltoid: { shape: { kind: 'ellipse', cx: 32.5, cy: 71, rx: 4.5, ry: 7 }, hit: [24, 56, 20, 32] },
-  arm: { shape: { kind: 'ellipse', cx: 33.5, cy: 96, rx: 4.5, ry: 10 }, hit: [25, 80, 20, 36] },
-  glute: { shape: { kind: 'ellipse', cx: 13, cy: 148, rx: 8.5, ry: 9 }, hit: [0, 132, 28, 32] },
+  'abdomen-upper': { shape: { kind: 'rect', x: 3, y: 101, w: 11, h: 14 }, hit: [0, 86, 31, 32] },
+  'abdomen-lower': { shape: { kind: 'rect', x: 3, y: 121, w: 12, h: 15 }, hit: [0, 118, 31, 32] },
+  thigh: { shape: { kind: 'ellipse', cx: 14, cy: 182, rx: 6.5, ry: 15 }, hit: [0, 152, 31, 60] },
+  deltoid: { shape: { kind: 'ellipse', cx: 32.5, cy: 71, rx: 4.5, ry: 7 }, hit: [13, 54, 36, 32] },
+  arm: { shape: { kind: 'ellipse', cx: 33.5, cy: 96, rx: 4.5, ry: 10 }, hit: [22, 84, 31, 40] },
+  glute: { shape: { kind: 'ellipse', cx: 13, cy: 148, rx: 8.5, ry: 9 }, hit: [0, 128, 31, 40] },
 }
 
 function zoneOf(site: SiteId) {
@@ -162,7 +172,7 @@ function Figure({
       <figcaption className="text-center text-xs font-semibold text-muted-foreground">
         {view === 'front' ? t('sites.frontView') : t('sites.backView')}
       </figcaption>
-      <svg viewBox={VIEW_BOX} role="group" aria-label={view === 'front' ? t('sites.frontView') : t('sites.backView')} className="h-auto w-full">
+      <svg viewBox={VIEW_BOX} role="group" aria-label={view === 'front' ? t('sites.frontView') : t('sites.backView')} className="h-auto w-full overflow-visible">
         <defs>
           {/* Fades the legs out where the crop cuts them. */}
           <linearGradient id={`${fadeId}-g`} x1="0" y1={FADE_FROM} x2="0" y2="252" gradientUnits="userSpaceOnUse">
