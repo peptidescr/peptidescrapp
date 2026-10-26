@@ -47,7 +47,7 @@ import { compareAlphabetical, getCompoundById } from '../content/compounds'
 import { compoundCategoryLabel, useSelectableCompounds } from '../lib/customCompounds'
 import { PROTOCOL_TEMPLATES, type ProtocolTemplate } from '../content/protocolTemplates'
 import { formatDateTime, toIsoDate } from '../lib/dates'
-import { db, type DoseLog, type Protocol, type Route } from '../lib/db'
+import { db, type DoseLog, type Protocol, type Route, type SavedReconstitution } from '../lib/db'
 import { computeProtocolStats } from '../lib/homeData'
 import { scheduleUpcomingReminders } from '../lib/notifications'
 import { alphabeticalOptions } from '../lib/options'
@@ -71,7 +71,14 @@ async function rescheduleReminders(): Promise<void> {
   requestPushSync()
 }
 
-const WEEKDAY_LABELS_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const
+/** Which "how to draw it" sentence fits a saved mix. A 3 mL barrel is read in mL, so it never says "units". */
+function mixSummaryKey(mix: SavedReconstitution): string {
+  const ready = mix.diluentMl === undefined
+  if (mix.syringeType === '3mL') return ready ? 'protocols.mixSummarySolution3mL' : 'protocols.mixSummary3mL'
+  return ready ? 'protocols.mixSummarySolution' : 'protocols.mixSummary'
+}
+
+const WEEKDAY_LABELS_KEYS =['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const
 const SCHEDULE_KINDS: Schedule['kind'][] = ['daily', 'everyNDays', 'weekdays', 'cycle', 'custom']
 const ROUTES: Route[] = ['subcutaneous', 'intramuscular', 'other']
 
@@ -327,18 +334,15 @@ function ProtocolRow({
       {protocol.reconstitution && (
         <p className="mx-4 mt-3 flex items-start gap-2 rounded-2xl bg-accent px-3 py-2 text-sm text-foreground">
           <FlaskConical className="mt-0.5 size-4 shrink-0 text-primary" />
-          {protocol.reconstitution.diluentMl === undefined
-            ? t('protocols.mixSummarySolution', {
-                units: formatDecimal(protocol.reconstitution.drawSyringeUnits, locale, 1),
-                ml: formatDecimal(protocol.reconstitution.drawVolumeMl, locale, 3),
-                dose: `${formatDecimal(protocol.reconstitution.doseAmount, locale, 3)} ${protocol.reconstitution.doseUnit}`,
-              })
-            : t('protocols.mixSummary', {
-                water: formatDecimal(protocol.reconstitution.diluentMl, locale, 2),
-                units: formatDecimal(protocol.reconstitution.drawSyringeUnits, locale, 1),
-                ml: formatDecimal(protocol.reconstitution.drawVolumeMl, locale, 3),
-                dose: `${formatDecimal(protocol.reconstitution.doseAmount, locale, 3)} ${protocol.reconstitution.doseUnit}`,
-              })}
+          {t(mixSummaryKey(protocol.reconstitution), {
+            water:
+              protocol.reconstitution.diluentMl === undefined
+                ? ''
+                : formatDecimal(protocol.reconstitution.diluentMl, locale, 2),
+            units: formatDecimal(protocol.reconstitution.drawSyringeUnits, locale, 1),
+            ml: formatDecimal(protocol.reconstitution.drawVolumeMl, locale, 3),
+            dose: `${formatDecimal(protocol.reconstitution.doseAmount, locale, 3)} ${protocol.reconstitution.doseUnit}`,
+          })}
         </p>
       )}
 

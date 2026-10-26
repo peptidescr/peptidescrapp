@@ -161,6 +161,16 @@ describe('syringe conversions', () => {
     expect(quantizeVolumeToSyringe(253, 'U-40', 'up')).toBe(275)
   })
 
+  it('treats a 3 mL syringe as 0.1 mL graduations', () => {
+    expect(syringeUnitsPerMl('3mL')).toBe(10)
+    expect(microlitersPerSyringeUnit('3mL')).toBe(100)
+    expect(syringeUnitsFromMicroliters(500 as Microliter, '3mL')).toBe(5)
+    expect(microlitersFromSyringeUnits(7, '3mL')).toBe(700)
+    // 253 µL sits between the 0.2 and 0.3 mL marks.
+    expect(quantizeVolumeToSyringe(253, '3mL', 'down')).toBe(200)
+    expect(quantizeVolumeToSyringe(253, '3mL', 'up')).toBe(300)
+  })
+
   it('rejects negative volumes and unit counts', () => {
     expect(() => quantizeVolumeToSyringe(-1, 'U-100')).toThrow(RangeError)
     expect(() => microlitersFromSyringeUnits(-1, 'U-100')).toThrow(RangeError)

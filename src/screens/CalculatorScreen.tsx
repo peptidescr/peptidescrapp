@@ -35,7 +35,7 @@ import {
 import { useLiveQuery } from '../lib/useLiveQuery'
 import { updateSettings, useSettings } from '../lib/useSettings'
 
-const SYRINGE_TYPES: SyringeType[] = ['U-100', 'U-50', 'U-40']
+const SYRINGE_TYPES: SyringeType[] = ['U-100', 'U-50', 'U-40', '3mL']
 
 /** What the calculator hands to "save to protocol" — everything in a saved mix except when it was saved. */
 type MixSnapshot = Omit<SavedReconstitution, 'savedAt'>
@@ -342,7 +342,7 @@ export function CalculatorScreen({ protocolId, onCreateProtocol }: CalculatorScr
             ariaLabel={t('calculator.syringeType')}
             value={syringeType}
             onChange={handleSyringeChange}
-            options={SYRINGE_TYPES.map((type) => ({ value: type, label: type }))}
+            options={SYRINGE_TYPES.map((type) => ({ value: type, label: type === '3mL' ? t('calculator.syringe3mL') : type }))}
           />
         </Field>
       </Step>
@@ -374,8 +374,13 @@ export function CalculatorScreen({ protocolId, onCreateProtocol }: CalculatorScr
               <div className="grid grid-cols-2 items-end gap-4">
                 <BigResult label={t('calculator.drawVolume')} value={formatVolumeMl(result.drawVolumeUl, locale)} />
                 <BigResult
-                  // U+2011 keeps "U-100" in one piece if the label has to wrap.
-                  label={t('calculator.drawSyringeUnits', { syringeType: syringeType.replace('-', '‑') })}
+                  // U+2011 keeps "U-100" in one piece if the label has to wrap. A 3 mL
+                  // barrel has no units, only a mark every 0.1 mL.
+                  label={
+                    syringeType === '3mL'
+                      ? t('calculator.drawSyringeMarks')
+                      : t('calculator.drawSyringeUnits', { syringeType: syringeType.replace('-', '‑') })
+                  }
                   value={formatSyringeUnits(result.drawSyringeUnits, locale)}
                 />
               </div>
