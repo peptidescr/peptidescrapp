@@ -174,6 +174,8 @@ describe('parseBackup', () => {
     )
     expect(ok.settings).toEqual({ id: 1, locale: 'en', syringeType: 'U-100', theme: 'dark' })
     expect(() => parseBackup(backup({ settings: { locale: 'fr', syringeType: 'U-100' } }))).toThrow()
+    expect(() => parseBackup(backup({ settings: { locale: 'en', syringeType: '5mL' } }))).toThrow()
+    expect(parseBackup(backup({ settings: { locale: 'en', syringeType: '3mL', theme: 'light' } })).settings?.syringeType).toBe('3mL')
   })
 })
 

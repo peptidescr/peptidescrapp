@@ -39,6 +39,8 @@ const BARRELS: Record<SyringeType, SyringeScale[]> = {
     { capacityUnits: 20, minorStep: 1, majorStep: 5 },
     { capacityUnits: 40, minorStep: 1, majorStep: 5 },
   ],
+  // A 3 mL barrel: its 'unit' is a 0.1 mL mark, so 30 marks, numbered every 1 mL (the graphic prints them as mL).
+  '3mL': [{ capacityUnits: 30, minorStep: 1, majorStep: 5, labelStep: 10 }],
 }
 
 export interface SyringeLayout extends SyringeScale {

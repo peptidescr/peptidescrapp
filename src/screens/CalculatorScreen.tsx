@@ -45,7 +45,7 @@ import { useLiveQuery } from '../lib/useLiveQuery'
 import { updateSettings, useSettings } from '../lib/useSettings'
 import { activeVialFor } from '../lib/vials'
 
-const SYRINGE_TYPES: SyringeType[] = ['U-100', 'U-50', 'U-40']
+const SYRINGE_TYPES: SyringeType[] = ['U-100', 'U-50', 'U-40', '3mL']
 
 type Custom = 'custom'
 
@@ -61,6 +61,8 @@ interface CalculatorScreenProps {
   protocolId?: string
   /** "Create a protocol" from the save section, for a compound with no active protocol yet. */
   onCreateProtocol: (compoundId: string) => void
+  /** Called once a mix has been saved to a protocol. Lets the host move on (the new-protocol flow ends back at Home). */
+  onSavedToProtocol?: () => void
 }
 
 /**
@@ -76,7 +78,7 @@ interface CalculatorScreenProps {
  * type and barrel, saving to a protocol and starting a vial from the mix all
  * work as they did.
  */
-export function CalculatorScreen({ protocolId, onCreateProtocol }: CalculatorScreenProps) {
+export function CalculatorScreen({ protocolId, onCreateProtocol, onSavedToProtocol }: CalculatorScreenProps) {
   const { t, i18n } = useTranslation()
   const locale = i18n.language as Locale
   const settings = useSettings()
@@ -338,6 +340,7 @@ export function CalculatorScreen({ protocolId, onCreateProtocol }: CalculatorScr
     const ml = capacity / syringeUnitsPerMl(syringeType)
     return Number.isInteger(ml) ? String(ml) : formatDecimal(ml, locale, 2)
   }
+  const isMlSyringe = syringeType === '3mL'
   const drawnBarrel = result ? layoutSyringe(syringeType, result.drawSyringeUnits, chosenBarrel).capacityUnits : chosenBarrel
 
   return (
@@ -417,18 +420,25 @@ export function CalculatorScreen({ protocolId, onCreateProtocol }: CalculatorScr
               className="mt-1 flex flex-col gap-4"
             >
               <div>
+                {/* A 3 mL syringe has no units, only a mark every 0.1 mL, so it is read in mL. */}
                 <p className="flex items-baseline gap-2">
                   <span className="font-display text-[3.25rem] font-bold leading-none tabular-nums">
-                    {formatSyringeUnits(result.drawSyringeUnits, locale)}
+                    {isMlSyringe
+                      ? formatDecimal(result.drawVolumeUl / 1000, locale, 1)
+                      : formatSyringeUnits(result.drawSyringeUnits, locale)}
                   </span>
-                  <span className="text-base font-medium text-on-primary-muted">{t('calculator.unitsWord')}</span>
+                  <span className="text-base font-medium text-on-primary-muted">
+                    {isMlSyringe ? 'mL' : t('calculator.unitsWord')}
+                  </span>
                 </p>
                 <p className="mt-1.5 text-[13px] text-on-primary-muted">
-                  {t('calculator.onSyringe', {
-                    volume: `${formatVolumeMlFixed(result.drawVolumeUl, locale)} mL`,
-                    units: drawnBarrel,
-                    ml: barrelMl(drawnBarrel),
-                  })}
+                  {isMlSyringe
+                    ? t('calculator.onSyringe3mL', { count: result.drawSyringeUnits, marks: formatSyringeUnits(result.drawSyringeUnits, locale) })
+                    : t('calculator.onSyringe', {
+                        volume: `${formatVolumeMlFixed(result.drawVolumeUl, locale)} mL`,
+                        units: drawnBarrel,
+                        ml: barrelMl(drawnBarrel),
+                      })}
                 </p>
               </div>
               <SyringeGraphic
@@ -552,18 +562,21 @@ export function CalculatorScreen({ protocolId, onCreateProtocol }: CalculatorScr
           ariaLabel={t('calculator.syringeType')}
           value={syringeType}
           onChange={handleSyringeChange}
-          options={SYRINGE_TYPES.map((type) => ({ value: type, label: type }))}
+          options={SYRINGE_TYPES.map((type) => ({ value: type, label: type === '3mL' ? t('calculator.syringe3mL') : type }))}
         />
       </PresetRow>
-      <PresetRow label={t('calculator.syringeSize')}>
-        <Segmented
-          ariaLabel={t('calculator.syringeSize')}
-          value={String(chosenBarrel)}
-          onChange={(value) => setBarrelUnits(Number(value))}
-          // Largest first, like the 1 mL / 0.5 mL / 0.3 mL it is sold as.
-          options={[...barrels].reverse().map((capacity) => ({ value: String(capacity), label: `${barrelMl(capacity)} mL` }))}
-        />
-      </PresetRow>
+      {/* The 3 mL syringe comes in one barrel size, which its type already names. */}
+      {barrels.length > 1 && (
+        <PresetRow label={t('calculator.syringeSize')}>
+          <Segmented
+            ariaLabel={t('calculator.syringeSize')}
+            value={String(chosenBarrel)}
+            onChange={(value) => setBarrelUnits(Number(value))}
+            // Largest first, like the 1 mL / 0.5 mL / 0.3 mL it is sold as.
+            options={[...barrels].reverse().map((capacity) => ({ value: String(capacity), label: `${barrelMl(capacity)} mL` }))}
+          />
+        </PresetRow>
+      )}
 
       <BacWaterCard />
 
@@ -575,6 +588,7 @@ export function CalculatorScreen({ protocolId, onCreateProtocol }: CalculatorScr
           targetId={saveTargetId}
           onTargetChange={setSaveTargetId}
           onCreateProtocol={() => onCreateProtocol(compound.id)}
+          onSaved={onSavedToProtocol}
         />
       )}
 
@@ -596,6 +610,7 @@ function SaveToProtocol({
   targetId,
   onTargetChange,
   onCreateProtocol,
+  onSaved,
 }: {
   compound: Compound
   snapshot: MixSnapshot
@@ -603,6 +618,7 @@ function SaveToProtocol({
   targetId: string | null
   onTargetChange: (id: string) => void
   onCreateProtocol: () => void
+  onSaved?: () => void
 }) {
   const { t } = useTranslation()
   const protocols = useLiveQuery(() => db.protocols.toArray(), [])
@@ -639,6 +655,7 @@ function SaveToProtocol({
     try {
       await db.protocols.update(target.id, { reconstitution: { ...snapshot, savedAt: new Date().toISOString() } })
       toast.success(t('calculator.saved', { name: target.name || compound.name }))
+      onSaved?.()
     } finally {
       setBusy(false)
     }

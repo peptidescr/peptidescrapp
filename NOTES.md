@@ -2270,3 +2270,152 @@ translation keys.
 - Zero console errors in every pass; no horizontal scroll; body-text contrast >= 4.5:1.
 - Fixed on the way: a Spanish button label forced a 320 px page wider (buttons wrap now); the report's
   back button shrank to 24 px; hard-coded "Calendar / Hour / Minute" labels are translated.
+## Search engines and link previews (October 2026)
+
+The two live sites (`app.usapeptidedepot.com`, `app.peptidescostarica.net`) had just had their
+title and description reworked (164a1cd). Everything else was missing:
+- `/robots.txt` and `/sitemap.xml` returned 404;
+- there was no canonical link, no share tags and no structured data;
+- the body was an empty `<div id="root">`, so crawlers that don't run JavaScript read nothing;
+- after rendering, Google saw onboarding's first screen: "Welcome to …" (or a language picker)
+  and a button;
+- neither store's homepage links to its app.
+
+Done on the branch `seo`, off `main` (what's live), not `staging`. The developer chose to let
+visible text change: a loading splash, and a description on the first setup screen.
+
+- **Brand data** (`brands.ts`): `headline` (the "what it is" half of the title, now composed as
+  `${headline} | ${store.name}`), `siteUrl` (the production address, fixed so the netlify.app
+  address and deploy previews never compete with it), and `store` (name and URL, now also the
+  source for the contact card's website link).
+- **`src/brand/seo.ts`** (pure, tested): robots.txt, sitemap.xml (one URL, `lastmod` = build
+  date), JSON-LD, the Open Graph locale, and HTML escaping.
+  - robots.txt allows everything but `/api/` (the Netlify functions) and names the sitemap.
+  - The JSON-LD is an `@graph` of the store as `Organization`, the site as `WebSite` and the app
+    as `WebApplication` (free, any OS, both languages on PCR), linked by `publisher`. There are no
+    ratings or offers because there are none to state.
+- **vite.config.ts**:
+  - `brandHtml` fills the new placeholders, HTML-escaped (the titles contain "&"). JSON-LD is
+    inserted raw, made script-safe by `seo.ts`.
+  - `seoFiles` emits robots.txt and sitemap.xml and serves them in dev.
+  - `isIndexable()` reads Netlify's `CONTEXT`. Anything other than `production` (a deploy preview
+    or branch deploy) gets `<meta name="robots" content="noindex">` and a robots.txt with no
+    sitemap and no block, because a block would hide the noindex from crawlers. A local build has
+    no `CONTEXT` and is treated as production.
+- **index.html head**: canonical, `og:*` (`site_name` = store, locale `en_US`/`es_CR`, a 1200×630
+  image), `twitter:card` `summary_large_image`, and the JSON-LD.
+- **Share image** (`public/<brand>/og-image.jpg`, 54 KB and 71 KB):
+  - Rendered with headless Chrome from an HTML composition: the brand's hero gradient, its logo,
+    the headline in its display font, a one-line tagline and the app's address.
+  - The tagline only names what's on `main` (schedules, reminders, mixing math), not the
+    Progress tab, which is still on `staging`.
+  - It's a JPEG at the site root, so the service worker's precache (png/svg under `brand/` and
+    `globPatterns`) doesn't download it to every phone.
+  - To change it: rebuild an HTML page the same way and screenshot it at 1200×630, DPR 1.
+- **Splash**: `#root` now holds a static `<main>` (logo, `<h1>` headline, the description), so the
+  HTML alone carries real text. React replaces it on start with `BootSplash` (identical markup)
+  while settings load, which used to be a blank div, so the hand-over shows one steady splash
+  instead of splash → blank → app. Both copies are in the default language (Spanish on PCR).
+- **Onboarding**: the first screen (the welcome on UPD, the language picker on PCR) now has
+  `onboarding.welcome.body` under its title. That's what Google indexes after rendering.
+
+**Verified:**
+- Typecheck, 192/192 tests (new: `seo.test.ts`, 7), lint (the known `App.tsx` error only, also
+  present on `main` without this change), i18n 286/286, both builds.
+- The build output has robots.txt, the sitemap and the head tags; `og-image.jpg` is absent from
+  `sw.js`. A `CONTEXT=deploy-preview` build gets noindex and a sitemap-less robots.txt.
+- Live (`check-seo`) on UPD at 390px and PCR in Spanish at 320px:
+  - with JavaScript off: one visible, styled `<h1>` with the headline;
+  - with a Googlebot user agent: the first screen shows the welcome/language title plus the
+    description, one `<h1>`, the canonical, share image and parseable JSON-LD, and no noindex;
+  - `/robots.txt`, `/sitemap.xml` and `/og-image.jpg` return 200;
+  - a returning user lands on Home with no splash text left behind;
+  - no console errors.
+
+**Favicon in Google results (follow-up).** Once the site was indexed, results showed Google's
+plain globe instead of the logo. Google's favicon service had nothing stored for either app
+subdomain (`google.com/s2/favicons?domain=…` returned 404), though it had icons for both store
+domains. Google uses one icon per host, and it must be square and a multiple of 48px. The head
+listed a 32×32 icon first, the 192 second (which does qualify), and an Apple icon at 180×180,
+while `/favicon.ico` returned 404. Changes:
+- a `brand/favicon-96.png`, listed first;
+- a real `/favicon.ico` with 16, 32 and 48px PNG frames;
+- the 192px icon kept;
+- `favicon-32.png` removed (the .ico covers the browser tab).
+
+Both new files were made from `icon-512.png` (Chrome's `createImageBitmap` with high-quality
+resampling; the .ico is the PNGs wrapped in an ICO header). Checked in the browser: every
+declared icon returns 200 at its stated size, and the .ico decodes. Google only refreshes
+favicons when it recrawls, so the logo shows up later, not on deploy; "Request indexing" in
+Search Console speeds that up.
+
+**Not code:** the two biggest levers are the client's. They're in HANDOVER: link to each app from
+its store's site, and add the app to Search Console and Bing Webmaster Tools, then submit the
+sitemap.
+## Client requests, October 2026: four items, on `main` (not the redesign)
+
+The client asked for four things to go live. Some existed on `staging` (Phase 2), which also
+carries the unreleased Part A redesign, so this is a separate branch off `main`
+(`release/client-requests-oct-2026`) with only these four, each its own commit(s).
+
+1. **Back to Home after saving a mix to a new protocol.** The flow is: save the protocol, "Reconstitute
+   now", save the mix to the protocol. `CalculatorScreen` takes an optional `onSavedToProtocol`; `App`
+   passes it (`goToTab('home')`) only when the calculator was opened from that offer
+   (`calculatorProtocolId` set). Opening the calculator directly, or saving a mix to an existing
+   protocol from there, stays put. That scope is a judgement call; to redirect every save, pass the
+   callback unconditionally.
+2. **Custom compounds ("add a peptide that isn't in the list").** Ported from Phase 2's batch 1
+   (7f5ea94), without its vials/alerts/adherence parts.
+   - Stored in the existing Dexie `compounds` table (`isCustom: true`, id `custom-<uuid>`), so no schema
+     bump. `src/lib/customCompounds.ts` mirrors them into the in-memory registry in `content/compounds.ts`
+     (`startCustomCompoundSync`, called from `main.tsx`); `App` waits for the first load so a saved
+     protocol never renders before its compound exists.
+   - "Add your own compound" is the footer of the compound list in the calculator and the protocol form
+     (`Combobox` `footerAction`); Settings → Your compounds lists, edits and deletes. A compound used by a
+     protocol or a logged dose can't be deleted.
+   - The calculator has no size chips for a custom compound, so it shows a number field for the vial size.
+   - **Backups are now format v2**: an optional `customCompounds` list. v1 files still import; a Phase 2
+     v2 file imports too (its vials and templates are ignored on `main`). Ids must start `custom-`, so a
+     file can't overwrite a catalogue entry.
+3. **3 mL syringe.** `SyringeType` gains `'3mL'`: 10 graduations/mL, i.e. a mark every 0.1 mL (the usual
+   3 mL barrel). It has no units, so the calculator labels the second result "Draw (0.1 mL marks)" and the
+   protocol card's summary reads in mL. The draw still rounds down to a mark. If the client's barrels are
+   marked every 0.2 mL, change the `'3mL'` value in `SYRINGE_UNITS_PER_ML` (5) and the label.
+4. **Several doses a day.** Already worked (a protocol gives one dose per reminder time). The form now says
+   so ("Dose times", "Add another dose"), suggests a free time instead of repeating 08:00, caps at 12 (the
+   backup limit), refuses the same time twice, saves times earliest first (`src/lib/doseTimes.ts`), and the
+   card shows "3 doses/day".
+
+**Merging this into `staging` later.** Expect conflicts in `backupValidation.ts`/`backup.ts` (both bump to
+v2; staging's also carries vials/templates), `customCompounds.ts` (staging's is the fuller one), and the
+compound/protocol screens. Keep staging's versions of the overlapping files and re-apply: the `'3mL'`
+entry (staging's `BARRELS: Record<SyringeType, …>` in `syringe.ts` needs a '3mL' key or it won't
+compile), `doseTimes.ts`, and `onSavedToProtocol`.
+
+**Verified:** typecheck, 212 tests, lint (only the known `App.tsx` error), i18n parity, both builds;
+in a headless browser on UPD (375px) and PCR in Spanish (320px): the full new-protocol flow with three
+doses/day ends on Home with "0 of 3 doses logged", a 3 mL calculation, a custom compound created,
+persisted over a reload, calculated with and listed in Settings, no console errors.
+## October release merged into staging (after Part A)
+
+`origin/main` (the four client requests, PR #2, plus the SEO work) was merged into `staging`. Where
+staging already had the fuller Phase 2 version, staging's won, and only what `main` added was re-applied:
+- **Kept staging's:** custom compounds (sheet, registry, `Combobox` footer), backup v2 (with vials and
+  templates), `App.tsx` (page history), the restyled calculator and protocol form, HANDOVER's scope text.
+- **Re-applied on top:**
+  - the `'3mL'` syringe in backup validation and `syringe.ts`: one 3 mL barrel of thirty 0.1 mL marks, numbered
+    0 to 3 in mL on the graphic. In the calculator's result panel it leads with the volume ("DRAW TO 0.4 mL",
+    "4 marks of 0.1 mL on a 3 mL syringe"), the barrel-size row is hidden (there is one), and the protocol
+    card's mix summary reads in mL;
+  - dose times (`doseTimes.ts`): free-time suggestion, no duplicates, cap of 12, earliest first, "3 doses/day";
+  - the return to Home: `CalculatorScreen` takes `onSavedToProtocol`, and `App` passes it only when the
+    calculator was opened from "Reconstitute now" (`page.protocolId`), going to Home and dropping the pages
+    above it so back doesn't re-enter the flow.
+- **Not carried over:** `main`'s number field for a custom compound's vial size. Staging's calculator has a
+  Custom option on the vial row, which covers it.
+- SEO: `brands.ts` has both staging's `features`/`heroLogo` and main's `siteUrl`/`store`; `vite.config.ts` has
+  both the catalogue API plugin and the robots/sitemap/noindex ones.
+
+Verified on the merged tree: typecheck, 443 tests, lint, i18n parity, both builds; in a headless browser the
+3-doses-a-day protocol, "Reconstitute now", save the mix → Home (UPD at 375, PCR in Spanish at 320), and a 3 mL
+calculation, with no console errors.

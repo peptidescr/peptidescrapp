@@ -65,3 +65,19 @@ describe('barrelCapacities', () => {
     expect(barrelCapacities('U-40')).toEqual([20, 40])
   })
 })
+
+describe('layoutSyringe for a 3 mL syringe', () => {
+  it('is one 3 mL barrel of thirty 0.1 mL marks, numbered every 1 mL', () => {
+    expect(barrelCapacities('3mL')).toEqual([30])
+    const layout = layoutSyringe('3mL', 4)
+    expect(layout.capacityUnits).toBe(30)
+    expect(layout.ticks).toHaveLength(31)
+    expect(layout.labels).toEqual([0, 10, 20, 30])
+    expect(layout.fillFraction).toBeCloseTo(4 / 30)
+    expect(layout.overflow).toBe(false)
+  })
+
+  it('flags a draw bigger than 3 mL', () => {
+    expect(layoutSyringe('3mL', 45).overflow).toBe(true)
+  })
+})

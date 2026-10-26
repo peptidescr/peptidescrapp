@@ -56,7 +56,13 @@ import { PROTOCOL_TEMPLATES } from '../content/protocolTemplates'
 import type { ProtocolPrefill } from '../lib/userTemplates'
 import { isProtocolFlow, isProtocolPicker, type Page, type ProtocolsView } from '../lib/pages'
 import { formatDate, formatDateTime, toIsoDate } from '../lib/dates'
-import { db, type DoseLog, type Protocol, type Route, type Vial } from '../lib/db'
+import { db, type DoseLog, type Protocol, type Route, type SavedReconstitution, type Vial } from '../lib/db'
+import {
+  MAX_DOSE_TIMES,
+  hasDuplicateDoseTimes,
+  normalizeDoseTimes,
+  suggestNextDoseTime,
+} from '../lib/doseTimes'
 import { computeAdherence, computeProtocolStats } from '../lib/homeData'
 import { scheduleUpcomingReminders } from '../lib/notifications'
 import { alphabeticalOptions } from '../lib/options'
@@ -87,7 +93,14 @@ async function rescheduleReminders(): Promise<void> {
   requestPushSync()
 }
 
-const WEEKDAY_LABELS_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const
+/** Which "how to draw it" sentence fits a saved mix. A 3 mL barrel is read in mL, so it never says "units". */
+function mixSummaryKey(mix: SavedReconstitution): string {
+  const ready = mix.diluentMl === undefined
+  if (mix.syringeType === '3mL') return ready ? 'protocols.mixSummarySolution3mL' : 'protocols.mixSummary3mL'
+  return ready ? 'protocols.mixSummarySolution' : 'protocols.mixSummary'
+}
+
+const WEEKDAY_LABELS_KEYS =['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const
 const SCHEDULE_KINDS: Schedule['kind'][] = ['daily', 'everyNDays', 'weekdays', 'cycle', 'cycleWeeks', 'custom']
 const CYCLE_INNER_KINDS: CycleInnerSchedule['kind'][] = ['daily', 'everyNDays', 'weekdays']
 const ROUTES: Route[] = ['subcutaneous', 'intramuscular', 'other']
@@ -358,6 +371,8 @@ function ProtocolRow({
         <span>
           {scheduleSummary(protocol.schedule, t)}{' '}
           · <span className="whitespace-nowrap">{formatDose(currentDose)}</span>
+          {protocol.reminderTimes.length > 1 &&
+            ` · ${t('protocols.dosesPerDay', { count: protocol.reminderTimes.length })}`}
           {nextChange && (
             <span className="whitespace-nowrap text-muted-foreground">
               {' → '}
@@ -397,18 +412,15 @@ function ProtocolRow({
         <div className="mx-4 mt-3 flex flex-col gap-2 rounded-2xl bg-accent px-3 py-2 text-sm text-foreground">
           <p className="flex items-start gap-2">
           <FlaskConical className="mt-0.5 size-4 shrink-0 text-primary" />
-          {protocol.reconstitution.diluentMl === undefined
-            ? t('protocols.mixSummarySolution', {
-                units: formatDecimal(protocol.reconstitution.drawSyringeUnits, locale, 1),
-                ml: formatDecimal(protocol.reconstitution.drawVolumeMl, locale, 3),
-                dose: `${formatDecimal(protocol.reconstitution.doseAmount, locale, 3)} ${protocol.reconstitution.doseUnit}`,
-              })
-            : t('protocols.mixSummary', {
-                water: formatDecimal(protocol.reconstitution.diluentMl, locale, 2),
-                units: formatDecimal(protocol.reconstitution.drawSyringeUnits, locale, 1),
-                ml: formatDecimal(protocol.reconstitution.drawVolumeMl, locale, 3),
-                dose: `${formatDecimal(protocol.reconstitution.doseAmount, locale, 3)} ${protocol.reconstitution.doseUnit}`,
-              })}
+          {t(mixSummaryKey(protocol.reconstitution), {
+            water:
+              protocol.reconstitution.diluentMl === undefined
+                ? ''
+                : formatDecimal(protocol.reconstitution.diluentMl, locale, 2),
+            units: formatDecimal(protocol.reconstitution.drawSyringeUnits, locale, 1),
+            ml: formatDecimal(protocol.reconstitution.drawVolumeMl, locale, 3),
+            dose: `${formatDecimal(protocol.reconstitution.doseAmount, locale, 3)} ${protocol.reconstitution.doseUnit}`,
+          })}
           </p>
           {/* Capped at about phone width: it scales with its width, and on a desktop-wide card it would stand hundreds of pixels tall. */}
           <SyringeGraphic
@@ -625,10 +637,12 @@ export function ProtocolForm({
   const tracksSites = trackSites && routeSites.length > 0
   const chosenSites = rotationSites(route, sites)
   const needsSites = tracksSites && chosenSites.length === 0
+  const hasDuplicateTimes = hasDuplicateDoseTimes(reminderTimes)
   const canSave =
     compound !== undefined &&
     doseValue !== null &&
     reminderTimes.length > 0 &&
+    !hasDuplicateTimes &&
     !needsCustomDays &&
     schedule !== null &&
     parsedTitration.titration !== null &&
@@ -648,10 +662,16 @@ export function ProtocolForm({
     // now whenever the schedule itself changes; leave it alone for edits to
     // things like the name or dose so an unrelated tweak can't quietly erase
     // a genuinely missed dose.
+    const doseTimes = normalizeDoseTimes(reminderTimes)
     const scheduleUnchanged =
       existing !== undefined &&
-      JSON.stringify([schedule, reminderTimes, effectiveStart, effectiveEnd]) ===
-        JSON.stringify([existing.schedule, existing.reminderTimes, existing.startDate, existing.endDate])
+      JSON.stringify([schedule, doseTimes, effectiveStart, effectiveEnd]) ===
+        JSON.stringify([
+          existing.schedule,
+          normalizeDoseTimes(existing.reminderTimes),
+          existing.startDate,
+          existing.endDate,
+        ])
 
     const protocol: Protocol = {
       id: protocolId ?? crypto.randomUUID(),
@@ -660,7 +680,7 @@ export function ProtocolForm({
       doseAmount: doseValue,
       doseUnit: doseUnit,
       schedule,
-      reminderTimes,
+      reminderTimes: doseTimes,
       startDate: effectiveStart,
       endDate: effectiveEnd,
       route,
@@ -686,7 +706,9 @@ export function ProtocolForm({
   }
 
   function addReminderTime() {
-    setReminderTimes((times) => [...times, '08:00'])
+    setReminderTimes((times) =>
+      times.length >= MAX_DOSE_TIMES ? times : [...times, suggestNextDoseTime(times)],
+    )
   }
 
   function removeReminderTime(index: number) {
@@ -973,14 +995,18 @@ export function ProtocolForm({
               )}
             </div>
           ))}
-          <button
-            type="button"
-            onClick={addReminderTime}
-            className="flex min-h-11 items-center gap-1 self-start text-sm text-primary"
-          >
-            <Plus className="size-4" />
-            {t('protocols.addReminderTime')}
-          </button>
+          {hasDuplicateTimes && <FieldError>{t('protocols.duplicateDoseTime')}</FieldError>}
+          {reminderTimes.length < MAX_DOSE_TIMES && (
+            <button
+              type="button"
+              onClick={addReminderTime}
+              className="flex min-h-11 items-center gap-1 self-start text-sm text-primary"
+            >
+              <Plus className="size-4" />
+              {t('protocols.addReminderTime')}
+            </button>
+          )}
+          <p className="text-xs text-muted-foreground">{t('protocols.doseTimesHint')}</p>
         </div>
       </FormField>
 

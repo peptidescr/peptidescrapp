@@ -34,6 +34,9 @@
     "concentration": "Concentration ({{unit}})",
     "syringeType": "Syringe type",
     "awaitingInput": "Pick the vial, diluent and target below to see the draw.",
+    "syringe3mL": "3 mL",
+    "onSyringe3mL_one": "{{marks}} mark of 0.1 mL on a 3 mL syringe",
+    "onSyringe3mL_other": "{{marks}} marks of 0.1 mL on a 3 mL syringe",
     "invalidInput": "Check the values above — something isn't a valid number yet.",
     "resetForm": "Reset",
     "explainerPowder": "Enter the vial size and how much diluent you added, then the dose you want to log — the draw volume updates as you type.",
@@ -81,8 +84,11 @@
     "weekdays": "Which days",
     "daysOn": "Days on",
     "daysOff": "Days off",
-    "reminderTimes": "Reminder times",
-    "addReminderTime": "Add another time",
+    "reminderTimes": "Dose times",
+    "addReminderTime": "Add another dose",
+    "duplicateDoseTime": "Two doses are set for the same time. Change one.",
+    "doseTimesHint": "One dose is due at each time, so add a time for every dose you take in a day.",
+    "dosesPerDay": "{{count}} doses/day",
     "tabMine": "My Protocols",
     "tabTemplates": "Templates",
     "nextDose": "Next dose",
@@ -116,6 +122,8 @@
     "remindersBody": "Turn on notifications and we'll alert you when a dose is due.",
     "mixSummary": "Mix: {{water}} mL water · draw {{units}} units ({{ml}} mL) for {{dose}}",
     "mixSummarySolution": "Ready to use · draw {{units}} units ({{ml}} mL) for {{dose}}",
+    "mixSummary3mL": "Mix: {{water}} mL water · draw {{ml}} mL ({{units}} marks on a 3 mL syringe) for {{dose}}",
+    "mixSummarySolution3mL": "Ready to use · draw {{ml}} mL ({{units}} marks on a 3 mL syringe) for {{dose}}",
     "namePlaceholderHint": "e.g. Morning stack",
     "savedBodySolution": "Next step: work out how much to draw for {{dose}}. The calculator does it from the concentration on the bottle.",
     "invalidDays": "Enter a whole number of days, up to {{max}}.",
@@ -399,7 +407,8 @@
       "title": "Choose your language"
     },
     "welcome": {
-      "title": "Welcome to {{appName}}"
+      "title": "Welcome to {{appName}}",
+      "body": "Track your research peptide routines and calculate reconstitution amounts."
     },
     "disclaimer": {
       "mustAccept": "You need to accept this to use {{appName}}."

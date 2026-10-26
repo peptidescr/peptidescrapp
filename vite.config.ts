@@ -7,6 +7,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import { getBrand, type BrandConfig } from './src/brand/brands.ts'
 import { handleCatalogueRequest, toCatalogueBrand } from './netlify/lib/catalogue.ts'
+import { escapeHtml, ogLocale, robotsTxt, SHARE_IMAGE, sitemapXml, structuredData } from './src/brand/seo.ts'
 
 /**
  * Which brand to build (see src/brand/brands.ts). VITE_BRAND wins — that's
@@ -66,21 +67,78 @@ function catalogueApi(brand: BrandConfig): Plugin {
   return { name: 'catalogue-api', configureServer: serve, configurePreviewServer: serve }
 }
 
-/** Fills index.html's %BRAND_*% placeholders. */
-function brandHtml(brand: BrandConfig): Plugin {
-  const values: Record<string, string> = {
+/**
+ * Whether this build is the live site search engines should index. Netlify
+ * sets CONTEXT on every build: 'production' for the live site, otherwise a
+ * deploy preview or branch deploy. A local build (no CONTEXT) is treated as
+ * production, so `npm run build` output matches what ships.
+ */
+function isIndexable(): boolean {
+  const context = process.env.CONTEXT
+  return context === undefined || context === 'production'
+}
+
+/**
+ * Fills index.html's %BRAND_*% placeholders, HTML-escaped (the titles contain
+ * "&"), except the JSON-LD block, which seo.ts makes script-safe itself. A
+ * build that isn't the live site also gets a noindex tag.
+ */
+function brandHtml(brand: BrandConfig, indexable: boolean): Plugin {
+  const text: Record<string, string> = {
     '%BRAND_LANG%': brand.defaultLocale,
     '%BRAND_TITLE%': brand.title,
+    '%BRAND_HEADLINE%': brand.headline,
+    '%BRAND_APP_NAME%': brand.appName,
+    '%BRAND_STORE_NAME%': brand.store.name,
     '%BRAND_SHORT_NAME%': brand.shortName,
     '%BRAND_DESCRIPTION%': brand.description,
+    '%BRAND_SITE_URL%': brand.siteUrl,
+    '%BRAND_OG_LOCALE%': ogLocale(brand),
+    '%BRAND_SHARE_IMAGE%': `${brand.siteUrl}${SHARE_IMAGE.path}`,
+    '%BRAND_SHARE_IMAGE_WIDTH%': String(SHARE_IMAGE.width),
+    '%BRAND_SHARE_IMAGE_HEIGHT%': String(SHARE_IMAGE.height),
     '%BRAND_THEME_DARK%': brand.themeColors.dark,
     '%BRAND_THEME_LIGHT%': brand.themeColors.light,
   }
+  const raw: Record<string, string> = { '%BRAND_JSON_LD%': structuredData(brand) }
   return {
     name: 'brand-html',
     transformIndexHtml: {
       order: 'pre',
-      handler: (html) => html.replace(/%BRAND_[A-Z_]+%/g, (key) => values[key] ?? key),
+      handler: (html) => ({
+        html: html.replace(/%BRAND_[A-Z_]+%/g, (key) =>
+          key in raw ? raw[key]! : key in text ? escapeHtml(text[key]!) : key,
+        ),
+        tags: indexable ? [] : [{ tag: 'meta', attrs: { name: 'robots', content: 'noindex' }, injectTo: 'head' }],
+      }),
+    },
+  }
+}
+
+/**
+ * robots.txt and sitemap.xml, generated from the brand (see seo.ts) rather
+ * than kept as files, because each brand has its own address. Served by the
+ * dev server too, so they can be checked locally.
+ */
+function seoFiles(brand: BrandConfig, indexable: boolean): Plugin {
+  const files = (): Record<string, { type: string; body: string }> => ({
+    'robots.txt': { type: 'text/plain', body: robotsTxt(brand, indexable) },
+    'sitemap.xml': { type: 'application/xml', body: sitemapXml(brand, new Date().toISOString().slice(0, 10)) },
+  })
+  return {
+    name: 'seo-files',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const file = files()[req.url?.split('?')[0]?.slice(1) ?? '']
+        if (!file) return next()
+        res.setHeader('Content-Type', `${file.type}; charset=utf-8`)
+        res.end(file.body)
+      })
+    },
+    generateBundle() {
+      for (const [fileName, { body }] of Object.entries(files())) {
+        this.emitFile({ type: 'asset', fileName, source: body })
+      }
     },
   }
 }
@@ -88,6 +146,7 @@ function brandHtml(brand: BrandConfig): Plugin {
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const brand = getBrand(resolveBrandId(mode))
+  const indexable = isIndexable()
 
   return {
     publicDir: `public/${brand.id}`,
@@ -105,7 +164,8 @@ export default defineConfig(({ mode }) => {
       tailwindcss(),
       sharedPublicFiles(),
       catalogueApi(brand),
-      brandHtml(brand),
+      brandHtml(brand, indexable),
+      seoFiles(brand, indexable),
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['brand/*.svg', 'brand/*.png'],

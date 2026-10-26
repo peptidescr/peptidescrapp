@@ -32,7 +32,7 @@ export type Microliter = number & { readonly __unit: 'Microliter' }
 export type MilliIU = number & { readonly __unit: 'MilliIU' }
 
 export type MassUnit = 'mg' | 'mcg'
-export type SyringeType = 'U-100' | 'U-50' | 'U-40'
+export type SyringeType = 'U-100' | 'U-50' | 'U-40' | '3mL'
 export type Locale = 'es-CR' | 'en'
 export type RoundDirection = 'down' | 'up' | 'nearest'
 /**
@@ -50,6 +50,8 @@ const SYRINGE_UNITS_PER_ML: Record<SyringeType, number> = {
   'U-100': 100,
   'U-50': 50,
   'U-40': 40,
+  // A 3 mL syringe is marked in mL, not units: one graduation every 0.1 mL.
+  '3mL': 10,
 }
 
 function assertFinite(value: number, label: string): void {
@@ -137,7 +139,9 @@ export function iuFromMilliIU(mIu: MilliIU): number {
 
 // ---------------------------------------------------------------------------
 // Syringes — a syringe "unit" is a volume, not a mass. U-100 = 100 units/mL,
-// so 1 unit = 10 µL; U-50 = 20 µL/unit; U-40 = 25 µL/unit.
+// so 1 unit = 10 µL; U-50 = 20 µL/unit; U-40 = 25 µL/unit. A 3 mL syringe has
+// no units at all: it is read in mL with a mark every 0.1 mL, so its 'unit'
+// here is one 0.1 mL (100 µL) graduation and the app shows it as mL.
 // ---------------------------------------------------------------------------
 
 export function syringeUnitsPerMl(type: SyringeType): number {

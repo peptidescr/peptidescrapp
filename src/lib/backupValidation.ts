@@ -193,7 +193,7 @@ function reconstitution(value: unknown): SavedReconstitution | undefined {
       vialSize: finiteNumber(value.vialSize, 'vialSize', 0, 1e9),
       vialUnit: oneOf(value.vialUnit, ['mg', 'mcg', 'IU', 'mL'] as const, 'vialUnit'),
       diluentMl: value.diluentMl === undefined ? undefined : finiteNumber(value.diluentMl, 'diluentMl', 0, 1e6),
-      syringeType: oneOf(value.syringeType, ['U-100', 'U-50', 'U-40'] as const, 'syringeType'),
+      syringeType: oneOf(value.syringeType, ['U-100', 'U-50', 'U-40', '3mL'] as const, 'syringeType'),
       drawVolumeMl: finiteNumber(value.drawVolumeMl, 'drawVolumeMl', 0, 1e6),
       drawSyringeUnits: finiteNumber(value.drawSyringeUnits, 'drawSyringeUnits', 0, 1e6),
       doseAmount: finiteNumber(value.doseAmount, 'doseAmount', 0, MAX_DOSE_AMOUNT),
@@ -474,7 +474,7 @@ function settings(value: unknown): Settings | undefined {
   const result: Settings = {
     id: 1,
     locale: oneOf(value.locale, ['es-CR', 'en'] as const, 'settings.locale'),
-    syringeType: oneOf(value.syringeType, ['U-100', 'U-50', 'U-40'] as const, 'settings.syringeType'),
+    syringeType: oneOf(value.syringeType, ['U-100', 'U-50', 'U-40', '3mL'] as const, 'settings.syringeType'),
   }
   if (value.theme !== undefined) result.theme = oneOf(value.theme, ['light', 'dark', 'system'] as const, 'settings.theme')
   if (value.legalAcceptedVersion !== undefined) {

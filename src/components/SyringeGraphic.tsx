@@ -117,7 +117,7 @@ export function SyringeGraphic({
             fontWeight={600}
             className={c.label}
           >
-            {units}
+            {syringeType === '3mL' ? units / 10 : units}
           </text>
         ))}
 

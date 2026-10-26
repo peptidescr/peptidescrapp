@@ -25,10 +25,16 @@ export interface BrandConfig {
   /** Prose name, as it appears inside sentences ("Install {{appName}}"), and the manifest's full `name`. */
   appName: string
   /**
-   * Browser tab <title> only — an SEO-oriented "<what it is> | <brand>"
-   * string, deliberately longer/keyword-fuller than appName (which stays
-   * the short, plain name used mid-sentence everywhere else, and as the
-   * manifest's install name).
+   * What the app is, as a heading: the <h1> on the loading splash (the one
+   * piece of page text crawlers that don't run JavaScript can read) and the
+   * first half of the tab title. In the default locale.
+   */
+  headline: string
+  /**
+   * Browser tab <title> (and share title) only — an SEO-oriented
+   * "<headline> | <store name>" string, deliberately longer/keyword-fuller
+   * than appName (which stays the short, plain name used mid-sentence
+   * everywhere else, and as the manifest's install name).
    */
   title: string
   /**
@@ -90,16 +96,29 @@ export interface BrandConfig {
    * the app shows the Reorder button but no date.
    */
   shippingDays?: number
+  /**
+   * The address this site is served from, no trailing slash: the canonical
+   * link, share tags, structured data, robots.txt and the sitemap all use it.
+   * Fixed rather than read from the request, so the netlify.app address and
+   * deploy previews all point search engines at the one real address.
+   */
+  siteUrl: string
+  /** The brand's store, which publishes the app (structured data, share tags, contact card). */
+  store: { name: string; url: string }
 }
+
+const PCR_STORE = { name: 'Peptides Costa Rica', url: 'https://peptidescostarica.net' }
+// Spanish (PCR's default locale — see the class comment above). Uses the
+// same product-name phrasing as the description below ("Registro de
+// Péptidos", "Calculadora de Reconstitución", "de investigación") so the
+// tab title and the meta description read as one consistent phrase.
+const PCR_HEADLINE = 'Registro de Péptidos de Investigación y Calculadora de Reconstitución'
 
 export const PCR_BRAND: BrandConfig = {
   id: 'pcr',
   appName: 'Peptides CR',
-  // Spanish (PCR's default locale — see the class comment above). Uses the
-  // same product-name phrasing as the description below ("Registro de
-  // Péptidos", "Calculadora de Reconstitución", "de investigación") so the
-  // tab title and the meta description read as one consistent phrase.
-  title: 'Registro de Péptidos de Investigación y Calculadora de Reconstitución | Peptides Costa Rica',
+  headline: PCR_HEADLINE,
+  title: `${PCR_HEADLINE} | ${PCR_STORE.name}`,
   shortName: 'peptidescr',
   filePrefix: 'peptidescr',
   locales: ['es-CR', 'en'],
@@ -114,12 +133,18 @@ export const PCR_BRAND: BrandConfig = {
   // The square logo tile, as in the approved Home screen.
   heroLogo: { src: '/brand/icon-192.png', width: 44, height: 44 },
   features: { store: false },
+  siteUrl: 'https://app.peptidescostarica.net',
+  store: PCR_STORE,
 }
+
+const UPD_STORE = { name: 'USA Peptide Depot', url: 'https://www.usapeptidedepot.com' }
+const UPD_HEADLINE = 'Research Peptide Tracker & Reconstitution Calculator'
 
 export const UPD_BRAND: BrandConfig = {
   id: 'upd',
   appName: 'USA Peptide Depot',
-  title: 'Research Peptide Tracker & Reconstitution Calculator | USA Peptide Depot',
+  headline: UPD_HEADLINE,
+  title: `${UPD_HEADLINE} | ${UPD_STORE.name}`,
   shortName: 'UPD',
   filePrefix: 'upd',
   locales: ['en'],
@@ -130,6 +155,8 @@ export const UPD_BRAND: BrandConfig = {
   // The ivory "UPD / USA Peptide Depot" wordmark (transparent), which sits on the forest-green band.
   heroLogo: { src: '/brand/upd-logo.png', width: 109, height: 36 },
   features: { store: false },
+  siteUrl: 'https://app.usapeptidedepot.com',
+  store: UPD_STORE,
 }
 
 /**

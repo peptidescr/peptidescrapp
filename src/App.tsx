@@ -368,6 +368,10 @@ function App() {
                 onCreateProtocol={(compoundId) =>
                   navigate({ tab: 'track', segment: 'protocols', view: { kind: 'form', compoundId } })
                 }
+                // Only the new-protocol flow (save, then reconstitute) ends at Home,
+                // with its pages dropped so back doesn't return into it; opening the
+                // calculator on its own stays where the user put it.
+                onSavedToProtocol={page.protocolId ? () => navigate(HOME, (p) => p.tab !== 'home') : undefined}
               />
             </ToolsScreen>
           )}
