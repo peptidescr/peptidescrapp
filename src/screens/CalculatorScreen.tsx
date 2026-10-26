@@ -69,7 +69,13 @@ export function CalculatorScreen({ protocolId, onCreateProtocol, onSavedToProtoc
   const [compoundId, setCompoundId] = useState(selectable[0]?.id ?? '')
   const compound = selectable.find((c) => c.id === compoundId) ?? selectable[0]
 
-  const [vialSize, setVialSize] = useState<number>(compound?.vialSizes[0] ?? 0)
+  const [vialSize, setVialSizeValue] = useState<number>(compound?.vialSizes[0] ?? 0)
+  // What's typed in the vial field a custom compound uses instead of size chips.
+  const [vialSizeText, setVialSizeText] = useState(compound?.vialSizes[0] ? String(compound.vialSizes[0]) : '')
+  function setVialSize(size: number) {
+    setVialSizeValue(size)
+    setVialSizeText(size > 0 ? String(size) : '')
+  }
   const [diluentMl, setDiluentMl] = useState('')
   const [concentrationInput, setConcentrationInput] = useState('')
   const [doseInput, setDoseInput] = useState('')
@@ -140,7 +146,7 @@ export function CalculatorScreen({ protocolId, onCreateProtocol, onSavedToProtoc
   if (compound) {
     try {
       if (isSolution) {
-        if (concentrationValue !== null && doseValue !== null) {
+        if (concentrationValue !== null && doseValue !== null && vialSize > 0) {
           const totalVolumeUl = microlitersFromMl(vialSize)
           result = isIU
             ? mixFromSolutionIU({
@@ -156,7 +162,7 @@ export function CalculatorScreen({ protocolId, onCreateProtocol, onSavedToProtoc
                 syringeType,
               })
         }
-      } else if (diluentValue !== null && diluentValue > 0 && doseValue !== null) {
+      } else if (diluentValue !== null && diluentValue > 0 && doseValue !== null && vialSize > 0) {
         const diluentVolumeUl = microlitersFromMl(diluentValue)
         result = isIU
           ? mixFromVialIU({
@@ -268,15 +274,27 @@ export function CalculatorScreen({ protocolId, onCreateProtocol, onSavedToProtoc
           />
         </Field>
 
-        {isSolution ? (
-          <Field label={t('calculator.bottleVolume', { unit: 'mL' })}>
-            <ChipSelect options={compound.vialSizes} value={vialSize} onChange={setVialSize} suffix="mL" />
-          </Field>
-        ) : (
-          <Field label={t('calculator.vialSize', { unit })}>
-            <ChipSelect options={compound.vialSizes} value={vialSize} onChange={setVialSize} suffix={unit} />
-          </Field>
-        )}
+        {/* A compound the user added has no fixed vial sizes to pick from, so
+            the size is typed in. */}
+        <Field label={isSolution ? t('calculator.bottleVolume', { unit: 'mL' }) : t('calculator.vialSize', { unit })}>
+          {compound.isCustom ? (
+            <NumberInput
+              value={vialSizeText}
+              onChange={(text) => {
+                setVialSizeText(text)
+                setVialSizeValue(parseDecimal(text) ?? 0)
+              }}
+              suffix={isSolution ? 'mL' : unit}
+            />
+          ) : (
+            <ChipSelect
+              options={compound.vialSizes}
+              value={vialSize}
+              onChange={setVialSize}
+              suffix={isSolution ? 'mL' : unit}
+            />
+          )}
+        </Field>
       </Step>
 
       {isSolution ? (
