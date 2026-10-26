@@ -4,8 +4,7 @@
  * useSyncExternalStore instead, which needs no state set from an effect.
  *
  * While THEME_SWITCHING_ENABLED is false (src/lib/theme.ts) every mode resolves
- * to light, so this applies 'light' once and the system preference never matters;
- * the subscription is kept so turning dark mode back on needs no change here.
+ * to light and the system preference never matters.
  *
  * Deliberately does nothing while the stored mode is still unknown (Dexie's
  * first read hasn't resolved yet) rather than falling back to a guessed default

@@ -15,9 +15,8 @@
  * and is never used as an error colour — --brand-attention is a button colour,
  * and --destructive (below) is still the one for dangerous actions.
  *
- * The app is light-only (THEME_SWITCHING_ENABLED in src/lib/theme.ts). The old
- * dark palette is kept at the bottom, unreachable, so a dark mode can come back
- * by flipping that flag and filling in the TODOs there.
+ * Light and dark are both live (THEME_SWITCHING_ENABLED in src/lib/theme.ts):
+ * the dark palette is the second block below, with a value for every role.
  *
  * Contrast: every body-text pairing here is >= 4.5:1 (checked with a script
  * against page, card and tint). --brand-muted is darker than the sampled
@@ -110,12 +109,13 @@
 }
 
 /*
- * Dark palette — NOT REACHABLE while THEME_SWITCHING_ENABLED is false
- * (src/lib/theme.ts), which pins data-theme to 'light'. Kept as it was before
- * the redesign so a dark mode can come back. TODO when it does: give the new
- * tokens above (--brand-tint, --brand-tier-dark, --brand-attention*,
- * --brand-accent-light, --brand-positive*, --brand-on-primary*, --brand-shadow-card)
- * dark values, and re-check contrast.
+ * Dark palette, selected by data-theme="dark" (src/lib/theme.ts). Every role
+ * the light block defines has a dark value here; the pairings were checked with
+ * a script (text >= 4.5:1 on the page, card and tint; chart colours >= 3:1).
+ *
+ * Buttons and links invert (a light sky blue on the dark card, dark text on it);
+ * the hero band does not: --brand-hero stays the navy so the white text, sky
+ * syringe and translucent tiles on it read exactly as in the light look.
  *
  * Overriding at the --brand-* / --destructive* layer (not --color-*) is
  * deliberate: src/index.css's `@theme` block is NOT `@theme inline`, so every
@@ -131,16 +131,22 @@
   --brand-muted: #8f9dc0;
   --brand-surface: #0d1530;
   --brand-surface-2: #060b1a;
-  --brand-border: #1b2650;
-  --brand-warn: #e0954b;
+  --brand-border: #26356b;
+  --brand-tint: #14214a;
+  --brand-tier-dark: #02050f;
+  --brand-positive: #7fd9a2;
+  --brand-positive-lt: #0f2a1f;
+  --brand-shadow-card: 0 1px 2px rgb(0 0 0 / 0.5), 0 4px 14px -2px rgb(0 0 0 / 0.55);
+  --brand-hero: #0b2e6e;
+  --brand-warn: #efa86c;
   --brand-warn-lt: #2f2418;
   --chart-dose-1: #2f6fb8;
   --chart-dose-2: #3f8fe0;
   --chart-dose-3: #6fb0f5;
   --chart-dose-4: #a8d2ff;
-  --chart-sev-1: #8a5426;
-  --chart-sev-2: #c0712f;
-  --chart-sev-3: #eba465;
+  --chart-sev-1: #ad6a30;
+  --chart-sev-2: #cf7d38;
+  --chart-sev-3: #f0ac70;
   --destructive: #f87171;
   --destructive-foreground: #1f0a0a;
   --destructive-glow: 0 0 24px -10px var(--destructive);

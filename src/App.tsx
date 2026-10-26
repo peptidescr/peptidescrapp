@@ -249,9 +249,8 @@ function App() {
     }
   }, [settings, i18n])
 
-  // The app is light-only for now (THEME_SWITCHING_ENABLED): useTheme resolves
-  // every stored mode to light. The quick toggle in the app bar only exists
-  // while switching is on; see src/lib/useTheme.ts.
+  // 'system' (the default) follows the device; the quick toggle in the app bar
+  // flips between light and dark. See src/lib/useTheme.ts.
   const resolvedTheme = useTheme(settings ? (settings.theme ?? 'system') : undefined)
   const toggleTheme = THEME_SWITCHING_ENABLED
     ? () => void updateSettings({ theme: resolvedTheme === 'light' ? 'dark' : 'light' })

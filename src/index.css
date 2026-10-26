@@ -33,6 +33,9 @@
   --color-accent-light: var(--brand-accent-light);
   --color-positive: var(--brand-positive);
   --color-positive-lt: var(--brand-positive-lt);
+  /* The hero band and any other brand-art surface (calculator result, Today's summary). Not primary: in
+     dark, primary is the light button/link colour, while the hero stays the brand's deep colour. */
+  --color-hero: var(--brand-hero);
   --color-on-primary: var(--brand-on-primary);
   --color-on-primary-muted: var(--brand-on-primary-muted);
   --color-on-primary-tile: var(--brand-on-primary-tile);

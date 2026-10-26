@@ -69,7 +69,7 @@ export function HeroHeader({
 }: HeroHeaderProps) {
   return (
     <header
-      className={cn('rounded-b-[2rem] bg-primary pb-14 text-on-primary', className)}
+      className={cn('rounded-b-[2rem] bg-hero pb-14 text-on-primary', className)}
       style={{ paddingTop: 'env(safe-area-inset-top)' }}
     >
       <div className="px-4">

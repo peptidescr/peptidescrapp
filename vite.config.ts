@@ -178,8 +178,8 @@ export default defineConfig(({ mode }) => {
           start_url: '/',
           scope: '/',
           display: 'standalone',
-          // The app is light-only (THEME_SWITCHING_ENABLED), so the splash and the
-          // title bar are the page background, not the old dark one.
+          // A manifest has one colour, not one per scheme, so the launch splash and
+          // title bar use the light page background; the page itself switches on load.
           background_color: brand.themeColors.light,
           theme_color: brand.themeColors.light,
           icons: [

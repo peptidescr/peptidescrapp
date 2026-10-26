@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { applyTheme, prefersDarkColorScheme, resolveTheme, subscribeToSystemTheme, THEME_SWITCHING_ENABLED } from './theme'
 
-describe('resolveTheme with switching on (what a returning dark mode would use)', () => {
+describe('resolveTheme with switching on', () => {
+  it('is on in this release', () => {
+    expect(THEME_SWITCHING_ENABLED).toBe(true)
+  })
+
   it('resolves light mode to light regardless of device preference', () => {
     expect(resolveTheme('light', true, true)).toBe('light')
     expect(resolveTheme('light', false, true)).toBe('light')
@@ -18,11 +22,7 @@ describe('resolveTheme with switching on (what a returning dark mode would use)'
   })
 })
 
-describe('resolveTheme with switching off (the light-only app)', () => {
-  it('is off in this release', () => {
-    expect(THEME_SWITCHING_ENABLED).toBe(false)
-  })
-
+describe('resolveTheme with switching off (the switch that pins the app to light)', () => {
   it('resolves every stored mode, on any device, to light', () => {
     for (const mode of ['light', 'dark', 'system'] as const) {
       expect(resolveTheme(mode, true, false)).toBe('light')
@@ -31,8 +31,9 @@ describe('resolveTheme with switching off (the light-only app)', () => {
   })
 
   it('uses the flag by default', () => {
-    expect(resolveTheme('dark', true)).toBe('light')
-    expect(resolveTheme('system', true)).toBe('light')
+    expect(resolveTheme('dark', false)).toBe('dark')
+    expect(resolveTheme('system', true)).toBe('dark')
+    expect(resolveTheme('system', false)).toBe('light')
   })
 })
 

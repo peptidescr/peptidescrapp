@@ -2167,7 +2167,7 @@ No commerce UI is built or shown: only seams, hidden behind `BRAND.features.stor
   (the brief said `#BF4F0B`, their store's button colour; both clear 4.5:1 with white). Inactive tab
   labels use `--brand-muted` (the mock-up's `#828eac` is 3.3:1). `--destructive` is `#c81e1e` (the old
   `#dc2626` was 4.4:1 on the PCR page tint) and `--brand-warn` is a shade darker (4.3:1 before).
-- **Light only.** `THEME_SWITCHING_ENABLED = false` in `src/lib/theme.ts` pins every stored mode to
+- **Light only.** *(Superseded: dark mode is back, see "Dark mode alongside the Part A look" below.)* `THEME_SWITCHING_ENABLED = false` in `src/lib/theme.ts` pins every stored mode to
   light (also in the pre-paint script in `index.html`, and the manifest and `theme-color`). The
   Appearance control and the app bar toggle are hidden behind the same flag; `Settings.theme` is left
   alone, so backups still carry it. The old dark palette stays, unreachable, at the bottom of each
@@ -2431,3 +2431,27 @@ and 54x55px at 375px, no two overlapping, no sideways scroll, the drawn zones un
 **Not changed: the calendar days at 320px.** They are a uniform 37.4px wide there (48px tall): seven columns in
 a 288px card, and even with no padding at all they could only reach about 41px. They are 45.3px at 375px.
 `ui/calendar.tsx` already says so.
+## Dark mode alongside the Part A look
+
+The developer decided to keep both modes, so Part A's light-only pin was undone.
+
+- **Switch on:** `THEME_SWITCHING_ENABLED = true` (and `SWITCHING = true` in `index.html`'s pre-paint script). The
+  Appearance control (Light / Dark / System) and the app bar's quick toggle are back; `System` is the default and
+  follows the device live. `Settings.theme` was never touched, so existing choices and backups carry over.
+- **Palettes:** each brand's dark block in `tokens.css` now gives every role a dark value: `--brand-tint`,
+  `--brand-tier-dark`, `--brand-positive*`, `--brand-shadow-card`, `--brand-hero`, the severity chart colours, and a
+  stronger card border for PCR. Attention, accent-light and on-primary stay as in light (a white-on-rust button and
+  mint/sky on the hero band work on both). Checked with a script (`dark-contrast.mjs` in the session scratchpad,
+  not in the repo): every text pairing is at least 4.5:1 on the page, card and tint, chart colours at least 3:1. The
+  amber `--brand-warn` was lightened in dark (#efa86c) because 4.18:1 on the accent card failed the audit.
+- **Hero surfaces:** in dark, `--brand-primary` is the light button/link colour, so a hero band can't be `bg-primary`.
+  A new `--color-hero` (`bg-hero`) is used for the three of them (`HeroHeader`, Today's summary, the calculator
+  result) and stays the brand's deep colour in both modes, so the ivory/white text on it is unchanged.
+- **Not themed:** the manifest's `background_color`/`theme_color` (one value, so the light page background), and the
+  doctor's report, which prints light on purpose.
+
+**Verified:** typecheck, 443 tests (theme tests now expect switching on), lint, builds. In a headless browser, dark at
+UPD 375 and 320 and PCR (Spanish) 375 and 320, across Home, Today, Protocols, History, Progress, Tools and Settings,
+plus the calculator with a result and the body-map sheet: no low-contrast text, no horizontal scroll, no
+sub-44px targets, no untranslated strings, no console errors. Light re-checked at UPD 375 and PCR 320 (unchanged).
+`System` resolves to dark or light with the device and follows it while the app is open.

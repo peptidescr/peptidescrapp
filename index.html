@@ -54,13 +54,13 @@
       and dependency-free; the 'peptidescr:theme' key and SWITCHING must be
       kept in sync with src/lib/theme.ts by hand. The %BRAND_*% placeholders
       are filled at build time from src/brand/brands.ts (see vite.config.ts).
-      The app is light-only for now, so while SWITCHING is false the stored
-      value is ignored and the page is always light.
+      While SWITCHING is false the stored value is ignored and the page is
+      always light.
     -->
     <script>
       (function () {
         // Keep in sync with THEME_SWITCHING_ENABLED in src/lib/theme.ts.
-        var SWITCHING = false
+        var SWITCHING = true
         try {
           var stored = localStorage.getItem('peptidescr:theme')
           var theme = !SWITCHING

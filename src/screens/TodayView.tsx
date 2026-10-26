@@ -251,7 +251,7 @@ function TodaySummary({
   })
 
   return (
-    <div className="rounded-3xl bg-primary p-5 pb-4 text-on-primary">
+    <div className="rounded-3xl bg-hero p-5 pb-4 text-on-primary">
       <p className="flex items-center gap-2 text-[15px] font-semibold">
         <span className={`size-2 shrink-0 rounded-full ${dotClass}`} aria-hidden />
         <span className="min-w-0">{statusText}</span>

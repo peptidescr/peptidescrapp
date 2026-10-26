@@ -401,7 +401,7 @@ export function CalculatorScreen({ protocolId, onCreateProtocol, onSavedToProtoc
       </PresetRow>
 
       {/* The payoff of the whole screen, so it gets the brand surface and the one number you act on is set large. */}
-      <section aria-live="polite" className="rounded-[1.375rem] bg-primary p-4 text-on-primary">
+      <section aria-live="polite" className="rounded-[1.375rem] bg-hero p-4 text-on-primary">
         <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-accent-light">{t('calculator.drawTo')}</h2>
         {error && (
           <p className="mt-3 flex items-start gap-2 text-sm text-on-primary">

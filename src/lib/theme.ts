@@ -17,13 +17,12 @@ import type { ThemeMode } from './units'
 export type ResolvedTheme = 'light' | 'dark'
 
 /**
- * The app is light-only since the retention redesign (Part A). While this is
- * false, the Light/Dark/System control and the app bar's quick toggle are
- * hidden and every mode resolves to 'light'. The stored `Settings.theme` is
- * left alone (backups still carry it), so flipping this back on, together with
- * a dark token block in each brand's tokens.css, restores dark mode.
+ * Light, dark and follow-the-device are all live. Turning this off pins every
+ * mode to 'light' and hides the Light/Dark/System control and the app bar's
+ * quick toggle (the stored `Settings.theme` is left alone, and backups still
+ * carry it). Keep it in step with SWITCHING in index.html's pre-paint script.
  */
-export const THEME_SWITCHING_ENABLED = false
+export const THEME_SWITCHING_ENABLED = true
 
 /**
  * Pre-paint cache key (localStorage). Holds only the *resolved* theme

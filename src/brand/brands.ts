@@ -59,9 +59,8 @@ export interface BrandConfig {
    * <meta name="theme-color"> and the manifest colours per theme — mirrors
    * each brand's tokens.css --brand-surface-2 (the page background). Browser
    * chrome can't read a CSS custom property, so keep these in sync with
-   * tokens.css by hand. The app is light-only (THEME_SWITCHING_ENABLED in
-   * src/lib/theme.ts), so `light` is the one in use; `dark` is kept for a dark
-   * mode that may return.
+   * tokens.css by hand. Light and dark are both live (THEME_SWITCHING_ENABLED in
+   * src/lib/theme.ts), and each is the page background of its tokens.css block.
    */
   themeColors: { dark: string; light: string }
   /**

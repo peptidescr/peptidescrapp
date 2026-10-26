@@ -327,14 +327,13 @@ enough.
 
 ## Two things that are genuine tradeoffs, worth knowing about
 
-- **Light-only theme.** *(Updated October 2026: this replaces the always-dark note that was
-  here.)* The app is now light for everyone, regardless of the customer's own phone setting,
-  to match the approved retention screens. There is no light/dark/system choice in Settings
-  any more. It is a real product decision, not just a visual tweak: if customers expect the
-  app to follow their phone's setting, a dark mode can come back. Nothing was deleted: the
-  old dark values are kept, unused, at the bottom of each brand's `tokens.css`, and one
-  switch (`THEME_SWITCHING_ENABLED` in `src/lib/theme.ts`) turns the choice back on once dark
-  values exist for the new colours.
+- **Light and dark.** *(Updated October 2026.)* The redesigned look has both: Settings → Appearance
+  has Light / Dark / System (the default, which follows the phone and changes live if the phone does),
+  and the app bar has the quick toggle. The dark palette is the second block in each brand's
+  `tokens.css`, with a value for every role, and its text pairings were checked at 4.5:1. The hero
+  bands (Home, Today, the calculator's result) keep the brand's deep colour in both modes. Two small
+  limits: the installed app's launch splash and title bar are one colour (the light page background),
+  because a web-app manifest can't vary by scheme; and the doctor's report always prints light.
 - **Bundle size.** The modern UI pass added a real dependency footprint (Radix UI, Motion,
   a calendar library, icons) — the app's JS roughly doubled to get the more polished,
   animated feel. Still loads fine, but worth knowing if the client's customers are often
