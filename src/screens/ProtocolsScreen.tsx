@@ -48,6 +48,12 @@ import { compoundCategoryLabel, useSelectableCompounds } from '../lib/customComp
 import { PROTOCOL_TEMPLATES, type ProtocolTemplate } from '../content/protocolTemplates'
 import { formatDateTime, toIsoDate } from '../lib/dates'
 import { db, type DoseLog, type Protocol, type Route, type SavedReconstitution } from '../lib/db'
+import {
+  MAX_DOSE_TIMES,
+  hasDuplicateDoseTimes,
+  normalizeDoseTimes,
+  suggestNextDoseTime,
+} from '../lib/doseTimes'
 import { computeProtocolStats } from '../lib/homeData'
 import { scheduleUpcomingReminders } from '../lib/notifications'
 import { alphabeticalOptions } from '../lib/options'
@@ -324,6 +330,8 @@ function ProtocolRow({
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-4 pt-1 text-sm text-foreground">
         <span>
           {t(`schedule.${protocol.schedule.kind}`)} · {protocol.doseAmount} {protocol.doseUnit}
+          {protocol.reminderTimes.length > 1 &&
+            ` · ${t('protocols.dosesPerDay', { count: protocol.reminderTimes.length })}`}
         </span>
         {!protocol.isActive && <Badge variant="outline">{t('protocols.pausedBadge')}</Badge>}
         {stats.missedCount > 0 && (
@@ -561,10 +569,12 @@ export function ProtocolForm({
       : scheduleKind === 'cycle'
         ? daysOnValue !== null && daysOffValue !== null
         : true
+  const hasDuplicateTimes = hasDuplicateDoseTimes(reminderTimes)
   const canSave =
     compound !== undefined &&
     doseValue !== null &&
     reminderTimes.length > 0 &&
+    !hasDuplicateTimes &&
     !needsCustomDays &&
     scheduleFieldsValid
 
@@ -583,10 +593,16 @@ export function ProtocolForm({
     // now whenever the schedule itself changes; leave it alone for edits to
     // things like the name or dose so an unrelated tweak can't quietly erase
     // a genuinely missed dose.
+    const doseTimes = normalizeDoseTimes(reminderTimes)
     const scheduleUnchanged =
       existing !== undefined &&
-      JSON.stringify([schedule, reminderTimes, effectiveStart, effectiveEnd]) ===
-        JSON.stringify([existing.schedule, existing.reminderTimes, existing.startDate, existing.endDate])
+      JSON.stringify([schedule, doseTimes, effectiveStart, effectiveEnd]) ===
+        JSON.stringify([
+          existing.schedule,
+          normalizeDoseTimes(existing.reminderTimes),
+          existing.startDate,
+          existing.endDate,
+        ])
 
     const protocol: Protocol = {
       id: protocolId ?? crypto.randomUUID(),
@@ -595,7 +611,7 @@ export function ProtocolForm({
       doseAmount: doseValue,
       doseUnit: doseUnit,
       schedule,
-      reminderTimes,
+      reminderTimes: doseTimes,
       startDate: effectiveStart,
       endDate: effectiveEnd,
       route,
@@ -619,7 +635,9 @@ export function ProtocolForm({
   }
 
   function addReminderTime() {
-    setReminderTimes((times) => [...times, '08:00'])
+    setReminderTimes((times) =>
+      times.length >= MAX_DOSE_TIMES ? times : [...times, suggestNextDoseTime(times)],
+    )
   }
 
   function removeReminderTime(index: number) {
@@ -805,14 +823,18 @@ export function ProtocolForm({
               )}
             </div>
           ))}
-          <button
-            type="button"
-            onClick={addReminderTime}
-            className="flex min-h-11 items-center gap-1 self-start text-sm text-primary"
-          >
-            <Plus className="size-4" />
-            {t('protocols.addReminderTime')}
-          </button>
+          {hasDuplicateTimes && <FieldError>{t('protocols.duplicateDoseTime')}</FieldError>}
+          {reminderTimes.length < MAX_DOSE_TIMES && (
+            <button
+              type="button"
+              onClick={addReminderTime}
+              className="flex min-h-11 items-center gap-1 self-start text-sm text-primary"
+            >
+              <Plus className="size-4" />
+              {t('protocols.addReminderTime')}
+            </button>
+          )}
+          <p className="text-xs text-muted-foreground">{t('protocols.doseTimesHint')}</p>
         </div>
       </FormField>
 
