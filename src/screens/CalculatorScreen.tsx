@@ -29,8 +29,9 @@ import {
   milliIUFromIU,
   parseDecimal,
   syringeCapacityUnits,
+  syringeSizeFor,
   DEFAULT_SYRINGE_SIZE_ML,
-  SYRINGE_SIZES_ML,
+  SYRINGE_SIZES_BY_TYPE,
   type Locale,
   type MassUnit,
   type SyringeSizeMl,
@@ -96,8 +97,9 @@ export function CalculatorScreen({ protocolId, onCreateProtocol, onSavedToProtoc
   if (settings && !syringeRestored) {
     const saved = readLegacySyringeType(settings.syringeType)
     setSyringeRestored(true)
-    setSyringeType((saved.type as SyringeType | undefined) ?? 'U-100')
-    setSyringeSizeMl(settings.syringeSizeMl ?? saved.sizeMl ?? DEFAULT_SYRINGE_SIZE_ML)
+    const type = (saved.type as SyringeType | undefined) ?? 'U-100'
+    setSyringeType(type)
+    setSyringeSizeMl(syringeSizeFor(type, settings.syringeSizeMl ?? saved.sizeMl ?? DEFAULT_SYRINGE_SIZE_ML))
   }
   const [showExplainer, setShowExplainer] = useState(true)
   const [showBacHelp, setShowBacHelp] = useState(false)
@@ -148,8 +150,11 @@ export function CalculatorScreen({ protocolId, onCreateProtocol, onSavedToProtoc
   }
 
   function handleSyringeChange(type: SyringeType) {
+    // A 0.3 mL barrel only exists for U-100, so moving off it falls back to the usual 1 mL.
+    const size = syringeSizeFor(type, syringeSizeMl)
     setSyringeType(type)
-    void updateSettings({ syringeType: type })
+    setSyringeSizeMl(size)
+    void updateSettings({ syringeType: type, syringeSizeMl: size })
   }
 
   const isSolution = compound?.form === 'solution'
@@ -390,12 +395,15 @@ export function CalculatorScreen({ protocolId, onCreateProtocol, onSavedToProtoc
           />
         </Field>
 
-        <Field label={t('calculator.syringeSize')}>
+        <Field label={`${t('calculator.syringeSize')} (mL)`}>
           <Segmented
-            ariaLabel={t('calculator.syringeSize')}
+            ariaLabel={`${t('calculator.syringeSize')} (mL)`}
             value={String(syringeSizeMl)}
             onChange={(value) => handleSizeChange(Number(value) as SyringeSizeMl)}
-            options={SYRINGE_SIZES_ML.map((size) => ({ value: String(size), label: `${size} mL` }))}
+            options={SYRINGE_SIZES_BY_TYPE[syringeType].map((size) => ({
+              value: String(size),
+              label: formatDecimal(size, locale, 1),
+            }))}
           />
         </Field>
       </Step>
@@ -447,7 +455,7 @@ export function CalculatorScreen({ protocolId, onCreateProtocol, onSavedToProtoc
                 />
                 <DetailRow label={t('calculator.dosesRemaining')} value={String(result.dosesRemaining)} />
                 <DetailRow
-                  label={t('calculator.onSyringe', { size: syringeSizeMl })}
+                  label={t('calculator.onSyringe', { size: formatDecimal(syringeSizeMl, locale, 1) })}
                   value={t('calculator.unitsOfCapacity', {
                     units: formatSyringeUnits(result.drawSyringeUnits, locale),
                     capacity: syringeCapacityUnits(syringeType, syringeSizeMl),
@@ -457,7 +465,7 @@ export function CalculatorScreen({ protocolId, onCreateProtocol, onSavedToProtoc
               {result.drawVolumeUl > syringeSizeMl * 1000 && (
                 <p className="flex items-start gap-2 rounded-2xl bg-black/25 px-3 py-2 text-sm text-amber-200">
                   <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-                  {t('calculator.syringeOverflow', { size: syringeSizeMl })}
+                  {t('calculator.syringeOverflow', { size: formatDecimal(syringeSizeMl, locale, 1) })}
                 </p>
               )}
               {result.lowVolumeWarning && (

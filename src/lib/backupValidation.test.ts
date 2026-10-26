@@ -233,6 +233,9 @@ describe('parseBackup, syringe sizes', () => {
   it('keeps a barrel size on settings and on a saved mix', () => {
     const settings = parseBackup(backup({ settings: { locale: 'en', syringeType: 'U-50', syringeSizeMl: 3 } })).settings
     expect(settings).toMatchObject({ syringeType: 'U-50', syringeSizeMl: 3 })
+    for (const sizeMl of [0.3, 0.5, 1, 3]) {
+      expect(withMix({ syringeSizeMl: sizeMl })).toMatchObject({ syringeSizeMl: sizeMl })
+    }
     expect(withMix({ syringeSizeMl: 3 })).toMatchObject({ syringeType: 'U-100', syringeSizeMl: 3, drawSyringeUnits: 40 })
   })
 

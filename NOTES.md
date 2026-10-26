@@ -1601,10 +1601,14 @@ The 3 mL syringe first shipped as a fourth `SyringeType` (0.1 mL marks, read in 
 shape: a syringe type says what a *unit* is (U-100, U-50, U-40), and a 3 mL syringe is just a bigger barrel of
 one of those. It is now a **size** you pick under the type.
 
-- **Model:** `SyringeType` is back to U-100 / U-50 / U-40. New `SyringeSizeMl = 1 | 3` and
-  `syringeCapacityUnits(type, size)` in `units.ts`: a 3 mL holds 300 units of U-100, 150 of U-50, 120 of U-40.
-  The size never changes what a unit is, so the draw maths and its rounding are untouched.
-- **Calculator:** a "Syringe size" row (1 mL / 3 mL) under the type. The result gets an "On a 3 mL syringe:
+- **Model:** `SyringeType` is back to U-100 / U-50 / U-40. New `SyringeSizeMl = 0.3 | 0.5 | 1 | 3` and
+  `syringeCapacityUnits(type, size)` in `units.ts`: a 3 mL holds 300 units of U-100, 150 of U-50, 120 of
+  U-40, and a 0.3 mL U-100 holds 30. The barrels follow how they are sold (`SYRINGE_SIZES_BY_TYPE`): U-100 has
+  0.3 / 0.5 / 1 / 3, U-50 and U-40 have 0.5 / 1 / 3 (no 0.3 mL in those scales, as on staging). Changing the type
+  to one that doesn't come in the chosen size falls back to 1 mL (`syringeSizeFor`). The size never changes
+  what a unit is, so the draw maths and its rounding are untouched. 5 and 10 mL are left out on purpose: they
+  are for drawing water or big volumes, not the dose this calculator works out; add them to the table if asked.
+- **Calculator:** a "Syringe size (mL)" row (the sizes above, as plain numbers so they fit a 320px phone) under the type. The result gets an "On a 3 mL syringe:
   40 of 300 units" row, and a warning when the draw is more than the barrel holds (for a 1 mL as well, which
   had no such warning before). The choice is remembered in `Settings.syringeSizeMl`, and the card on a
   protocol says "· 3 mL syringe" when a saved mix used one (`SavedReconstitution.syringeSizeMl`; absent = 1 mL).
@@ -1619,7 +1623,8 @@ one of those. It is now a **size** you pick under the type.
   browser by writing old-shaped rows and reloading.
 - **Merging into `staging`:** staging has the 3 mL *type* (a 3 mL barrel in `syringe.ts`, a 3 mL branch in the
   result panel, the `'3mL'` validation). Replace those with sizes: staging already has the barrel row
-  (1 / 0.5 / 0.3 mL per type), so 3 mL is one more barrel per type (300 / 150 / 120 units), not a type.
+  (1 / 0.5 / 0.3 mL, 0.3 for U-100 only), and `main` now offers the same set, so 3 mL is one more barrel per
+  type (300 / 150 / 120 units), not a type.
 
 **Verified:** typecheck, 220 tests, lint (only the known `App.tsx` error), both builds. In a headless browser on
 UPD (375px) and PCR in Spanish (320px): the migration of old-shaped settings and a saved mix, the size row and
