@@ -346,7 +346,7 @@ function ProtocolRow({
           })}
           {/* The usual 1 mL barrel goes unsaid; a bigger one is part of how to draw it. */}
           {protocol.reconstitution.syringeSizeMl !== undefined && protocol.reconstitution.syringeSizeMl !== 1 &&
-            ` · ${t('protocols.syringeSizeNote', { size: protocol.reconstitution.syringeSizeMl })}`}
+            ` · ${t('protocols.syringeSizeNote', { size: formatDecimal(protocol.reconstitution.syringeSizeMl, locale, 1) })}`}
         </p>
       )}
 

@@ -34,7 +34,7 @@ export type MilliIU = number & { readonly __unit: 'MilliIU' }
 export type MassUnit = 'mg' | 'mcg'
 export type SyringeType = 'U-100' | 'U-50' | 'U-40'
 /** The barrel's capacity in mL. A bigger barrel holds more of the same units: U-100 is 100 units per mL, so 300 on a 3 mL. */
-export type SyringeSizeMl = 1 | 3
+export type SyringeSizeMl = 0.3 | 0.5 | 1 | 3
 export type Locale = 'es-CR' | 'en'
 export type RoundDirection = 'down' | 'up' | 'nearest'
 /**
@@ -54,8 +54,24 @@ const SYRINGE_UNITS_PER_ML: Record<SyringeType, number> = {
   'U-40': 40,
 }
 
-export const SYRINGE_SIZES_ML: readonly SyringeSizeMl[] = [1, 3]
+/**
+ * The barrels each unit type is sold in. The insulin sizes follow the scales: a 0.3 mL
+ * barrel is 30 units of U-100 but isn't made for U-50 or U-40. 3 mL is the big one, for
+ * larger draws. Smallest first.
+ */
+export const SYRINGE_SIZES_BY_TYPE: Record<SyringeType, readonly SyringeSizeMl[]> = {
+  'U-100': [0.3, 0.5, 1, 3],
+  'U-50': [0.5, 1, 3],
+  'U-40': [0.5, 1, 3],
+}
+/** Every size any type has, for checking what a file or settings row says. */
+export const SYRINGE_SIZES_ML: readonly SyringeSizeMl[] = [0.3, 0.5, 1, 3]
 export const DEFAULT_SYRINGE_SIZE_ML: SyringeSizeMl = 1
+
+/** The size to use on this type: the one asked for if the type comes in it, otherwise the usual 1 mL. */
+export function syringeSizeFor(type: SyringeType, sizeMl: SyringeSizeMl): SyringeSizeMl {
+  return SYRINGE_SIZES_BY_TYPE[type].includes(sizeMl) ? sizeMl : DEFAULT_SYRINGE_SIZE_ML
+}
 
 function assertFinite(value: number, label: string): void {
   if (!Number.isFinite(value)) {
@@ -150,9 +166,9 @@ export function syringeUnitsPerMl(type: SyringeType): number {
   return SYRINGE_UNITS_PER_ML[type]
 }
 
-/** How many units a barrel of this size holds: 100 for a 1 mL U-100, 300 for a 3 mL one. */
+/** How many units a barrel of this size holds: 30 for a 0.3 mL U-100, 100 for a 1 mL one, 300 for a 3 mL one. */
 export function syringeCapacityUnits(type: SyringeType, sizeMl: SyringeSizeMl): number {
-  return SYRINGE_UNITS_PER_ML[type] * sizeMl
+  return Math.round(SYRINGE_UNITS_PER_ML[type] * sizeMl)
 }
 
 export function microlitersPerSyringeUnit(type: SyringeType): number {

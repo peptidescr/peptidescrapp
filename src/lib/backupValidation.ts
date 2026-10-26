@@ -75,7 +75,7 @@ function oneOf<T extends string | number>(value: unknown, allowed: readonly T[],
 }
 
 /** The barrel size, which only exists from the build that made 3 mL a size; absent means 1 mL. */
-const SYRINGE_SIZES = [1, 3] as const
+const SYRINGE_SIZES = [0.3, 0.5, 1, 3] as const
 
 function finiteNumber(value: unknown, what: string, min: number, max: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) fail(what)
