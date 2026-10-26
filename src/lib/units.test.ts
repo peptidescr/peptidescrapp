@@ -17,7 +17,9 @@ import {
   parseDecimal,
   quantizeVolumeToSyringe,
   roundInt,
+  SYRINGE_SIZES_BY_TYPE,
   syringeCapacityUnits,
+  syringeSizeFor,
   syringeUnitsFromMicroliters,
   syringeUnitsPerMl,
   iuFromMilliIU,
@@ -167,6 +169,26 @@ describe('syringe conversions', () => {
     expect(syringeCapacityUnits('U-100', 3)).toBe(300)
     expect(syringeCapacityUnits('U-50', 3)).toBe(150)
     expect(syringeCapacityUnits('U-40', 3)).toBe(120)
+  })
+
+  it('knows the small insulin barrels too, in whole units', () => {
+    expect(syringeCapacityUnits('U-100', 0.3)).toBe(30)
+    expect(syringeCapacityUnits('U-100', 0.5)).toBe(50)
+    expect(syringeCapacityUnits('U-50', 0.5)).toBe(25)
+    expect(syringeCapacityUnits('U-40', 0.5)).toBe(20)
+  })
+
+  it('offers each type the barrels it is sold in: 0.3 mL only exists for U-100', () => {
+    expect(SYRINGE_SIZES_BY_TYPE['U-100']).toEqual([0.3, 0.5, 1, 3])
+    expect(SYRINGE_SIZES_BY_TYPE['U-50']).toEqual([0.5, 1, 3])
+    expect(SYRINGE_SIZES_BY_TYPE['U-40']).toEqual([0.5, 1, 3])
+  })
+
+  it('keeps a size the type comes in, and falls back to 1 mL when it does not', () => {
+    expect(syringeSizeFor('U-100', 0.3)).toBe(0.3)
+    expect(syringeSizeFor('U-50', 3)).toBe(3)
+    expect(syringeSizeFor('U-50', 0.3)).toBe(1)
+    expect(syringeSizeFor('U-40', 0.3)).toBe(1)
   })
 
   it('leaves what a unit is alone: the barrel size does not change the graduations', () => {
