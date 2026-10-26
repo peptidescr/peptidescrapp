@@ -29,6 +29,7 @@ import {
   sanitizeText,
 } from './sanitize'
 import type { Schedule, Weekday } from './schedule'
+import { readLegacyMix } from './syringeLegacy'
 
 export const BACKUP_VERSION = 2
 const SUPPORTED_VERSIONS: readonly unknown[] = [1, 2]
@@ -68,10 +69,13 @@ function str(value: unknown, what: string, maxLength = MAX_ID_LENGTH): string {
   return value
 }
 
-function oneOf<T extends string>(value: unknown, allowed: readonly T[], what: string): T {
-  if (typeof value !== 'string' || !(allowed as readonly string[]).includes(value)) fail(what)
+function oneOf<T extends string | number>(value: unknown, allowed: readonly T[], what: string): T {
+  if ((typeof value !== 'string' && typeof value !== 'number') || !(allowed as readonly unknown[]).includes(value)) fail(what)
   return value as T
 }
+
+/** The barrel size, which only exists from the build that made 3 mL a size; absent means 1 mL. */
+const SYRINGE_SIZES = [0.3, 0.5, 1, 3] as const
 
 function finiteNumber(value: unknown, what: string, min: number, max: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) fail(what)
@@ -130,13 +134,20 @@ function schedule(value: unknown): Schedule {
 function reconstitution(value: unknown): SavedReconstitution | undefined {
   try {
     if (!isRecord(value)) return undefined
+    // A file exported while 3 mL was a type of its own reads as a 3 mL U-100 (syringeLegacy.ts).
+    const mix = readLegacyMix(
+      oneOf(value.syringeType, ['U-100', 'U-50', 'U-40', '3mL'] as const, 'syringeType'),
+      finiteNumber(value.drawSyringeUnits, 'drawSyringeUnits', 0, 1e6),
+    )
+    const sizeMl = value.syringeSizeMl === undefined ? mix.syringeSizeMl : oneOf(value.syringeSizeMl, SYRINGE_SIZES, 'syringeSizeMl')
     return {
       vialSize: finiteNumber(value.vialSize, 'vialSize', 0, 1e9),
       vialUnit: oneOf(value.vialUnit, ['mg', 'mcg', 'IU', 'mL'] as const, 'vialUnit'),
       diluentMl: value.diluentMl === undefined ? undefined : finiteNumber(value.diluentMl, 'diluentMl', 0, 1e6),
-      syringeType: oneOf(value.syringeType, ['U-100', 'U-50', 'U-40', '3mL'] as const, 'syringeType'),
+      syringeType: mix.syringeType,
+      ...(sizeMl === undefined ? {} : { syringeSizeMl: sizeMl }),
       drawVolumeMl: finiteNumber(value.drawVolumeMl, 'drawVolumeMl', 0, 1e6),
-      drawSyringeUnits: finiteNumber(value.drawSyringeUnits, 'drawSyringeUnits', 0, 1e6),
+      drawSyringeUnits: mix.drawSyringeUnits,
       doseAmount: finiteNumber(value.doseAmount, 'doseAmount', 0, MAX_DOSE_AMOUNT),
       doseUnit: oneOf(value.doseUnit, ['mg', 'mcg', 'IU'] as const, 'doseUnit'),
       savedAt: isoDateTime(value.savedAt, 'savedAt'),
@@ -225,11 +236,15 @@ function optionalList<T>(value: unknown, max: number, parse: (item: unknown) => 
 
 function settings(value: unknown): Settings | undefined {
   if (!isRecord(value)) return undefined
+  const type = oneOf(value.syringeType, ['U-100', 'U-50', 'U-40', '3mL'] as const, 'settings.syringeType')
   const result: Settings = {
     id: 1,
     locale: oneOf(value.locale, ['es-CR', 'en'] as const, 'settings.locale'),
-    syringeType: oneOf(value.syringeType, ['U-100', 'U-50', 'U-40', '3mL'] as const, 'settings.syringeType'),
+    // A file exported while 3 mL was a type of its own reads as a 3 mL U-100 (syringeLegacy.ts).
+    syringeType: type === '3mL' ? 'U-100' : type,
   }
+  if (value.syringeSizeMl !== undefined) result.syringeSizeMl = oneOf(value.syringeSizeMl, SYRINGE_SIZES, 'settings.syringeSizeMl')
+  else if (type === '3mL') result.syringeSizeMl = 3
   if (value.theme !== undefined) result.theme = oneOf(value.theme, ['light', 'dark', 'system'] as const, 'settings.theme')
   if (value.legalAcceptedVersion !== undefined) {
     result.legalAcceptedVersion = finiteNumber(value.legalAcceptedVersion, 'settings.legalAcceptedVersion', 0, 1e6)

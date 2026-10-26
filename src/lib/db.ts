@@ -1,7 +1,7 @@
 import Dexie, { type EntityTable } from 'dexie'
 import { COMPOUNDS, type Compound } from '../content/compounds'
 import type { Schedule } from './schedule'
-import type { Locale, SyringeType, ThemeMode } from './units'
+import type { Locale, SyringeSizeMl, SyringeType, ThemeMode } from './units'
 
 export type DoseStatus = 'taken' | 'skipped'
 export type Route = 'subcutaneous' | 'intramuscular' | 'other'
@@ -39,6 +39,8 @@ export interface SavedReconstitution {
   /** Diluent added, in mL. Absent for ready-to-use solutions, which aren't reconstituted. */
   diluentMl?: number
   syringeType: SyringeType
+  /** The barrel's capacity; absent means 1 mL (every mix saved before sizes existed). */
+  syringeSizeMl?: SyringeSizeMl
   /** Draw volume, in mL. */
   drawVolumeMl: number
   drawSyringeUnits: number
@@ -76,6 +78,8 @@ export interface Settings {
   id: number // singleton row, always 1
   locale: Locale
   syringeType: SyringeType
+  /** The barrel last chosen in the calculator; optional (no Dexie bump), absent means 1 mL. */
+  syringeSizeMl?: SyringeSizeMl
   legalAcceptedVersion?: number
   legalAcceptedAt?: string // ISO datetime
   lastBackupAt?: string // ISO datetime

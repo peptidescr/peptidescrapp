@@ -47,7 +47,7 @@ import { compareAlphabetical, getCompoundById } from '../content/compounds'
 import { compoundCategoryLabel, useSelectableCompounds } from '../lib/customCompounds'
 import { PROTOCOL_TEMPLATES, type ProtocolTemplate } from '../content/protocolTemplates'
 import { formatDateTime, toIsoDate } from '../lib/dates'
-import { db, type DoseLog, type Protocol, type Route, type SavedReconstitution } from '../lib/db'
+import { db, type DoseLog, type Protocol, type Route } from '../lib/db'
 import {
   MAX_DOSE_TIMES,
   hasDuplicateDoseTimes,
@@ -75,13 +75,6 @@ async function rescheduleReminders(): Promise<void> {
   const protocols = await db.protocols.toArray()
   await scheduleUpcomingReminders(protocols)
   requestPushSync()
-}
-
-/** Which "how to draw it" sentence fits a saved mix. A 3 mL barrel is read in mL, so it never says "units". */
-function mixSummaryKey(mix: SavedReconstitution): string {
-  const ready = mix.diluentMl === undefined
-  if (mix.syringeType === '3mL') return ready ? 'protocols.mixSummarySolution3mL' : 'protocols.mixSummary3mL'
-  return ready ? 'protocols.mixSummarySolution' : 'protocols.mixSummary'
 }
 
 const WEEKDAY_LABELS_KEYS =['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const
@@ -342,7 +335,7 @@ function ProtocolRow({
       {protocol.reconstitution && (
         <p className="mx-4 mt-3 flex items-start gap-2 rounded-2xl bg-accent px-3 py-2 text-sm text-foreground">
           <FlaskConical className="mt-0.5 size-4 shrink-0 text-primary" />
-          {t(mixSummaryKey(protocol.reconstitution), {
+          {t(protocol.reconstitution.diluentMl === undefined ? 'protocols.mixSummarySolution' : 'protocols.mixSummary', {
             water:
               protocol.reconstitution.diluentMl === undefined
                 ? ''
@@ -351,6 +344,9 @@ function ProtocolRow({
             ml: formatDecimal(protocol.reconstitution.drawVolumeMl, locale, 3),
             dose: `${formatDecimal(protocol.reconstitution.doseAmount, locale, 3)} ${protocol.reconstitution.doseUnit}`,
           })}
+          {/* The usual 1 mL barrel goes unsaid; a bigger one is part of how to draw it. */}
+          {protocol.reconstitution.syringeSizeMl !== undefined && protocol.reconstitution.syringeSizeMl !== 1 &&
+            ` · ${t('protocols.syringeSizeNote', { size: formatDecimal(protocol.reconstitution.syringeSizeMl, locale, 1) })}`}
         </p>
       )}
 

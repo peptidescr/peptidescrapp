@@ -155,7 +155,7 @@ describe('parseBackup', () => {
     expect(ok.settings).toEqual({ id: 1, locale: 'en', syringeType: 'U-100', theme: 'dark' })
     expect(() => parseBackup(backup({ settings: { locale: 'fr', syringeType: 'U-100' } }))).toThrow()
     expect(() => parseBackup(backup({ settings: { locale: 'en', syringeType: '5mL' } }))).toThrow()
-    expect(parseBackup(backup({ settings: { locale: 'en', syringeType: '3mL', theme: 'light' } })).settings?.syringeType).toBe('3mL')
+    expect(() => parseBackup(backup({ settings: { locale: 'en', syringeType: 'U-100', syringeSizeMl: 2 } }))).toThrow()
   })
 })
 
@@ -212,5 +212,52 @@ describe('parseBackup, format v2 (custom compounds)', () => {
     expect(name.includes(String.fromCharCode(0x202e))).toBe(false)
     expect(name.includes(String.fromCharCode(0))).toBe(false)
     expect(name.length).toBeLessThanOrEqual(60)
+  })
+})
+
+describe('parseBackup, syringe sizes', () => {
+  const mix = {
+    vialSize: 5,
+    vialUnit: 'mg',
+    diluentMl: 2,
+    syringeType: 'U-100',
+    drawVolumeMl: 0.4,
+    drawSyringeUnits: 40,
+    doseAmount: 1,
+    doseUnit: 'mg',
+    savedAt: '2026-03-02T14:00:00.000Z',
+  }
+  const withMix = (over: Record<string, unknown>) =>
+    parseBackup(backup({ protocols: [{ ...protocol, reconstitution: { ...mix, ...over } }] })).protocols[0]?.reconstitution
+
+  it('keeps a barrel size on settings and on a saved mix', () => {
+    const settings = parseBackup(backup({ settings: { locale: 'en', syringeType: 'U-50', syringeSizeMl: 3 } })).settings
+    expect(settings).toMatchObject({ syringeType: 'U-50', syringeSizeMl: 3 })
+    for (const sizeMl of [0.3, 0.5, 1, 3]) {
+      expect(withMix({ syringeSizeMl: sizeMl })).toMatchObject({ syringeSizeMl: sizeMl })
+    }
+    expect(withMix({ syringeSizeMl: 3 })).toMatchObject({ syringeType: 'U-100', syringeSizeMl: 3, drawSyringeUnits: 40 })
+  })
+
+  it('leaves the size out when the file has none, which means 1 mL', () => {
+    expect(withMix({})).not.toHaveProperty('syringeSizeMl')
+    const settings = parseBackup(backup({ settings: { locale: 'en', syringeType: 'U-100' } })).settings
+    expect(settings).not.toHaveProperty('syringeSizeMl')
+  })
+
+  it('reads a backup made while 3 mL was a type of its own as a 3 mL U-100', () => {
+    // A mix of 4 marks of 0.1 mL is 40 U-100 units: the same 0.4 mL.
+    expect(withMix({ syringeType: '3mL', drawSyringeUnits: 4 })).toMatchObject({
+      syringeType: 'U-100',
+      syringeSizeMl: 3,
+      drawSyringeUnits: 40,
+      drawVolumeMl: 0.4,
+    })
+    const settings = parseBackup(backup({ settings: { locale: 'en', syringeType: '3mL' } })).settings
+    expect(settings).toMatchObject({ syringeType: 'U-100', syringeSizeMl: 3 })
+  })
+
+  it('rejects a size that is not a barrel', () => {
+    expect(withMix({ syringeSizeMl: 2 })).toBeUndefined() // a bad saved mix is dropped, not fatal
   })
 })

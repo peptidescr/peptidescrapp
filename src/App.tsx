@@ -8,6 +8,7 @@ import { Toaster } from './components/ui/sonner'
 import { LEGAL_VERSION } from './content/legal'
 import { maybeCreateDailySnapshot } from './lib/backup'
 import { db, ensureCompoundsSeeded, ensureSettingsRow } from './lib/db'
+import { migrateLegacySyringeData } from './lib/migrations'
 import { useCustomCompoundsLoaded } from './lib/customCompounds'
 import { DEFAULT_LOCALE, toSupportedLocale } from './i18n'
 import { scheduleUpcomingReminders, startReminderLoop } from './lib/notifications'
@@ -111,6 +112,7 @@ function App() {
   // next couple of days (silently does nothing where unsupported — see
   // notifications.ts).
   useEffect(() => {
+    void migrateLegacySyringeData()
     void ensureCompoundsSeeded()
     void ensureSettingsRow({ locale: DEFAULT_LOCALE, syringeType: 'U-100' })
     if (navigator.storage?.persist) {

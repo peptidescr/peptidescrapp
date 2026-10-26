@@ -17,6 +17,9 @@ import {
   parseDecimal,
   quantizeVolumeToSyringe,
   roundInt,
+  SYRINGE_SIZES_BY_TYPE,
+  syringeCapacityUnits,
+  syringeSizeFor,
   syringeUnitsFromMicroliters,
   syringeUnitsPerMl,
   iuFromMilliIU,
@@ -161,16 +164,37 @@ describe('syringe conversions', () => {
     expect(quantizeVolumeToSyringe(253, 'U-40', 'up')).toBe(275)
   })
 
-  it('treats a 3 mL syringe as 0.1 mL graduations', () => {
-    expect(syringeUnitsPerMl('3mL')).toBe(10)
-    expect(microlitersPerSyringeUnit('3mL')).toBe(100)
-    expect(syringeUnitsFromMicroliters(500 as Microliter, '3mL')).toBe(5)
-    expect(microlitersFromSyringeUnits(7, '3mL')).toBe(700)
-    // 253 µL sits between the 0.2 and 0.3 mL marks.
-    expect(quantizeVolumeToSyringe(253, '3mL', 'down')).toBe(200)
-    expect(quantizeVolumeToSyringe(253, '3mL', 'up')).toBe(300)
+  it('holds as many units as its barrel is big: a 3 mL is three times a 1 mL', () => {
+    expect(syringeCapacityUnits('U-100', 1)).toBe(100)
+    expect(syringeCapacityUnits('U-100', 3)).toBe(300)
+    expect(syringeCapacityUnits('U-50', 3)).toBe(150)
+    expect(syringeCapacityUnits('U-40', 3)).toBe(120)
   })
 
+  it('knows the small insulin barrels too, in whole units', () => {
+    expect(syringeCapacityUnits('U-100', 0.3)).toBe(30)
+    expect(syringeCapacityUnits('U-100', 0.5)).toBe(50)
+    expect(syringeCapacityUnits('U-50', 0.5)).toBe(25)
+    expect(syringeCapacityUnits('U-40', 0.5)).toBe(20)
+  })
+
+  it('offers each type the barrels it is sold in: 0.3 mL only exists for U-100', () => {
+    expect(SYRINGE_SIZES_BY_TYPE['U-100']).toEqual([0.3, 0.5, 1, 3])
+    expect(SYRINGE_SIZES_BY_TYPE['U-50']).toEqual([0.5, 1, 3])
+    expect(SYRINGE_SIZES_BY_TYPE['U-40']).toEqual([0.5, 1, 3])
+  })
+
+  it('keeps a size the type comes in, and falls back to 1 mL when it does not', () => {
+    expect(syringeSizeFor('U-100', 0.3)).toBe(0.3)
+    expect(syringeSizeFor('U-50', 3)).toBe(3)
+    expect(syringeSizeFor('U-50', 0.3)).toBe(1)
+    expect(syringeSizeFor('U-40', 0.3)).toBe(1)
+  })
+
+  it('leaves what a unit is alone: the barrel size does not change the graduations', () => {
+    expect(microlitersPerSyringeUnit('U-100')).toBe(10)
+    expect(quantizeVolumeToSyringe(253, 'U-100', 'down')).toBe(250)
+  })
   it('rejects negative volumes and unit counts', () => {
     expect(() => quantizeVolumeToSyringe(-1, 'U-100')).toThrow(RangeError)
     expect(() => microlitersFromSyringeUnits(-1, 'U-100')).toThrow(RangeError)
