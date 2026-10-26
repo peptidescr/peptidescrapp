@@ -49,9 +49,11 @@ interface CalculatorScreenProps {
   protocolId?: string
   /** "Create a protocol" from the save section, for a compound with no active protocol yet. */
   onCreateProtocol: (compoundId: string) => void
+  /** Called once a mix has been saved to a protocol. Lets the host move on (the new-protocol flow ends back at Home). */
+  onSavedToProtocol?: () => void
 }
 
-export function CalculatorScreen({ protocolId, onCreateProtocol }: CalculatorScreenProps) {
+export function CalculatorScreen({ protocolId, onCreateProtocol, onSavedToProtocol }: CalculatorScreenProps) {
   const { t, i18n } = useTranslation()
   const locale = i18n.language as Locale
   const settings = useSettings()
@@ -417,6 +419,7 @@ export function CalculatorScreen({ protocolId, onCreateProtocol }: CalculatorScr
           targetId={saveTargetId}
           onTargetChange={setSaveTargetId}
           onCreateProtocol={() => onCreateProtocol(compound.id)}
+          onSaved={onSavedToProtocol}
         />
       )}
     </div>
@@ -435,12 +438,14 @@ function SaveToProtocol({
   targetId,
   onTargetChange,
   onCreateProtocol,
+  onSaved,
 }: {
   compound: Compound
   snapshot: MixSnapshot
   targetId: string | null
   onTargetChange: (id: string) => void
   onCreateProtocol: () => void
+  onSaved?: () => void
 }) {
   const { t } = useTranslation()
   const protocols = useLiveQuery(() => db.protocols.toArray(), [])
@@ -475,6 +480,7 @@ function SaveToProtocol({
     try {
       await db.protocols.update(target.id, { reconstitution: { ...snapshot, savedAt: new Date().toISOString() } })
       toast.success(t('calculator.saved', { name: target.name || compound.name }))
+      onSaved?.()
     } finally {
       setBusy(false)
     }

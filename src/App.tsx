@@ -248,7 +248,13 @@ function App() {
             />
           )}
           {tab === 'calculator' && (
-            <CalculatorScreen protocolId={calculatorProtocolId} onCreateProtocol={openNewProtocolFor} />
+            <CalculatorScreen
+              protocolId={calculatorProtocolId}
+              onCreateProtocol={openNewProtocolFor}
+              // Only the new-protocol flow (save, then reconstitute) ends at Home;
+              // opening the calculator on its own stays where the user put it.
+              onSavedToProtocol={calculatorProtocolId ? () => goToTab('home') : undefined}
+            />
           )}
           {tab === 'protocols' && (
             <ProtocolsScreen
