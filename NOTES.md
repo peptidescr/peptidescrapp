@@ -1553,3 +1553,47 @@ Search Console speeds that up.
 **Not code:** the two biggest levers are the client's. They're in HANDOVER: link to each app from
 its store's site, and add the app to Search Console and Bing Webmaster Tools, then submit the
 sitemap.
+## Client requests, October 2026: four items, on `main` (not the redesign)
+
+The client asked for four things to go live. Some existed on `staging` (Phase 2), which also
+carries the unreleased Part A redesign, so this is a separate branch off `main`
+(`release/client-requests-oct-2026`) with only these four, each its own commit(s).
+
+1. **Back to Home after saving a mix to a new protocol.** The flow is: save the protocol, "Reconstitute
+   now", save the mix to the protocol. `CalculatorScreen` takes an optional `onSavedToProtocol`; `App`
+   passes it (`goToTab('home')`) only when the calculator was opened from that offer
+   (`calculatorProtocolId` set). Opening the calculator directly, or saving a mix to an existing
+   protocol from there, stays put. That scope is a judgement call; to redirect every save, pass the
+   callback unconditionally.
+2. **Custom compounds ("add a peptide that isn't in the list").** Ported from Phase 2's batch 1
+   (7f5ea94), without its vials/alerts/adherence parts.
+   - Stored in the existing Dexie `compounds` table (`isCustom: true`, id `custom-<uuid>`), so no schema
+     bump. `src/lib/customCompounds.ts` mirrors them into the in-memory registry in `content/compounds.ts`
+     (`startCustomCompoundSync`, called from `main.tsx`); `App` waits for the first load so a saved
+     protocol never renders before its compound exists.
+   - "Add your own compound" is the footer of the compound list in the calculator and the protocol form
+     (`Combobox` `footerAction`); Settings → Your compounds lists, edits and deletes. A compound used by a
+     protocol or a logged dose can't be deleted.
+   - The calculator has no size chips for a custom compound, so it shows a number field for the vial size.
+   - **Backups are now format v2**: an optional `customCompounds` list. v1 files still import; a Phase 2
+     v2 file imports too (its vials and templates are ignored on `main`). Ids must start `custom-`, so a
+     file can't overwrite a catalogue entry.
+3. **3 mL syringe.** `SyringeType` gains `'3mL'`: 10 graduations/mL, i.e. a mark every 0.1 mL (the usual
+   3 mL barrel). It has no units, so the calculator labels the second result "Draw (0.1 mL marks)" and the
+   protocol card's summary reads in mL. The draw still rounds down to a mark. If the client's barrels are
+   marked every 0.2 mL, change the `'3mL'` value in `SYRINGE_UNITS_PER_ML` (5) and the label.
+4. **Several doses a day.** Already worked (a protocol gives one dose per reminder time). The form now says
+   so ("Dose times", "Add another dose"), suggests a free time instead of repeating 08:00, caps at 12 (the
+   backup limit), refuses the same time twice, saves times earliest first (`src/lib/doseTimes.ts`), and the
+   card shows "3 doses/day".
+
+**Merging this into `staging` later.** Expect conflicts in `backupValidation.ts`/`backup.ts` (both bump to
+v2; staging's also carries vials/templates), `customCompounds.ts` (staging's is the fuller one), and the
+compound/protocol screens. Keep staging's versions of the overlapping files and re-apply: the `'3mL'`
+entry (staging's `BARRELS: Record<SyringeType, …>` in `syringe.ts` needs a '3mL' key or it won't
+compile), `doseTimes.ts`, and `onSavedToProtocol`.
+
+**Verified:** typecheck, 212 tests, lint (only the known `App.tsx` error), i18n parity, both builds;
+in a headless browser on UPD (375px) and PCR in Spanish (320px): the full new-protocol flow with three
+doses/day ends on Home with "0 of 3 doses logged", a 3 mL calculation, a custom compound created,
+persisted over a reload, calculated with and listed in Settings, no console errors.

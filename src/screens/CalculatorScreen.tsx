@@ -9,13 +9,9 @@ import { Combobox } from '@/components/ui/combobox'
 import { NumericInput } from '@/components/ui/numeric-input'
 import { Segmented } from '@/components/ui/segmented'
 import { AppHeader } from '../components/AppHeader'
-import {
-  compareAlphabetical,
-  listDiluents,
-  listSelectableCompounds,
-  vialSizeUnit,
-  type Compound,
-} from '../content/compounds'
+import { CustomCompoundSheet } from '../components/CustomCompoundSheet'
+import { compareAlphabetical, getCompoundById, listDiluents, vialSizeUnit, type Compound } from '../content/compounds'
+import { compoundCategoryLabel, useSelectableCompounds } from '../lib/customCompounds'
 import { db, type Protocol, type SavedReconstitution } from '../lib/db'
 import {
   mixFromSolutionIU,
@@ -39,7 +35,7 @@ import {
 import { useLiveQuery } from '../lib/useLiveQuery'
 import { updateSettings, useSettings } from '../lib/useSettings'
 
-const SYRINGE_TYPES: SyringeType[] = ['U-100', 'U-50', 'U-40']
+const SYRINGE_TYPES: SyringeType[] = ['U-100', 'U-50', 'U-40', '3mL']
 
 /** What the calculator hands to "save to protocol" — everything in a saved mix except when it was saved. */
 type MixSnapshot = Omit<SavedReconstitution, 'savedAt'>
@@ -53,24 +49,33 @@ interface CalculatorScreenProps {
   protocolId?: string
   /** "Create a protocol" from the save section, for a compound with no active protocol yet. */
   onCreateProtocol: (compoundId: string) => void
+  /** Called once a mix has been saved to a protocol. Lets the host move on (the new-protocol flow ends back at Home). */
+  onSavedToProtocol?: () => void
 }
 
-export function CalculatorScreen({ protocolId, onCreateProtocol }: CalculatorScreenProps) {
+export function CalculatorScreen({ protocolId, onCreateProtocol, onSavedToProtocol }: CalculatorScreenProps) {
   const { t, i18n } = useTranslation()
   const locale = i18n.language as Locale
   const settings = useSettings()
 
-  const selectable = useMemo(() => listSelectableCompounds(), [])
+  const selectable = useSelectableCompounds()
   const diluents = useMemo(() => listDiluents(), [])
   const compoundOptions = useMemo(
-    () => selectable.map((c) => ({ value: c.id, label: c.name, hint: c.category })),
-    [selectable],
+    () => selectable.map((c) => ({ value: c.id, label: c.name, hint: compoundCategoryLabel(c, t) })),
+    [selectable, t],
   )
+  const [addingCompound, setAddingCompound] = useState(false)
 
   const [compoundId, setCompoundId] = useState(selectable[0]?.id ?? '')
   const compound = selectable.find((c) => c.id === compoundId) ?? selectable[0]
 
-  const [vialSize, setVialSize] = useState<number>(compound?.vialSizes[0] ?? 0)
+  const [vialSize, setVialSizeValue] = useState<number>(compound?.vialSizes[0] ?? 0)
+  // What's typed in the vial field a custom compound uses instead of size chips.
+  const [vialSizeText, setVialSizeText] = useState(compound?.vialSizes[0] ? String(compound.vialSizes[0]) : '')
+  function setVialSize(size: number) {
+    setVialSizeValue(size)
+    setVialSizeText(size > 0 ? String(size) : '')
+  }
   const [diluentMl, setDiluentMl] = useState('')
   const [concentrationInput, setConcentrationInput] = useState('')
   const [doseInput, setDoseInput] = useState('')
@@ -110,7 +115,9 @@ export function CalculatorScreen({ protocolId, onCreateProtocol }: CalculatorScr
   function handleSelectCompound(id: string) {
     setCompoundId(id)
     setSaveTargetId(null)
-    const next = selectable.find((c) => c.id === id)
+    // The live registry, not `selectable`: a compound created a moment ago
+    // (Add your own) isn't in this render's list yet.
+    const next = getCompoundById(id)
     if (next) {
       setVialSize(next.vialSizes[0] ?? 0)
       setDoseUnit(next.defaultUnit === 'mcg' ? 'mcg' : 'mg')
@@ -139,7 +146,7 @@ export function CalculatorScreen({ protocolId, onCreateProtocol }: CalculatorScr
   if (compound) {
     try {
       if (isSolution) {
-        if (concentrationValue !== null && doseValue !== null) {
+        if (concentrationValue !== null && doseValue !== null && vialSize > 0) {
           const totalVolumeUl = microlitersFromMl(vialSize)
           result = isIU
             ? mixFromSolutionIU({
@@ -155,7 +162,7 @@ export function CalculatorScreen({ protocolId, onCreateProtocol }: CalculatorScr
                 syringeType,
               })
         }
-      } else if (diluentValue !== null && diluentValue > 0 && doseValue !== null) {
+      } else if (diluentValue !== null && diluentValue > 0 && doseValue !== null && vialSize > 0) {
         const diluentVolumeUl = microlitersFromMl(diluentValue)
         result = isIU
           ? mixFromVialIU({
@@ -258,18 +265,36 @@ export function CalculatorScreen({ protocolId, onCreateProtocol }: CalculatorScr
             onValueChange={handleSelectCompound}
             options={compoundOptions}
             emptyText={t('common.noMatches')}
+            footerAction={{ label: t('compounds.addCustom'), onSelect: () => setAddingCompound(true) }}
+          />
+          <CustomCompoundSheet
+            open={addingCompound}
+            onOpenChange={setAddingCompound}
+            onSaved={(saved) => handleSelectCompound(saved.id)}
           />
         </Field>
 
-        {isSolution ? (
-          <Field label={t('calculator.bottleVolume', { unit: 'mL' })}>
-            <ChipSelect options={compound.vialSizes} value={vialSize} onChange={setVialSize} suffix="mL" />
-          </Field>
-        ) : (
-          <Field label={t('calculator.vialSize', { unit })}>
-            <ChipSelect options={compound.vialSizes} value={vialSize} onChange={setVialSize} suffix={unit} />
-          </Field>
-        )}
+        {/* A compound the user added has no fixed vial sizes to pick from, so
+            the size is typed in. */}
+        <Field label={isSolution ? t('calculator.bottleVolume', { unit: 'mL' }) : t('calculator.vialSize', { unit })}>
+          {compound.isCustom ? (
+            <NumberInput
+              value={vialSizeText}
+              onChange={(text) => {
+                setVialSizeText(text)
+                setVialSizeValue(parseDecimal(text) ?? 0)
+              }}
+              suffix={isSolution ? 'mL' : unit}
+            />
+          ) : (
+            <ChipSelect
+              options={compound.vialSizes}
+              value={vialSize}
+              onChange={setVialSize}
+              suffix={isSolution ? 'mL' : unit}
+            />
+          )}
+        </Field>
       </Step>
 
       {isSolution ? (
@@ -337,7 +362,7 @@ export function CalculatorScreen({ protocolId, onCreateProtocol }: CalculatorScr
             ariaLabel={t('calculator.syringeType')}
             value={syringeType}
             onChange={handleSyringeChange}
-            options={SYRINGE_TYPES.map((type) => ({ value: type, label: type }))}
+            options={SYRINGE_TYPES.map((type) => ({ value: type, label: type === '3mL' ? t('calculator.syringe3mL') : type }))}
           />
         </Field>
       </Step>
@@ -369,8 +394,13 @@ export function CalculatorScreen({ protocolId, onCreateProtocol }: CalculatorScr
               <div className="grid grid-cols-2 items-end gap-4">
                 <BigResult label={t('calculator.drawVolume')} value={formatVolumeMl(result.drawVolumeUl, locale)} />
                 <BigResult
-                  // U+2011 keeps "U-100" in one piece if the label has to wrap.
-                  label={t('calculator.drawSyringeUnits', { syringeType: syringeType.replace('-', '‑') })}
+                  // U+2011 keeps "U-100" in one piece if the label has to wrap. A 3 mL
+                  // barrel has no units, only a mark every 0.1 mL.
+                  label={
+                    syringeType === '3mL'
+                      ? t('calculator.drawSyringeMarks')
+                      : t('calculator.drawSyringeUnits', { syringeType: syringeType.replace('-', '‑') })
+                  }
                   value={formatSyringeUnits(result.drawSyringeUnits, locale)}
                 />
               </div>
@@ -407,6 +437,7 @@ export function CalculatorScreen({ protocolId, onCreateProtocol }: CalculatorScr
           targetId={saveTargetId}
           onTargetChange={setSaveTargetId}
           onCreateProtocol={() => onCreateProtocol(compound.id)}
+          onSaved={onSavedToProtocol}
         />
       )}
     </div>
@@ -425,12 +456,14 @@ function SaveToProtocol({
   targetId,
   onTargetChange,
   onCreateProtocol,
+  onSaved,
 }: {
   compound: Compound
   snapshot: MixSnapshot
   targetId: string | null
   onTargetChange: (id: string) => void
   onCreateProtocol: () => void
+  onSaved?: () => void
 }) {
   const { t } = useTranslation()
   const protocols = useLiveQuery(() => db.protocols.toArray(), [])
@@ -465,6 +498,7 @@ function SaveToProtocol({
     try {
       await db.protocols.update(target.id, { reconstitution: { ...snapshot, savedAt: new Date().toISOString() } })
       toast.success(t('calculator.saved', { name: target.name || compound.name }))
+      onSaved?.()
     } finally {
       setBusy(false)
     }

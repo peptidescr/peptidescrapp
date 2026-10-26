@@ -10,7 +10,15 @@
  * are dropped, types and ranges are checked, free text is sanitized, and any
  * record that isn't valid rejects the whole file (before anything is written)
  * rather than restoring a quietly partial history.
+ *
+ * Format versions: 1 (protocols, dose logs, settings) and 2 (adds the user's
+ * custom compounds). Both import; a v1 file simply restores with no custom
+ * compounds. Exports are always the latest. Version 2 is the same number
+ * (and the same field name) the Phase 2 line of the app uses for its richer
+ * backup, which also carries vials and templates; this build only has custom
+ * compounds, and reads those other lists as absent.
  */
+import { CUSTOM_CATEGORY, type Compound } from '../content/compounds'
 import type { DoseLog, Protocol, SavedReconstitution, Settings } from './db'
 import {
   MAX_DAY_COUNT,
@@ -22,10 +30,13 @@ import {
 } from './sanitize'
 import type { Schedule, Weekday } from './schedule'
 
-export const BACKUP_VERSION = 1
+export const BACKUP_VERSION = 2
+const SUPPORTED_VERSIONS: readonly unknown[] = [1, 2]
 export const MAX_BACKUP_BYTES = 20 * 1024 * 1024
 const MAX_PROTOCOLS = 1000
 const MAX_DOSE_LOGS = 200_000
+const MAX_CUSTOM_COMPOUNDS = 500
+const MAX_VIAL_SIZES = 20
 const MAX_ID_LENGTH = 100
 const MAX_REMINDER_TIMES = 12
 const MAX_CUSTOM_DATES = 500
@@ -36,6 +47,7 @@ export interface ValidBackup {
   protocols: Protocol[]
   doseLogs: DoseLog[]
   settings?: Settings
+  customCompounds: Compound[]
 }
 
 class InvalidBackupError extends Error {}
@@ -122,7 +134,7 @@ function reconstitution(value: unknown): SavedReconstitution | undefined {
       vialSize: finiteNumber(value.vialSize, 'vialSize', 0, 1e9),
       vialUnit: oneOf(value.vialUnit, ['mg', 'mcg', 'IU', 'mL'] as const, 'vialUnit'),
       diluentMl: value.diluentMl === undefined ? undefined : finiteNumber(value.diluentMl, 'diluentMl', 0, 1e6),
-      syringeType: oneOf(value.syringeType, ['U-100', 'U-50', 'U-40'] as const, 'syringeType'),
+      syringeType: oneOf(value.syringeType, ['U-100', 'U-50', 'U-40', '3mL'] as const, 'syringeType'),
       drawVolumeMl: finiteNumber(value.drawVolumeMl, 'drawVolumeMl', 0, 1e6),
       drawSyringeUnits: finiteNumber(value.drawSyringeUnits, 'drawSyringeUnits', 0, 1e6),
       doseAmount: finiteNumber(value.doseAmount, 'doseAmount', 0, MAX_DOSE_AMOUNT),
@@ -183,12 +195,40 @@ function doseLog(value: unknown): DoseLog {
   return result
 }
 
+/** Only user-created compounds travel in a backup — the catalogue comes from the app itself. */
+function customCompound(value: unknown): Compound {
+  if (!isRecord(value)) fail('compound')
+  const id = str(value.id, 'compound.id')
+  if (!id.startsWith('custom-')) fail('compound.id')
+  const name = sanitizeText(String(value.name ?? ''), MAX_NAME_LENGTH).trim()
+  if (!name) fail('compound.name')
+  if (!Array.isArray(value.vialSizes) || value.vialSizes.length > MAX_VIAL_SIZES) fail('compound.vialSizes')
+  return {
+    id,
+    name,
+    category: CUSTOM_CATEGORY,
+    defaultUnit: oneOf(value.defaultUnit, ['mg', 'mcg', 'IU'] as const, 'compound.defaultUnit'),
+    vialSizes: value.vialSizes.map((size) => finiteNumber(size, 'compound.vialSizes', 0, 1e9)),
+    form: oneOf(value.form, ['powder', 'solution'] as const, 'compound.form'),
+    isBlend: false,
+    isDiluent: false,
+    isCustom: true,
+  }
+}
+
+/** A v2 collection: absent in a v1 file (→ empty), otherwise an array within its size limit. */
+function optionalList<T>(value: unknown, max: number, parse: (item: unknown) => T, what: string): T[] {
+  if (value === undefined) return []
+  if (!Array.isArray(value) || value.length > max) fail(what)
+  return value.map(parse)
+}
+
 function settings(value: unknown): Settings | undefined {
   if (!isRecord(value)) return undefined
   const result: Settings = {
     id: 1,
     locale: oneOf(value.locale, ['es-CR', 'en'] as const, 'settings.locale'),
-    syringeType: oneOf(value.syringeType, ['U-100', 'U-50', 'U-40'] as const, 'settings.syringeType'),
+    syringeType: oneOf(value.syringeType, ['U-100', 'U-50', 'U-40', '3mL'] as const, 'settings.syringeType'),
   }
   if (value.theme !== undefined) result.theme = oneOf(value.theme, ['light', 'dark', 'system'] as const, 'settings.theme')
   if (value.legalAcceptedVersion !== undefined) {
@@ -207,13 +247,14 @@ function settings(value: unknown): Settings | undefined {
  */
 export function parseBackup(input: unknown): ValidBackup {
   if (!isRecord(input)) fail('not an object')
-  if (input.version !== BACKUP_VERSION) fail(`unsupported version ${String(input.version)}`)
+  if (!SUPPORTED_VERSIONS.includes(input.version)) fail(`unsupported version ${String(input.version)}`)
   if (!Array.isArray(input.protocols) || !Array.isArray(input.doseLogs)) fail('missing protocols or dose logs')
   if (input.protocols.length > MAX_PROTOCOLS || input.doseLogs.length > MAX_DOSE_LOGS) fail('too many records')
 
   const protocols = input.protocols.map(protocol)
   const doseLogs = input.doseLogs.map(doseLog)
-  for (const list of [protocols, doseLogs]) {
+  const customCompounds = optionalList(input.customCompounds, MAX_CUSTOM_COMPOUNDS, customCompound, 'custom compounds')
+  for (const list of [protocols, doseLogs, customCompounds]) {
     if (new Set(list.map((r) => r.id)).size !== list.length) fail('duplicate ids')
   }
 
@@ -223,5 +264,6 @@ export function parseBackup(input: unknown): ValidBackup {
     protocols,
     doseLogs,
     settings: settings(input.settings),
+    customCompounds,
   }
 }

@@ -104,7 +104,8 @@ describe('parseBackup', () => {
   it('rejects wrong versions, wrong shapes, duplicate ids and oversized lists', () => {
     expect(() => parseBackup(null)).toThrow()
     expect(() => parseBackup([])).toThrow()
-    expect(() => parseBackup(backup({ version: 2 }))).toThrow()
+    expect(() => parseBackup(backup({ version: 3 }))).toThrow()
+    expect(() => parseBackup(backup({ version: '2' }))).toThrow()
     expect(() => parseBackup(backup({ protocols: 'x' }))).toThrow()
     expect(() => parseBackup(backup({ protocols: [protocol, protocol] }))).toThrow()
     const tooMany = Array.from({ length: 1001 }, (_, i) => ({ ...protocol, id: `p${i}` }))
@@ -153,5 +154,63 @@ describe('parseBackup', () => {
     )
     expect(ok.settings).toEqual({ id: 1, locale: 'en', syringeType: 'U-100', theme: 'dark' })
     expect(() => parseBackup(backup({ settings: { locale: 'fr', syringeType: 'U-100' } }))).toThrow()
+    expect(() => parseBackup(backup({ settings: { locale: 'en', syringeType: '5mL' } }))).toThrow()
+    expect(parseBackup(backup({ settings: { locale: 'en', syringeType: '3mL', theme: 'light' } })).settings?.syringeType).toBe('3mL')
+  })
+})
+
+describe('parseBackup, format v2 (custom compounds)', () => {
+  const custom = {
+    id: 'custom-1',
+    name: 'My compound',
+    category: 'whatever',
+    defaultUnit: 'mg',
+    vialSizes: [5, 10],
+    form: 'powder',
+    isBlend: true,
+    isDiluent: true,
+    isCustom: true,
+  }
+
+  it('still imports a v1 file, with no custom compounds', () => {
+    const result = parseBackup(backup({ version: 1 }))
+    expect(result.version).toBe(2)
+    expect(result.protocols).toHaveLength(1)
+    expect(result.customCompounds).toEqual([])
+  })
+
+  it('round-trips custom compounds, normalising what is the app\'s to decide', () => {
+    const result = parseBackup(backup({ customCompounds: [custom] }))
+    // Category and flags are the app's, never the file's.
+    expect(result.customCompounds).toEqual([{ ...custom, category: 'custom', isBlend: false, isDiluent: false }])
+  })
+
+  it('reads a Phase 2 (v2) backup that also carries vials and templates, keeping only the custom compounds', () => {
+    const result = parseBackup(backup({ customCompounds: [custom], vials: [{ id: 'v1' }], userTemplates: [{ id: 't1' }] }))
+    expect(result.customCompounds).toHaveLength(1)
+    expect(result).not.toHaveProperty('vials')
+    expect(result).not.toHaveProperty('userTemplates')
+  })
+
+  it('only accepts custom-prefixed ids, so a backup can never overwrite a catalogue entry', () => {
+    expect(() => parseBackup(backup({ customCompounds: [{ ...custom, id: 'bpc-157' }] }))).toThrow()
+    expect(() => parseBackup(backup({ customCompounds: [{ ...custom, name: '   ' }] }))).toThrow()
+  })
+
+  it('rejects bad units, forms and sizes, duplicate ids, and oversized lists', () => {
+    expect(() => parseBackup(backup({ customCompounds: [{ ...custom, defaultUnit: 'kg' }] }))).toThrow()
+    expect(() => parseBackup(backup({ customCompounds: [{ ...custom, form: 'gas' }] }))).toThrow()
+    expect(() => parseBackup(backup({ customCompounds: [{ ...custom, vialSizes: ['x'] }] }))).toThrow()
+    expect(() => parseBackup(backup({ customCompounds: [custom, custom] }))).toThrow()
+    const tooMany = Array.from({ length: 501 }, (_, i) => ({ ...custom, id: `custom-${i}` }))
+    expect(() => parseBackup(backup({ customCompounds: tooMany }))).toThrow()
+  })
+
+  it('sanitizes the name', () => {
+    const result = parseBackup(backup({ customCompounds: [{ ...custom, name: '  Mine\u202E\u0000  ' + 'x'.repeat(200) }] }))
+    const name = result.customCompounds[0]?.name ?? ''
+    expect(name.includes(String.fromCharCode(0x202e))).toBe(false)
+    expect(name.includes(String.fromCharCode(0))).toBe(false)
+    expect(name.length).toBeLessThanOrEqual(60)
   })
 })

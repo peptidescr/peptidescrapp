@@ -42,10 +42,18 @@ import { EmptyState } from '../components/EmptyState'
 import { AppHeader } from '../components/AppHeader'
 import { ProtocolSavedPrompt } from '../components/ProtocolSavedPrompt'
 import { TemplatePicker } from '../components/TemplatePicker'
-import { compareAlphabetical, getCompoundById, listSelectableCompounds } from '../content/compounds'
+import { CustomCompoundSheet } from '../components/CustomCompoundSheet'
+import { compareAlphabetical, getCompoundById } from '../content/compounds'
+import { compoundCategoryLabel, useSelectableCompounds } from '../lib/customCompounds'
 import { PROTOCOL_TEMPLATES, type ProtocolTemplate } from '../content/protocolTemplates'
 import { formatDateTime, toIsoDate } from '../lib/dates'
-import { db, type DoseLog, type Protocol, type Route } from '../lib/db'
+import { db, type DoseLog, type Protocol, type Route, type SavedReconstitution } from '../lib/db'
+import {
+  MAX_DOSE_TIMES,
+  hasDuplicateDoseTimes,
+  normalizeDoseTimes,
+  suggestNextDoseTime,
+} from '../lib/doseTimes'
 import { computeProtocolStats } from '../lib/homeData'
 import { scheduleUpcomingReminders } from '../lib/notifications'
 import { alphabeticalOptions } from '../lib/options'
@@ -69,7 +77,14 @@ async function rescheduleReminders(): Promise<void> {
   requestPushSync()
 }
 
-const WEEKDAY_LABELS_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const
+/** Which "how to draw it" sentence fits a saved mix. A 3 mL barrel is read in mL, so it never says "units". */
+function mixSummaryKey(mix: SavedReconstitution): string {
+  const ready = mix.diluentMl === undefined
+  if (mix.syringeType === '3mL') return ready ? 'protocols.mixSummarySolution3mL' : 'protocols.mixSummary3mL'
+  return ready ? 'protocols.mixSummarySolution' : 'protocols.mixSummary'
+}
+
+const WEEKDAY_LABELS_KEYS =['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const
 const SCHEDULE_KINDS: Schedule['kind'][] = ['daily', 'everyNDays', 'weekdays', 'cycle', 'custom']
 const ROUTES: Route[] = ['subcutaneous', 'intramuscular', 'other']
 
@@ -315,6 +330,8 @@ function ProtocolRow({
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-4 pt-1 text-sm text-foreground">
         <span>
           {t(`schedule.${protocol.schedule.kind}`)} · {protocol.doseAmount} {protocol.doseUnit}
+          {protocol.reminderTimes.length > 1 &&
+            ` · ${t('protocols.dosesPerDay', { count: protocol.reminderTimes.length })}`}
         </span>
         {!protocol.isActive && <Badge variant="outline">{t('protocols.pausedBadge')}</Badge>}
         {stats.missedCount > 0 && (
@@ -325,18 +342,15 @@ function ProtocolRow({
       {protocol.reconstitution && (
         <p className="mx-4 mt-3 flex items-start gap-2 rounded-2xl bg-accent px-3 py-2 text-sm text-foreground">
           <FlaskConical className="mt-0.5 size-4 shrink-0 text-primary" />
-          {protocol.reconstitution.diluentMl === undefined
-            ? t('protocols.mixSummarySolution', {
-                units: formatDecimal(protocol.reconstitution.drawSyringeUnits, locale, 1),
-                ml: formatDecimal(protocol.reconstitution.drawVolumeMl, locale, 3),
-                dose: `${formatDecimal(protocol.reconstitution.doseAmount, locale, 3)} ${protocol.reconstitution.doseUnit}`,
-              })
-            : t('protocols.mixSummary', {
-                water: formatDecimal(protocol.reconstitution.diluentMl, locale, 2),
-                units: formatDecimal(protocol.reconstitution.drawSyringeUnits, locale, 1),
-                ml: formatDecimal(protocol.reconstitution.drawVolumeMl, locale, 3),
-                dose: `${formatDecimal(protocol.reconstitution.doseAmount, locale, 3)} ${protocol.reconstitution.doseUnit}`,
-              })}
+          {t(mixSummaryKey(protocol.reconstitution), {
+            water:
+              protocol.reconstitution.diluentMl === undefined
+                ? ''
+                : formatDecimal(protocol.reconstitution.diluentMl, locale, 2),
+            units: formatDecimal(protocol.reconstitution.drawSyringeUnits, locale, 1),
+            ml: formatDecimal(protocol.reconstitution.drawVolumeMl, locale, 3),
+            dose: `${formatDecimal(protocol.reconstitution.doseAmount, locale, 3)} ${protocol.reconstitution.doseUnit}`,
+          })}
         </p>
       )}
 
@@ -447,11 +461,12 @@ export function ProtocolForm({
     () => (protocolId ? db.protocols.get(protocolId) : undefined),
     [protocolId],
   )
-  const compounds = useMemo(() => listSelectableCompounds(), [])
+  const compounds = useSelectableCompounds()
+  const [addingCompound, setAddingCompound] = useState(false)
 
   const compoundOptions = useMemo(
-    () => compounds.map((c) => ({ value: c.id, label: c.name, hint: c.category })),
-    [compounds],
+    () => compounds.map((c) => ({ value: c.id, label: c.name, hint: compoundCategoryLabel(c, t) })),
+    [compounds, t],
   )
   const scheduleOptions = useMemo(() => alphabeticalOptions(SCHEDULE_KINDS, (k) => t(`schedule.${k}`)), [t])
   const routeOptions = useMemo(() => alphabeticalOptions(ROUTES, (r) => t(`route.${r}`)), [t])
@@ -515,7 +530,15 @@ export function ProtocolForm({
     setLoaded(true)
   }
 
-  const compound = compounds.find((c) => c.id === compoundId)
+  // getCompoundById (the live registry), not `compounds`: a compound created
+  // a moment ago via "Add your own" isn't in this render's list yet.
+  const compound = getCompoundById(compoundId)
+
+  function selectCompound(id: string) {
+    setCompoundId(id)
+    const c = getCompoundById(id)
+    if (c) setDoseUnit(c.defaultUnit)
+  }
 
   // Parsed, range-checked values. Save stays disabled until each field that
   // applies is valid — bad input is refused, never quietly turned into a default.
@@ -546,10 +569,12 @@ export function ProtocolForm({
       : scheduleKind === 'cycle'
         ? daysOnValue !== null && daysOffValue !== null
         : true
+  const hasDuplicateTimes = hasDuplicateDoseTimes(reminderTimes)
   const canSave =
     compound !== undefined &&
     doseValue !== null &&
     reminderTimes.length > 0 &&
+    !hasDuplicateTimes &&
     !needsCustomDays &&
     scheduleFieldsValid
 
@@ -568,10 +593,16 @@ export function ProtocolForm({
     // now whenever the schedule itself changes; leave it alone for edits to
     // things like the name or dose so an unrelated tweak can't quietly erase
     // a genuinely missed dose.
+    const doseTimes = normalizeDoseTimes(reminderTimes)
     const scheduleUnchanged =
       existing !== undefined &&
-      JSON.stringify([schedule, reminderTimes, effectiveStart, effectiveEnd]) ===
-        JSON.stringify([existing.schedule, existing.reminderTimes, existing.startDate, existing.endDate])
+      JSON.stringify([schedule, doseTimes, effectiveStart, effectiveEnd]) ===
+        JSON.stringify([
+          existing.schedule,
+          normalizeDoseTimes(existing.reminderTimes),
+          existing.startDate,
+          existing.endDate,
+        ])
 
     const protocol: Protocol = {
       id: protocolId ?? crypto.randomUUID(),
@@ -580,7 +611,7 @@ export function ProtocolForm({
       doseAmount: doseValue,
       doseUnit: doseUnit,
       schedule,
-      reminderTimes,
+      reminderTimes: doseTimes,
       startDate: effectiveStart,
       endDate: effectiveEnd,
       route,
@@ -604,7 +635,9 @@ export function ProtocolForm({
   }
 
   function addReminderTime() {
-    setReminderTimes((times) => [...times, '08:00'])
+    setReminderTimes((times) =>
+      times.length >= MAX_DOSE_TIMES ? times : [...times, suggestNextDoseTime(times)],
+    )
   }
 
   function removeReminderTime(index: number) {
@@ -638,13 +671,15 @@ export function ProtocolForm({
       <FormField label={t('protocols.compound')}>
         <Combobox
           value={compoundId}
-          onValueChange={(value) => {
-            setCompoundId(value)
-            const c = compounds.find((x) => x.id === value)
-            if (c) setDoseUnit(c.defaultUnit)
-          }}
+          onValueChange={selectCompound}
           options={compoundOptions}
           emptyText={t('common.noMatches')}
+          footerAction={{ label: t('compounds.addCustom'), onSelect: () => setAddingCompound(true) }}
+        />
+        <CustomCompoundSheet
+          open={addingCompound}
+          onOpenChange={setAddingCompound}
+          onSaved={(c) => selectCompound(c.id)}
         />
       </FormField>
 
@@ -788,14 +823,18 @@ export function ProtocolForm({
               )}
             </div>
           ))}
-          <button
-            type="button"
-            onClick={addReminderTime}
-            className="flex min-h-11 items-center gap-1 self-start text-sm text-primary"
-          >
-            <Plus className="size-4" />
-            {t('protocols.addReminderTime')}
-          </button>
+          {hasDuplicateTimes && <FieldError>{t('protocols.duplicateDoseTime')}</FieldError>}
+          {reminderTimes.length < MAX_DOSE_TIMES && (
+            <button
+              type="button"
+              onClick={addReminderTime}
+              className="flex min-h-11 items-center gap-1 self-start text-sm text-primary"
+            >
+              <Plus className="size-4" />
+              {t('protocols.addReminderTime')}
+            </button>
+          )}
+          <p className="text-xs text-muted-foreground">{t('protocols.doseTimesHint')}</p>
         </div>
       </FormField>
 
