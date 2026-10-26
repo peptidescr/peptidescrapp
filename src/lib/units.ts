@@ -32,7 +32,9 @@ export type Microliter = number & { readonly __unit: 'Microliter' }
 export type MilliIU = number & { readonly __unit: 'MilliIU' }
 
 export type MassUnit = 'mg' | 'mcg'
-export type SyringeType = 'U-100' | 'U-50' | 'U-40' | '3mL'
+export type SyringeType = 'U-100' | 'U-50' | 'U-40'
+/** The barrel's capacity in mL. A bigger barrel holds more of the same units: U-100 is 100 units per mL, so 300 on a 3 mL. */
+export type SyringeSizeMl = 1 | 3
 export type Locale = 'es-CR' | 'en'
 export type RoundDirection = 'down' | 'up' | 'nearest'
 /**
@@ -50,9 +52,10 @@ const SYRINGE_UNITS_PER_ML: Record<SyringeType, number> = {
   'U-100': 100,
   'U-50': 50,
   'U-40': 40,
-  // A 3 mL syringe is marked in mL, not units: one graduation every 0.1 mL.
-  '3mL': 10,
 }
+
+export const SYRINGE_SIZES_ML: readonly SyringeSizeMl[] = [1, 3]
+export const DEFAULT_SYRINGE_SIZE_ML: SyringeSizeMl = 1
 
 function assertFinite(value: number, label: string): void {
   if (!Number.isFinite(value)) {
@@ -139,13 +142,17 @@ export function iuFromMilliIU(mIu: MilliIU): number {
 
 // ---------------------------------------------------------------------------
 // Syringes — a syringe "unit" is a volume, not a mass. U-100 = 100 units/mL,
-// so 1 unit = 10 µL; U-50 = 20 µL/unit; U-40 = 25 µL/unit. A 3 mL syringe has
-// no units at all: it is read in mL with a mark every 0.1 mL, so its 'unit'
-// here is one 0.1 mL (100 µL) graduation and the app shows it as mL.
+// so 1 unit = 10 µL; U-50 = 20 µL/unit; U-40 = 25 µL/unit. The barrel size (1 or
+// 3 mL) doesn't change what a unit is, only how many the syringe holds.
 // ---------------------------------------------------------------------------
 
 export function syringeUnitsPerMl(type: SyringeType): number {
   return SYRINGE_UNITS_PER_ML[type]
+}
+
+/** How many units a barrel of this size holds: 100 for a 1 mL U-100, 300 for a 3 mL one. */
+export function syringeCapacityUnits(type: SyringeType, sizeMl: SyringeSizeMl): number {
+  return SYRINGE_UNITS_PER_ML[type] * sizeMl
 }
 
 export function microlitersPerSyringeUnit(type: SyringeType): number {

@@ -85,28 +85,6 @@ describe('mixFromVialMass', () => {
     expect(mixFromVialMass({ ...base, syringeType: 'U-40' }).drawSyringeUnits).toBe(5)
   })
 
-  it('draws on a 3 mL syringe in whole 0.1 mL marks', () => {
-    // 5 mg in 2 mL, 1 mg dose = 400 µL = 4 marks, exactly.
-    const exact = mixFromVialMass({
-      vialAmountMcg: microgramsFromMg(5),
-      diluentVolumeUl: microlitersFromMl(2),
-      desiredDoseMcg: microgramsFromMg(1),
-      syringeType: '3mL',
-    })
-    expect(exact.drawVolumeUl).toBe(400)
-    expect(exact.drawSyringeUnits).toBe(4)
-    expect(exact.lowVolumeWarning).toBe(true)
-    // 333 mcg = 133.2 µL, which a 3 mL barrel can only show as the 0.1 mL mark below it.
-    const rounded = mixFromVialMass({
-      vialAmountMcg: microgramsFromMg(5),
-      diluentVolumeUl: microlitersFromMl(2),
-      desiredDoseMcg: 333 as Microgram,
-      syringeType: '3mL',
-    })
-    expect(rounded.drawVolumeUl).toBe(100)
-    expect(rounded.drawSyringeUnits).toBe(1)
-  })
-
   it('rejects a zero or negative vial amount, volume, or dose', () => {
     const base = {
       vialAmountMcg: microgramsFromMg(5),
