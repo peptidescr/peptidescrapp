@@ -239,6 +239,7 @@ enough.
 ## What's intentionally not in this build
 
 Accounts/login, cloud sync, inventory tracking, calendar grid, visual syringe graphics,
-injection site rotation, custom compounds, titration, progress photos, weight/side-effect
-tracking, cost tracking, PDF export, and anything AI. If any of these turn out to matter
+injection site rotation, titration, progress photos, weight/side-effect
+tracking, cost tracking, PDF export, and anything AI. (Custom compounds were here; they went
+live in the October 2026 client-requests release, see NOTES.) If any of these turn out to matter
 after the client sees it, they're Phase 2 conversations, not omissions.
