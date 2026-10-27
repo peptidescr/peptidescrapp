@@ -1,6 +1,7 @@
-import { ExternalLink, FileCheck2, FlaskConical, MessageCircle, Search } from 'lucide-react'
+import { ChevronRight, ExternalLink, FileCheck2, FlaskConical, MessageCircle, Package, Search, ShoppingCart } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { BRAND } from '@/brand'
 import { Badge } from '@/components/ui/badge'
 import { buttonVariants } from '@/components/ui/button-variants'
@@ -8,7 +9,12 @@ import { Button } from '@/components/ui/button'
 import { Chip } from '@/components/ui/chip'
 import { Input } from '@/components/ui/input'
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Stepper } from '@/components/ui/stepper'
 import { EmptyState } from '../components/EmptyState'
+import { CheckoutSheet, OrderResult } from '../components/shop/CheckoutSheet'
+import { addToCart, MAX_LINE_QTY, useCart, viewCart } from '../lib/shop/cart'
+import { loadPlacedOrder, type PlacedOrder } from '../lib/shop/checkout'
+import { useOrderPaid } from '../lib/shop/useOrderPaid'
 import {
   categoriesOf,
   descriptionFor,
@@ -28,10 +34,13 @@ const LOW_STOCK = 5
  * it off there is no tab and src/lib/pages.ts sends the page to Home, so a
  * production build shows none of this.
  *
- * Browse only for now (phase B0): the store's products with their images,
- * prices and stock, a search and the store's own categories. A product opens a
- * sheet whose button goes to the product on the store's site (or WhatsApp, when
- * the store gave no page). Guest checkout replaces that button in B1.
+ * The store's products with their images, prices and stock, a search and the
+ * store's own categories (phase B0). A product opens a sheet whose button goes
+ * to the product on the store's site (or WhatsApp, when the store gave no page).
+ *
+ * Guest checkout (phase B1): when the server says this site takes orders in
+ * the app (catalogue.checkout), the sheet adds to a cart instead, and the cart
+ * opens CheckoutSheet. The last order placed shows at the top until a day has passed.
  */
 export function ShopScreen() {
   const { t, i18n } = useTranslation()
@@ -40,10 +49,16 @@ export function ShopScreen() {
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState<string | null>(null)
   const [open, setOpen] = useState<ShopProduct | null>(null)
+  const [cartOpen, setCartOpen] = useState(false)
+  const [orderOpen, setOrderOpen] = useState(false)
+  const [lastOrder, setLastOrder] = useState<PlacedOrder | null>(() => recentOrder(loadPlacedOrder()))
+  const cart = useCart()
 
   const products = useMemo(() => (catalogue.status === 'ready' ? catalogue.products : []), [catalogue])
   const categories = useMemo(() => categoriesOf(products), [products])
   const shown = useMemo(() => filterProducts(products, { query, category }), [products, query, category])
+  const canOrder = catalogue.status === 'ready' && catalogue.checkout
+  const cartView = useMemo(() => viewCart(cart, products), [cart, products])
 
   return (
     <div className="flex flex-col gap-4 px-4 pb-6 pt-2">
@@ -51,6 +66,8 @@ export function ShopScreen() {
         <h1 className="font-display text-[1.375rem] font-bold leading-tight text-foreground">{t('nav.shop')}</h1>
         <p className="mt-1 text-[13px] leading-snug text-muted-foreground">{t('shop.subtitle', { store: BRAND.store.name })}</p>
       </header>
+
+      {lastOrder && <LastOrderCard order={lastOrder} onOpen={() => setOrderOpen(true)} />}
 
       <label className="relative block">
         <span className="sr-only">{t('shop.search')}</span>
@@ -112,8 +129,71 @@ export function ShopScreen() {
 
       <p className="px-1 text-xs leading-relaxed text-muted-foreground">{t('shop.priceNote')}</p>
 
-      <ProductSheet product={open} locale={locale} onClose={() => setOpen(null)} />
+      {canOrder && cart.length > 0 && (
+        // Above the tab bar (3.5rem), in the page's own gutters.
+        <div className="sticky bottom-[calc(3.5rem+env(safe-area-inset-bottom)+0.75rem)] z-10">
+          <button
+            type="button"
+            onClick={() => setCartOpen(true)}
+            className="flex min-h-12 w-full items-center gap-3 rounded-2xl bg-primary px-4 py-2.5 text-left text-primary-foreground shadow-card outline-none active:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <ShoppingCart className="size-5 shrink-0" />
+            <span className="min-w-0 flex-1 font-semibold">{t('checkout.viewCart', { count: cartView.count })}</span>
+            {cartView.subtotal && <span className="shrink-0 font-display font-bold tabular-nums">{formatPrice(cartView.subtotal, locale)}</span>}
+          </button>
+        </div>
+      )}
+
+      <ProductSheet product={open} locale={locale} canOrder={canOrder} onClose={() => setOpen(null)} />
+      {canOrder && (
+        <CheckoutSheet
+          open={cartOpen}
+          onOpenChange={setCartOpen}
+          products={products}
+          locale={locale}
+          order={lastOrder}
+          onPlaced={setLastOrder}
+        />
+      )}
+      <Sheet open={orderOpen && lastOrder !== null} onOpenChange={setOrderOpen}>
+        <SheetContent>
+          <SheetHeader className="pr-14">
+            <SheetTitle>{t('checkout.resultTitle')}</SheetTitle>
+            <SheetDescription className="sr-only">{t('checkout.resultTitle')}</SheetDescription>
+          </SheetHeader>
+          {lastOrder && <OrderResult order={lastOrder} locale={locale} />}
+        </SheetContent>
+      </Sheet>
     </div>
+  )
+}
+
+/** How long the last order stays at the top of the Shop. */
+const RECENT_ORDER_MS = 24 * 60 * 60 * 1000
+
+function recentOrder(order: PlacedOrder | null): PlacedOrder | null {
+  return order && Date.now() - Date.parse(order.placedAt) < RECENT_ORDER_MS ? order : null
+}
+
+function LastOrderCard({ order, onOpen }: { order: PlacedOrder; onOpen: () => void }) {
+  const { t } = useTranslation()
+  const paid = useOrderPaid(order)
+  const waiting = order.paymentMethod === 'card' && order.paymentUrl && !paid
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex min-h-14 w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-left shadow-card outline-none active:bg-secondary focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <Package className="size-5 shrink-0 text-primary" />
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="font-semibold text-foreground">{t('checkout.orderShort', { number: order.orderNumber })}</span>
+        <span className={`text-xs ${waiting ? 'font-semibold text-brand-warn' : 'text-muted-foreground'}`}>
+          {order.paymentMethod === 'whatsapp' ? t('checkout.statusWhatsapp') : paid ? t('checkout.statusPaid') : waiting ? t('checkout.statusWaiting') : t('checkout.statusPlaced')}
+        </span>
+      </span>
+      <ChevronRight className="size-5 shrink-0 text-muted-foreground" />
+    </button>
   )
 }
 
@@ -174,12 +254,43 @@ function ProductCard({ product, locale, onOpen }: { product: ShopProduct; locale
   )
 }
 
-function ProductSheet({ product, locale, onClose }: { product: ShopProduct | null; locale: Locale; onClose: () => void }) {
+function ProductSheet({
+  product,
+  locale,
+  canOrder,
+  onClose,
+}: {
+  product: ShopProduct | null
+  locale: Locale
+  canOrder: boolean
+  onClose: () => void
+}) {
   const { t } = useTranslation()
+  const [qty, setQty] = useState(1)
   const description = product ? descriptionFor(product, locale) : undefined
   const whatsapp = BRAND.contact.whatsapp
+  const orderable = canOrder && product?.orderRef !== undefined
+  const maxQty = Math.min(MAX_LINE_QTY, product?.stock && product.stock > 0 ? product.stock : MAX_LINE_QTY)
+
+  function add() {
+    if (!product?.orderRef) return
+    if (addToCart(product.orderRef, qty)) {
+      toast.success(t('checkout.added', { count: qty, product: product.name }))
+      onClose()
+    } else {
+      toast.error(t('checkout.cartFull'))
+    }
+  }
+
   return (
-    <Sheet open={product !== null} onOpenChange={(isOpen) => !isOpen && onClose()}>
+    <Sheet
+      open={product !== null}
+      onOpenChange={(isOpen) => {
+        if (isOpen) return
+        setQty(1)
+        onClose()
+      }}
+    >
       <SheetContent>
         {product && (
           <>
@@ -214,7 +325,28 @@ function ProductSheet({ product, locale, onClose }: { product: ShopProduct | nul
               <p className="text-xs text-muted-foreground">{t('shop.researchUse')}</p>
             </SheetBody>
             <div className="shrink-0 px-5 pb-5 pt-2">
-              {product.url ? (
+              {orderable ? (
+                product.inStock ? (
+                  <div className="flex items-center gap-3">
+                    <Stepper
+                      value={qty}
+                      min={1}
+                      max={maxQty}
+                      onChange={setQty}
+                      decrementLabel={t('checkout.fewer', { product: product.name })}
+                      incrementLabel={t('checkout.more', { product: product.name })}
+                    />
+                    <Button fullWidth onClick={add}>
+                      <ShoppingCart />
+                      {t('checkout.addToCart')}
+                    </Button>
+                  </div>
+                ) : (
+                  <Button fullWidth variant="locked" disabled>
+                    {t('shop.outOfStock')}
+                  </Button>
+                )
+              ) : product.url ? (
                 <a
                   href={product.url}
                   target="_blank"

@@ -37,6 +37,8 @@ export interface ShopProduct {
   descriptionEs?: string
   stock?: number
   coaUrl?: string
+  /** What an order names it by; only on products the store takes orders for in the app. */
+  orderRef?: string
 }
 
 const MAX_PRODUCTS = 1000
@@ -72,6 +74,11 @@ function price(value: unknown): ShopPrice | undefined {
   return { currency, amount }
 }
 
+/** Whether the server says this site takes orders in the app (guest checkout, B1). */
+export function parseCheckoutFlag(input: unknown): boolean {
+  return isRecord(input) && input.checkout === true
+}
+
 /**
  * The server's response, checked like any outside input: anything that isn't
  * this brand's catalogue is rejected whole (null), and a malformed product is
@@ -91,6 +98,8 @@ export function parseShopProducts(input: unknown, brand: BrandId): ShopProduct[]
     if (category) product.category = category
     const id = cleanText(raw.id)
     if (id) product.id = id
+    const orderRef = cleanText(raw.orderRef)
+    if (orderRef && /^[A-Za-z0-9-]{1,120}$/.test(orderRef)) product.orderRef = orderRef
     for (const key of ['url', 'imageUrl', 'thumbnailUrl', 'coaUrl'] as const) {
       const url = httpsUrl(raw[key])
       if (url) product[key] = url
@@ -164,7 +173,7 @@ export function filterProducts(
 export type ShopCatalogueState =
   | { status: 'loading' }
   | { status: 'error' }
-  | { status: 'ready'; products: ShopProduct[] }
+  | { status: 'ready'; products: ShopProduct[]; checkout: boolean }
 
 let state: ShopCatalogueState = { status: 'loading' }
 let started = false
@@ -181,8 +190,9 @@ export async function loadShopCatalogue(brand: BrandId, fetchFn: typeof fetch = 
   set({ status: 'loading' })
   try {
     const response = await fetchFn('/api/catalogue', { headers: { Accept: 'application/json' } })
-    const products = response.ok ? parseShopProducts(await response.json(), brand) : null
-    set(products ? { status: 'ready', products } : { status: 'error' })
+    const body: unknown = response.ok ? await response.json() : null
+    const products = parseShopProducts(body, brand)
+    set(products ? { status: 'ready', products, checkout: parseCheckoutFlag(body) } : { status: 'error' })
   } catch {
     set({ status: 'error' })
   }
