@@ -91,8 +91,9 @@ export interface BrandConfig {
   defaultDiscardDays?: number
   /**
    * Typical days from order to delivery, for "order by <date>" on a low vial
-   * (src/lib/reorder.ts). Unset until the client confirms it — with it unset
-   * the app shows the Reorder button but no date.
+   * (src/lib/reorder.ts). With it unset the app shows the Reorder button but no
+   * date. The client gave 2–3 days for both stores (October 2026); the longer
+   * end is used, so "order by" never cuts it fine.
    */
   shippingDays?: number
   /**
@@ -132,6 +133,7 @@ export const PCR_BRAND: BrandConfig = {
   // The square logo tile, as in the approved Home screen.
   heroLogo: { src: '/brand/icon-192.png', width: 44, height: 44 },
   features: { store: false },
+  shippingDays: 3,
   siteUrl: 'https://app.peptidescostarica.net',
   store: PCR_STORE,
 }
@@ -154,6 +156,7 @@ export const UPD_BRAND: BrandConfig = {
   // The ivory "UPD / USA Peptide Depot" wordmark (transparent), which sits on the forest-green band.
   heroLogo: { src: '/brand/upd-logo.png', width: 109, height: 36 },
   features: { store: false },
+  shippingDays: 3,
   siteUrl: 'https://app.usapeptidedepot.com',
   store: UPD_STORE,
 }
