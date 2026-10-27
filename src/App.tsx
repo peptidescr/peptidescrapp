@@ -25,6 +25,7 @@ import {
   type TrackSegment,
 } from './lib/pages'
 import { db, ensureCompoundsSeeded, ensureSettingsRow } from './lib/db'
+import { migrateLegacySyringeData } from './lib/migrations'
 import { useCustomCompoundsLoaded } from './lib/customCompounds'
 import { startStoreCatalogueRefresh, syncStoreCatalogue, useStoreCompoundsLoaded } from './lib/storeCatalogue'
 import { DEFAULT_LOCALE, toSupportedLocale } from './i18n'
@@ -214,6 +215,7 @@ function App() {
   // next couple of days (silently does nothing where unsupported — see
   // notifications.ts).
   useEffect(() => {
+    void migrateLegacySyringeData()
     void ensureCompoundsSeeded().then(() => syncStoreCatalogue())
     void ensureSettingsRow({ locale: DEFAULT_LOCALE, syringeType: 'U-100' })
     if (navigator.storage?.persist) {

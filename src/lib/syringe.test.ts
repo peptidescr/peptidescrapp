@@ -16,11 +16,11 @@ describe('layoutSyringe', () => {
   })
 
   it('shows a too-large draw as a full largest barrel and flags it', () => {
-    const layout = layoutSyringe('U-50', 70)
-    expect(layout.capacityUnits).toBe(50)
+    const layout = layoutSyringe('U-50', 170)
+    expect(layout.capacityUnits).toBe(150)
     expect(layout.fillFraction).toBe(1)
     expect(layout.overflow).toBe(true)
-    expect(layoutSyringe('U-50', 50).overflow).toBe(false)
+    expect(layoutSyringe('U-50', 150).overflow).toBe(false)
   })
 
   it('marks every graduation and numbers the major ones', () => {
@@ -54,30 +54,35 @@ describe('layoutSyringe with a chosen barrel', () => {
   })
 
   it('still flags a draw that fits no barrel', () => {
-    expect(layoutSyringe('U-50', 70, 25).overflow).toBe(true)
+    expect(layoutSyringe('U-50', 170, 25).overflow).toBe(true)
   })
 })
 
 describe('barrelCapacities', () => {
   it('lists each type\'s barrels, smallest first', () => {
-    expect(barrelCapacities('U-100')).toEqual([30, 50, 100])
-    expect(barrelCapacities('U-50')).toEqual([25, 50])
-    expect(barrelCapacities('U-40')).toEqual([20, 40])
+    expect(barrelCapacities('U-100')).toEqual([30, 50, 100, 300])
+    expect(barrelCapacities('U-50')).toEqual([25, 50, 150])
+    expect(barrelCapacities('U-40')).toEqual([20, 40, 120])
   })
 })
 
-describe('layoutSyringe for a 3 mL syringe', () => {
-  it('is one 3 mL barrel of thirty 0.1 mL marks, numbered every 1 mL', () => {
-    expect(barrelCapacities('3mL')).toEqual([30])
-    const layout = layoutSyringe('3mL', 4)
-    expect(layout.capacityUnits).toBe(30)
+describe('layoutSyringe for a 3 mL barrel', () => {
+  it('is 300 units of U-100, marked every 0.1 mL (10 units) and numbered every 1 mL', () => {
+    const layout = layoutSyringe('U-100', 40, 300)
+    expect(layout.capacityUnits).toBe(300)
     expect(layout.ticks).toHaveLength(31)
-    expect(layout.labels).toEqual([0, 10, 20, 30])
-    expect(layout.fillFraction).toBeCloseTo(4 / 30)
+    expect(layout.labels).toEqual([0, 100, 200, 300])
+    expect(layout.fillFraction).toBeCloseTo(40 / 300)
     expect(layout.overflow).toBe(false)
   })
 
-  it('flags a draw bigger than 3 mL', () => {
-    expect(layoutSyringe('3mL', 45).overflow).toBe(true)
+  it('marks every 0.1 mL on U-50 and U-40 too', () => {
+    expect(layoutSyringe('U-50', 0, 150).minorStep).toBe(5)
+    expect(layoutSyringe('U-40', 0, 120).minorStep).toBe(4)
+  })
+
+  it('takes a draw too big for a 1 mL barrel, and flags one bigger than 3 mL', () => {
+    expect(layoutSyringe('U-100', 160).capacityUnits).toBe(300)
+    expect(layoutSyringe('U-100', 450).overflow).toBe(true)
   })
 })

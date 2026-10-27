@@ -25,7 +25,7 @@ import {
   mixFromVialMass,
   type MixResult,
 } from '../lib/reconstitution'
-import { barrelCapacities, layoutSyringe } from '../lib/syringe'
+import { layoutSyringe } from '../lib/syringe'
 import {
   formatDecimal,
   formatGrouped,
@@ -36,16 +36,22 @@ import {
   milliIUFromIU,
   parseDecimal,
   syringeUnitsPerMl,
+  syringeCapacityUnits,
+  syringeSizeFor,
+  DEFAULT_SYRINGE_SIZE_ML,
+  SYRINGE_SIZES_BY_TYPE,
+  type SyringeSizeMl,
   type Locale,
   type MassUnit,
   type SyringeType,
 } from '../lib/units'
 import { doseOn } from '../lib/titration'
+import { readLegacySyringeType } from '../lib/syringeLegacy'
 import { useLiveQuery } from '../lib/useLiveQuery'
 import { updateSettings, useSettings } from '../lib/useSettings'
 import { activeVialFor } from '../lib/vials'
 
-const SYRINGE_TYPES: SyringeType[] = ['U-100', 'U-50', 'U-40', '3mL']
+const SYRINGE_TYPES: SyringeType[] = ['U-100', 'U-50', 'U-40']
 
 type Custom = 'custom'
 
@@ -95,9 +101,22 @@ export function CalculatorScreen({ protocolId, onCreateProtocol, onSavedToProtoc
   const [concentrationInput, setConcentrationInput] = useState('')
   const [doseInput, setDoseInput] = useState('')
   const [doseUnit, setDoseUnit] = useState<MassUnit>('mg')
-  const [syringeType, setSyringeType] = useState<SyringeType>(settings?.syringeType ?? 'U-100')
-  // The barrel the person picked, in the syringe type's units; null = the biggest (the 1 mL / 100-unit scale).
-  const [barrelUnits, setBarrelUnits] = useState<number | null>(null)
+  const [syringeType, setSyringeType] = useState<SyringeType>('U-100')
+  // The barrel, as a size in mL (SYRINGE_SIZES_BY_TYPE); 1 mL unless the person picked another.
+  const [syringeSizeMl, setSyringeSizeMl] = useState<SyringeSizeMl>(DEFAULT_SYRINGE_SIZE_ML)
+  // Start on the syringe last used. This screen's own settings query is empty on
+  // its first render, so the saved choice is picked up once, when it arrives (the
+  // same set-state-during-render shape as the protocol prefill below). A row from
+  // the few days 3 mL was a type of its own reads as a 3 mL U-100 until the
+  // migration (migrations.ts) has rewritten it.
+  const [syringeRestored, setSyringeRestored] = useState(false)
+  if (settings && !syringeRestored) {
+    const saved = readLegacySyringeType(settings.syringeType)
+    const type = (saved.type as SyringeType | undefined) ?? 'U-100'
+    setSyringeRestored(true)
+    setSyringeType(type)
+    setSyringeSizeMl(syringeSizeFor(type, settings.syringeSizeMl ?? saved.sizeMl ?? DEFAULT_SYRINGE_SIZE_ML))
+  }
   // Whether each row is in "Custom" mode (its own numeric input open) rather than on a preset.
   const [customVial, setCustomVial] = useState(false)
   const [vialInput, setVialInput] = useState('')
@@ -164,9 +183,16 @@ export function CalculatorScreen({ protocolId, onCreateProtocol, onSavedToProtoc
   }
 
   function handleSyringeChange(type: SyringeType) {
+    // A 0.3 mL barrel only exists for U-100, so moving off it falls back to the usual 1 mL.
+    const size = syringeSizeFor(type, syringeSizeMl)
     setSyringeType(type)
-    setBarrelUnits(null)
-    void updateSettings({ syringeType: type })
+    setSyringeSizeMl(size)
+    void updateSettings({ syringeType: type, syringeSizeMl: size })
+  }
+
+  function handleSizeChange(size: SyringeSizeMl) {
+    setSyringeSizeMl(size)
+    void updateSettings({ syringeSizeMl: size })
   }
 
   function pickVial(choice: number | Custom) {
@@ -294,6 +320,7 @@ export function CalculatorScreen({ protocolId, onCreateProtocol, onSavedToProtoc
           vialUnit: unit,
           diluentMl: isSolution ? undefined : (diluentValue ?? undefined),
           syringeType,
+          syringeSizeMl,
           drawVolumeMl: result.drawVolumeMl,
           drawSyringeUnits: result.drawSyringeUnits,
           doseAmount: doseValue,
@@ -333,14 +360,13 @@ export function CalculatorScreen({ protocolId, onCreateProtocol, onSavedToProtoc
   const customOption = { value: 'custom' as Custom, label: t('calculator.custom') }
   const dash = '–'
 
-  // The syringe: the type, and the barrel drawn (the biggest unless chosen).
-  const barrels = barrelCapacities(syringeType)
-  const chosenBarrel = barrelUnits !== null && barrels.includes(barrelUnits) ? barrelUnits : barrels[barrels.length - 1]!
+  // The syringe: the type, and the barrel chosen (1 mL unless picked). A draw too big for it
+  // is drawn on the next barrel up (layoutSyringe).
+  const chosenBarrel = syringeCapacityUnits(syringeType, syringeSizeMl)
   const barrelMl = (capacity: number) => {
     const ml = capacity / syringeUnitsPerMl(syringeType)
     return Number.isInteger(ml) ? String(ml) : formatDecimal(ml, locale, 2)
   }
-  const isMlSyringe = syringeType === '3mL'
   const drawnBarrel = result ? layoutSyringe(syringeType, result.drawSyringeUnits, chosenBarrel).capacityUnits : chosenBarrel
 
   return (
@@ -420,25 +446,18 @@ export function CalculatorScreen({ protocolId, onCreateProtocol, onSavedToProtoc
               className="mt-1 flex flex-col gap-4"
             >
               <div>
-                {/* A 3 mL syringe has no units, only a mark every 0.1 mL, so it is read in mL. */}
                 <p className="flex items-baseline gap-2">
                   <span className="font-display text-[3.25rem] font-bold leading-none tabular-nums">
-                    {isMlSyringe
-                      ? formatDecimal(result.drawVolumeUl / 1000, locale, 1)
-                      : formatSyringeUnits(result.drawSyringeUnits, locale)}
+                    {formatSyringeUnits(result.drawSyringeUnits, locale)}
                   </span>
-                  <span className="text-base font-medium text-on-primary-muted">
-                    {isMlSyringe ? 'mL' : t('calculator.unitsWord')}
-                  </span>
+                  <span className="text-base font-medium text-on-primary-muted">{t('calculator.unitsWord')}</span>
                 </p>
                 <p className="mt-1.5 text-[13px] text-on-primary-muted">
-                  {isMlSyringe
-                    ? t('calculator.onSyringe3mL', { count: result.drawSyringeUnits, marks: formatSyringeUnits(result.drawSyringeUnits, locale) })
-                    : t('calculator.onSyringe', {
-                        volume: `${formatVolumeMlFixed(result.drawVolumeUl, locale)} mL`,
-                        units: drawnBarrel,
-                        ml: barrelMl(drawnBarrel),
-                      })}
+                  {t('calculator.onSyringe', {
+                    volume: `${formatVolumeMlFixed(result.drawVolumeUl, locale)} mL`,
+                    units: drawnBarrel,
+                    ml: barrelMl(drawnBarrel),
+                  })}
                 </p>
               </div>
               <SyringeGraphic
@@ -562,21 +581,21 @@ export function CalculatorScreen({ protocolId, onCreateProtocol, onSavedToProtoc
           ariaLabel={t('calculator.syringeType')}
           value={syringeType}
           onChange={handleSyringeChange}
-          options={SYRINGE_TYPES.map((type) => ({ value: type, label: type === '3mL' ? t('calculator.syringe3mL') : type }))}
+          options={SYRINGE_TYPES.map((type) => ({ value: type, label: type }))}
         />
       </PresetRow>
-      {/* The 3 mL syringe comes in one barrel size, which its type already names. */}
-      {barrels.length > 1 && (
-        <PresetRow label={t('calculator.syringeSize')}>
-          <Segmented
-            ariaLabel={t('calculator.syringeSize')}
-            value={String(chosenBarrel)}
-            onChange={(value) => setBarrelUnits(Number(value))}
-            // Largest first, like the 1 mL / 0.5 mL / 0.3 mL it is sold as.
-            options={[...barrels].reverse().map((capacity) => ({ value: String(capacity), label: `${barrelMl(capacity)} mL` }))}
-          />
-        </PresetRow>
-      )}
+      <PresetRow label={t('calculator.syringeSize')}>
+        <Segmented
+          ariaLabel={t('calculator.syringeSize')}
+          value={String(syringeSizeMl)}
+          onChange={(value) => handleSizeChange(Number(value) as SyringeSizeMl)}
+          // Largest first, like the 3 mL / 1 mL / 0.5 mL / 0.3 mL they are sold as.
+          options={[...SYRINGE_SIZES_BY_TYPE[syringeType]].reverse().map((size) => ({
+            value: String(size),
+            label: `${formatDecimal(size, locale, 1)} mL`,
+          }))}
+        />
+      </PresetRow>
 
       <BacWaterCard />
 
@@ -645,6 +664,7 @@ function SaveToProtocol({
     saved.vialSize === snapshot.vialSize &&
     saved.diluentMl === snapshot.diluentMl &&
     saved.syringeType === snapshot.syringeType &&
+    (saved.syringeSizeMl ?? DEFAULT_SYRINGE_SIZE_ML) === (snapshot.syringeSizeMl ?? DEFAULT_SYRINGE_SIZE_ML) &&
     saved.drawSyringeUnits === snapshot.drawSyringeUnits &&
     saved.doseAmount === snapshot.doseAmount &&
     saved.doseUnit === snapshot.doseUnit

@@ -25,22 +25,25 @@ export interface SyringeScale {
 }
 
 const BARRELS: Record<SyringeType, SyringeScale[]> = {
-  // 0.3 mL, 0.5 mL and 1 mL barrels. 1 mL U-100 barrels are marked every 2 units.
+  // The sizes in SYRINGE_SIZES_BY_TYPE (units.ts), in units: 0.3 mL (U-100 only),
+  // 0.5, 1 and 3 mL. 1 mL U-100 barrels are marked every 2 units; 3 mL barrels
+  // every 0.1 mL, which is 10 units of U-100, 5 of U-50 and 4 of U-40.
   'U-100': [
     { capacityUnits: 30, minorStep: 1, majorStep: 5 },
     { capacityUnits: 50, minorStep: 1, majorStep: 5 },
     { capacityUnits: 100, minorStep: 2, majorStep: 10, labelStep: 25 },
+    { capacityUnits: 300, minorStep: 10, majorStep: 50, labelStep: 100 },
   ],
   'U-50': [
     { capacityUnits: 25, minorStep: 1, majorStep: 5 },
     { capacityUnits: 50, minorStep: 1, majorStep: 5 },
+    { capacityUnits: 150, minorStep: 5, majorStep: 25, labelStep: 50 },
   ],
   'U-40': [
     { capacityUnits: 20, minorStep: 1, majorStep: 5 },
     { capacityUnits: 40, minorStep: 1, majorStep: 5 },
+    { capacityUnits: 120, minorStep: 4, majorStep: 20, labelStep: 40 },
   ],
-  // A 3 mL barrel: its 'unit' is a 0.1 mL mark, so 30 marks, numbered every 1 mL (the graphic prints them as mL).
-  '3mL': [{ capacityUnits: 30, minorStep: 1, majorStep: 5, labelStep: 10 }],
 }
 
 export interface SyringeLayout extends SyringeScale {

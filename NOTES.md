@@ -2377,10 +2377,8 @@ carries the unreleased Part A redesign, so this is a separate branch off `main`
    - **Backups are now format v2**: an optional `customCompounds` list. v1 files still import; a Phase 2
      v2 file imports too (its vials and templates are ignored on `main`). Ids must start `custom-`, so a
      file can't overwrite a catalogue entry.
-3. **3 mL syringe.** `SyringeType` gains `'3mL'`: 10 graduations/mL, i.e. a mark every 0.1 mL (the usual
-   3 mL barrel). It has no units, so the calculator labels the second result "Draw (0.1 mL marks)" and the
-   protocol card's summary reads in mL. The draw still rounds down to a mark. If the client's barrels are
-   marked every 0.2 mL, change the `'3mL'` value in `SYRINGE_UNITS_PER_ML` (5) and the label.
+3. **3 mL syringe.** *(Changed the same week: it first shipped as a fourth syringe type; it is now a barrel
+   size. See "Syringe sizes" below.)*
 4. **Several doses a day.** Already worked (a protocol gives one dose per reminder time). The form now says
    so ("Dose times", "Add another dose"), suggests a free time instead of repeating 08:00, caps at 12 (the
    backup limit), refuses the same time twice, saves times earliest first (`src/lib/doseTimes.ts`), and the
@@ -2455,3 +2453,50 @@ UPD 375 and 320 and PCR (Spanish) 375 and 320, across Home, Today, Protocols, Hi
 plus the calculator with a result and the body-map sheet: no low-contrast text, no horizontal scroll, no
 sub-44px targets, no untranslated strings, no console errors. Light re-checked at UPD 375 and PCR 320 (unchanged).
 `System` resolves to dark or light with the device and follows it while the app is open.
+## Syringe sizes: 3 mL is a barrel size, not a syringe type (October 2026)
+
+The 3 mL syringe first shipped as a fourth `SyringeType` (0.1 mL marks, read in mL). That was the wrong
+shape: a syringe type says what a *unit* is (U-100, U-50, U-40), and a 3 mL syringe is just a bigger barrel of
+one of those. It is now a **size** you pick under the type.
+
+- **Model:** `SyringeType` is back to U-100 / U-50 / U-40. New `SyringeSizeMl = 0.3 | 0.5 | 1 | 3` and
+  `syringeCapacityUnits(type, size)` in `units.ts`: a 3 mL holds 300 units of U-100, 150 of U-50, 120 of
+  U-40, and a 0.3 mL U-100 holds 30. The barrels follow how they are sold (`SYRINGE_SIZES_BY_TYPE`): U-100 has
+  0.3 / 0.5 / 1 / 3, U-50 and U-40 have 0.5 / 1 / 3 (no 0.3 mL in those scales, as on staging). Changing the type
+  to one that doesn't come in the chosen size falls back to 1 mL (`syringeSizeFor`). The size never changes
+  what a unit is, so the draw maths and its rounding are untouched. 5 and 10 mL are left out on purpose: they
+  are for drawing water or big volumes, not the dose this calculator works out; add them to the table if asked.
+- **Calculator:** a "Syringe size (mL)" row (the sizes above, as plain numbers so they fit a 320px phone) under the type. The result gets an "On a 3 mL syringe:
+  40 of 300 units" row, and a warning when the draw is more than the barrel holds (for a 1 mL as well, which
+  had no such warning before). The choice is remembered in `Settings.syringeSizeMl`, and the card on a
+  protocol says "· 3 mL syringe" when a saved mix used one (`SavedReconstitution.syringeSizeMl`; absent = 1 mL).
+  Both fields are optional, so there is no Dexie version bump.
+- **A bug fixed on the way:** the calculator never restored the saved syringe choice. Its own settings query is
+  empty on the first render, so the initial state always won, and a saved U-50 opened as U-100. The saved type
+  and size are now read once, when settings arrive.
+- **Data that already used the old type** (a few days on `main`): `migrateLegacySyringeData` in `migrations.ts`
+  runs on every open and rewrites settings and saved mixes as a 3 mL U-100, turning marks of 0.1 mL into
+  U-100 units (4 marks → 40 units, the same 0.4 mL). Backups made in that window import the same way
+  (`syringeLegacy.ts`, shared by both). The helpers are pure and tested; the migration itself was checked in the
+  browser by writing old-shaped rows and reloading.
+- **Merging into `staging`:** staging has the 3 mL *type* (a 3 mL barrel in `syringe.ts`, a 3 mL branch in the
+  result panel, the `'3mL'` validation). Replace those with sizes: staging already has the barrel row
+  (1 / 0.5 / 0.3 mL, 0.3 for U-100 only), and `main` now offers the same set, so 3 mL is one more barrel per
+  type (300 / 150 / 120 units), not a type.
+
+**Verified:** typecheck, 220 tests, lint (only the known `App.tsx` error), both builds. In a headless browser on
+UPD (375px) and PCR in Spanish (320px): the migration of old-shaped settings and a saved mix, the size row and
+capacity line, the overflow warning (a 1.6 mL draw warns on 1 mL and not on 3 mL), the choice surviving a
+reload, the protocol card, no untranslated strings, no console errors.
+
+## Syringe sizes merged into staging
+
+`main`'s syringe sizes (PR #3) replaced staging's short-lived 3 mL type. Staging already had a barrel row and a
+to-scale syringe graphic, so 3 mL became one more barrel per type in `syringe.ts` (300 units of U-100 marked every
+10, 150 of U-50 every 5, 120 of U-40 every 4, numbered every 1 mL), and the barrel row is now driven by `main`'s
+saved size (`Settings.syringeSizeMl`, sizes from `SYRINGE_SIZES_BY_TYPE`), so the choice is remembered and 1 mL is
+the default instead of "the biggest". The calculator's result panel lost its 3 mL-in-mL branch; the protocol card
+draws a saved mix on the barrel it was worked out for and says "· 3 mL syringe" when it isn't 1 mL. `main`'s
+migration and legacy backup reading came over unchanged. Checked: 455 tests, lint, parity; in the browser on UPD
+375 and PCR Spanish 320, the legacy migration, the barrel row per type, the 3 mL graphic, the fallback to 1 mL
+and the size surviving a reload.
