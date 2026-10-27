@@ -2500,3 +2500,46 @@ draws a saved mix on the barrel it was worked out for and says "· 3 mL syringe"
 migration and legacy backup reading came over unchanged. Checked: 455 tests, lint, parity; in the browser on UPD
 375 and PCR Spanish 320, the legacy migration, the barrel row per type, the 3 mL graphic, the fallback to 1 mL
 and the size surviving a reload.
+
+## Part B, phase B0 (October 2026)
+
+What was agreed with the developer: the stores keep accounts, points, credit and referral records (Option A;
+the app shows them and we write the API spec their developers build), guest checkout comes before accounts,
+and B0 is shippable to the live sites on its own while the rest continues on `staging`. Live builds have the
+store flag off, so of B0 a customer only sees the theme toggle on Home and the "order by" dates.
+
+- **Theme toggle on Home's top bar**, beside the bell and Settings (`HeroHeader` `onToggleTheme`), as every
+  other page has in its app bar. With the back arrow and four buttons on a 320px phone the logo shrinks
+  (UPD's wordmark to about 80px) instead of pushing the row off screen.
+- **Shipping time:** `shippingDays: 3` for both brands (the client said 2–3 days), so low-vial alerts now show
+  the last day to order.
+- **Catalogue with shop fields:** `/api/catalogue` products gain optional `id`, `price` / `regularPrice` (with
+  their currency: PCR's WooCommerce feed is in colones, UPD's in dollars; display only), image links, a plain-text
+  description (`descriptionEn`/`Es` where UPD gives them), `stock` and `coaUrl`. Still public feeds only: **B0
+  needs no keys.** PCR's partner API (USD prices, Spanish descriptions, the product ids its order endpoint needs)
+  comes in with checkout. Until then PCR's product text and category names are the store's own English.
+- **Shop, browse only**, behind `VITE_STORE_ENABLED`: grid with image, price, "was" price, stock; the store's
+  categories as chips; accent-insensitive search; a product sheet with description, COA and a button to the
+  product on the store (WhatsApp when there's no page). `src/lib/shop/catalogue.ts` is the data side, tested.
+- **Signing helpers** (`netlify/lib/signing.ts`, unused until checkout): PCR's partner HMAC and the ChargX
+  webhook check as UPD documents it (`timestamp.body`, `v1=` hex, five-minute replay window, constant-time),
+  plus an environment reader that never prints a value. Tests use made-up secrets. Whether PCR's webhooks use the
+  same scheme is to be confirmed against a real sandbox event.
+- **Rules as data** (`src/lib/store/rules.ts`): $50 = 1 point, 1 point = $1; referrals per the head of growth's
+  spreadsheet ($20, +$25 at 5, +$75 at 10, Lab tier for 12 months at 25, no friend discount, affiliate wins).
+  The helpers reproduce the spreadsheet's payout table. **Unconfirmed:** tier thresholds (placeholders $2,500 /
+  $7,500 of spend a year, since point thresholds no longer make sense at $50 a point) and the friend's minimum
+  first order ($100 in the sheet, $75 in the client's summary).
+- **Keys:** the store API documents carry live keys. None is in the repo, and none should be: live and sandbox
+  keys go into Netlify's environment variables, entered by whoever holds them.
+
+**Also merged first:** `main`'s syringe sizes into `staging` (see "Syringe sizes merged into staging").
+
+**Verified:** typecheck, 484 tests, lint, i18n parity, both builds (the store flag compiles to `false`). In a
+headless browser with the flag on: UPD at 375 (light) and 320 (dark), PCR in Spanish at 320 — products, images,
+categories, search, the sheet and its store link, no horizontal scroll, no small targets, no low contrast, no
+console errors. The Home toggle on both brands at 320, with and without the back arrow.
+
+**Next (B1, guest checkout), waiting on the client:** whether test orders and leads hit their real CRM and
+staff; how a UPD card payment is tied to an order (ask for a `paymentUrl` like PCR's); order status (paid,
+delivered, refunded); the webhook setup on both sides; PCR's display currency.

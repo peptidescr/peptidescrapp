@@ -18,6 +18,13 @@ current, and (2) its legal text with your lawyer. It is new wording in the same 
 USA Peptide Depot's, built on what peptidescostarica.net itself says ("research use only,
 not for human or veterinary use"), because that brand only ever had placeholder text.
 
+**Store features, first step (October 2026).** Groundwork for the in-app shop, rewards and referrals.
+What customers see on the live sites: a light/dark switch on the Home screen's top bar (every other
+screen already had one), and on a vial that's running low, the last day to order so it arrives in time
+(based on your 2–3 day delivery). The Shop itself is built but switched off until checkout is ready; it
+lists your store's products with their pictures, prices, stock and certificates, and links each one to
+your site.
+
 **Search engines and link previews (October 2026).** Both sites were live but gave search
 engines almost nothing: no robots.txt or sitemap (both returned "not found"), and a page whose
 only text, before the app starts, was empty. Now on both:
