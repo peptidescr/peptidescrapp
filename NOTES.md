@@ -2543,3 +2543,61 @@ console errors. The Home toggle on both brands at 320, with and without the back
 **Next (B1, guest checkout), waiting on the client:** whether test orders and leads hit their real CRM and
 staff; how a UPD card payment is tied to an order (ask for a `paymentUrl` like PCR's); order status (paid,
 delivered, refunded); the webhook setup on both sides; PCR's display currency.
+
+## Part B, phase B1: guest checkout (October 2026, on `staging`)
+
+Cart, customer details, order with the store, payment on the store's own page, "paid" when ChargX says so.
+No accounts yet: both stores' customers check out as guests today. Behind `VITE_STORE_ENABLED` like the rest
+of the Shop, and **off on every site unless its runtime environment turns it on** (below).
+
+**Read from the API docs, not asked of the client:** orders and leads on both stores are live (staff alerts,
+emails, CRM), with no test mode; PCR holds a card order's notifications until it's paid; the only payment
+event either names is `payment.succeeded`, and neither has an order-status endpoint; PCR charges in USD.
+**Working assumption (agreed with the developer):** UPD's order API will return a `paymentUrl` like PCR's.
+Its doc shows none today, and ChargX's own checkout has no field to tie a payment to a UPD order, so the app
+never charges through ChargX directly. Until UPD adds the link, a UPD card order says the store will contact
+the customer to take payment.
+
+- **Server** (`netlify/lib/checkout.ts`, function `/api/orders`): validates the cart and details per store
+  (PCR: international phone, free-text address, card or WhatsApp; UPD: US state and ZIP, card only; both: the
+  research-use confirmation, 1–50 lines of 1–100), builds each store's documented order (PCR signed over the
+  exact body; no prices ever sent), and reads the answer into placed / refused (the store's message, shown as
+  it is, as PCR asks) / **unconfirmed**. A timeout or an unclear answer is "unconfirmed", never "failed": the
+  order may exist, so the app offers no retry and points to the store instead. Payment links are kept only on
+  the store's own hosts or ChargX's. Same-origin requests only; Netlify rate limit of 5 a minute per visitor.
+  Logs name the order number and outcome, never a key, a body or a customer's details.
+- **The safety switches** (`checkoutSettings`, runtime environment only, see `.env.example`):
+  `STORE_CHECKOUT=sandbox` is the only value accepted (there is no live mode in the code; adding one is a
+  deliberate change); PCR needs its **sandbox** partner key, and a `pk_live_` key is refused; UPD, whose order
+  API has no sandbox at all, also needs `UPD_LIVE_ORDERS_OK=true`, to be set only once the store agrees how
+  test orders are handled.
+- **Catalogue:** with PCR's sandbox key set, products come from the partner API (ids the order API takes, USD,
+  descriptions in both languages). The partner endpoint answered 404 on 27 October, so the parser follows the
+  documented shape and falls back to the public feed, browse-only, if the API fails. Products carry an
+  `orderRef` (PCR's partner id, UPD's slug) only from sources the store takes orders against, and the response
+  says `checkout: true` only when the site can take orders, so the app never shows a cart it can't send.
+- **Payments** (`netlify/lib/payments.ts`): `/api/chargx-webhook` verifies the signature (`CHARGX_WEBHOOK_SECRET`)
+  and records `payment.succeeded` against the order number, found by its prefix (`PTR-` / `USP-`) wherever
+  it sits in the event, since neither doc shows the payload. SKU fields are never read (UPD's SKUs also
+  start `USP-`). An event without one logs its field names, not values, so the first real sandbox event shows
+  the shape. `/api/order-status?order=` answers `{ paid }` and nothing else.
+- **App:** `src/lib/shop/cart.ts` (references and quantities in localStorage; prices always from today's
+  catalogue), `src/lib/shop/checkout.ts`, `useOrderPaid` (polls every 5 s while visible, for up to 30
+  minutes), `CheckoutSheet` (cart → details → result) and the Shop's cart bar, add-to-cart in the product
+  sheet, and the last order's card for a day. "Pay now" opens the store's page from the customer's own tap.
+  No receipt or confirmation is ever sent from the app: both stores send their own.
+- **Local testing:** `STORE_CHECKOUT_MOCK=1` with `VITE_STORE_ENABLED=true` on `npm run dev:pcr` / `dev:upd`
+  serves `/api/orders` and `/api/order-status` from a pretend store (`netlify/lib/mockStore.ts`) that never
+  touches a network. Orders count as paid after 8 seconds, and a customer named "Refuse" is refused.
+
+**Verified:** typecheck, 520 tests (the server tests use a fake store; nothing in them reaches a network),
+lint, i18n parity, both builds (store flag `false`, no mock code in the bundle). Against the mock store in a
+headless browser: UPD at 375 (light) and PCR in Spanish at 320 (dark) through cart, validation, order,
+"Pay now" (not followed), paid, and the last-order card; the store's refusal message. No horizontal scroll,
+small targets, low contrast or console errors.
+
+**Before the first real sandbox order (`staging` deploy):** the client agrees how test orders are handled
+(they reach real staff); the keys go into the staging site's environment; the webhook URL goes to PCR, and
+for UPD a webhook is created in its sandbox ChargX store (dashboard access needed); UPD adds `paymentUrl`.
+Then check against real responses: the partner product list's envelope, UPD's error shape, the webhook payload
+and its order reference, and whether PCR's webhook signature matches UPD's documented scheme.
