@@ -16,6 +16,18 @@
 
 export type CatalogueBrand = 'pcr' | 'upd'
 
+export type StoreCurrency = 'USD' | 'CRC'
+
+/**
+ * A shelf price, in the currency's major units (79 is $79; 70176 is ₡70,176).
+ * For showing only: an order is always priced by the store itself, which
+ * ignores any price sent to it, so nothing here is ever charged.
+ */
+export interface StorePrice {
+  currency: StoreCurrency
+  amount: number
+}
+
 export interface StoreProduct {
   /** The store's own product name, e.g. "Tirzepatide 60mg". One product per vial size. */
   name: string
@@ -26,6 +38,25 @@ export interface StoreProduct {
   inStock: boolean
   /** The product page on the store. */
   url?: string
+  // Shop fields (Part B). All optional, so the app's compound sync, which reads
+  // only the ones above, is unaffected.
+  /** The store's own id for the product (UPD's uuid; WooCommerce's number, as text). */
+  id?: string
+  /** What it sells for now. */
+  price?: StorePrice
+  /** What it sold for before a sale; only present when it's higher than `price`. */
+  regularPrice?: StorePrice
+  /** The store's own image links, loaded from there and never copied (both stores ask for that). */
+  imageUrl?: string
+  thumbnailUrl?: string
+  /** Plain text. `description` is in whatever language the store wrote it; the other two say which. */
+  description?: string
+  descriptionEn?: string
+  descriptionEs?: string
+  /** Units in stock, when the store says. */
+  stock?: number
+  /** Certificate of analysis. */
+  coaUrl?: string
 }
 
 export interface CatalogueResponse {
@@ -46,6 +77,10 @@ const PCR_PAGE_SIZE = 100
 const MAX_PAGES = 10
 export const MAX_PRODUCTS = 1000
 const MAX_TEXT = 200
+/** Descriptions run longer than names; past this the shop shows a cut-off and links the store's page. */
+const MAX_DESCRIPTION = 1500
+/** A price above this is a typo or a bad response, not a product. */
+const MAX_PRICE = 100_000_000
 const UPSTREAM_TIMEOUT_MS = 8000
 
 const NAMED_ENTITIES: Record<string, string> = {
@@ -74,10 +109,27 @@ export function decodeStoreText(value: string): string {
     .trim()
 }
 
-function text(value: unknown): string | undefined {
+function text(value: unknown, max = MAX_TEXT): string | undefined {
   if (typeof value !== 'string') return undefined
-  const decoded = decodeStoreText(value).slice(0, MAX_TEXT)
+  const decoded = decodeStoreText(value).slice(0, max)
   return decoded || undefined
+}
+
+/** A price as the stores send it (a number, or a numeric string), or undefined. */
+function amount(value: unknown): number | undefined {
+  const n = typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN
+  return Number.isFinite(n) && n > 0 && n <= MAX_PRICE ? n : undefined
+}
+
+function wholeCount(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 1_000_000 ? value : undefined
+}
+
+/** Sets `price`, and `regularPrice` only when it is a real markdown from it. */
+function setPrices(product: StoreProduct, currency: StoreCurrency, now: number | undefined, regular: number | undefined): void {
+  if (now === undefined) return
+  product.price = { currency, amount: now }
+  if (regular !== undefined && regular > now) product.regularPrice = { currency, amount: regular }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -107,6 +159,28 @@ export function fromWooProduct(raw: unknown): StoreProduct | null {
   if (firstCategory) product.category = firstCategory
   const url = httpsUrl(raw.permalink)
   if (url) product.url = url
+  if (typeof raw.id === 'number' && Number.isInteger(raw.id) && raw.id > 0) product.id = String(raw.id)
+  // The Store API sends prices as strings in the currency's minor units, and says how many.
+  const prices = isRecord(raw.prices) ? raw.prices : undefined
+  const code = prices?.currency_code
+  const minor = prices?.currency_minor_unit
+  if (prices && (code === 'USD' || code === 'CRC') && typeof minor === 'number' && Number.isInteger(minor) && minor >= 0 && minor <= 4) {
+    const scale = 10 ** minor
+    const toMajor = (v: unknown) => {
+      const n = amount(v)
+      return n === undefined ? undefined : n / scale
+    }
+    setPrices(product, code, toMajor(prices.price), toMajor(prices.regular_price))
+  }
+  const image = Array.isArray(raw.images) && isRecord(raw.images[0]) ? raw.images[0] : undefined
+  const imageUrl = httpsUrl(image?.src)
+  if (imageUrl) product.imageUrl = imageUrl
+  const thumbnailUrl = httpsUrl(image?.thumbnail)
+  if (thumbnailUrl) product.thumbnailUrl = thumbnailUrl
+  const description = text(raw.short_description, MAX_DESCRIPTION) ?? text(raw.description, MAX_DESCRIPTION)
+  if (description) product.description = description
+  const stock = wholeCount(raw.low_stock_remaining)
+  if (stock !== undefined) product.stock = stock
   return product
 }
 
@@ -122,6 +196,28 @@ export function fromUpdProduct(raw: unknown): StoreProduct | null {
   if (sku) product.sku = sku
   const category = text(raw.category)
   if (category) product.category = category
+  const id = text(raw.id)
+  if (id) product.id = id
+  // A sale price is the price now, and the list price becomes the "was" price.
+  const listPrice = amount(raw.price)
+  const salePrice = amount(raw.sale_price)
+  if (salePrice !== undefined && listPrice !== undefined && salePrice < listPrice) setPrices(product, 'USD', salePrice, listPrice)
+  else setPrices(product, 'USD', listPrice, amount(raw.original_price_usd))
+  const imageUrl = httpsUrl(raw.image) ?? httpsUrl(raw.detail_image)
+  if (imageUrl) {
+    product.imageUrl = imageUrl
+    product.thumbnailUrl = imageUrl
+  }
+  const description = text(raw.description, MAX_DESCRIPTION)
+  if (description) product.description = description
+  const descriptionEn = text(raw.description_en, MAX_DESCRIPTION)
+  if (descriptionEn) product.descriptionEn = descriptionEn
+  const descriptionEs = text(raw.description_es, MAX_DESCRIPTION)
+  if (descriptionEs) product.descriptionEs = descriptionEs
+  const stock = wholeCount(raw.stock_count)
+  if (stock !== undefined) product.stock = stock
+  const coaUrl = httpsUrl(raw.coa_url)
+  if (coaUrl) product.coaUrl = coaUrl
   return product
 }
 

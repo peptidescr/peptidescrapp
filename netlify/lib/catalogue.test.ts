@@ -39,6 +39,7 @@ describe('fromWooProduct', () => {
       category: 'Collagen Peptides',
       inStock: true,
       url: 'https://peptidescostarica.net/product/ghk-cu-50mg/',
+      id: '146',
     })
   })
 
@@ -69,6 +70,8 @@ describe('fromUpdProduct', () => {
       category: 'Extracellular Matrix and Cell-Migration Peptides',
       inStock: true,
       url: 'https://www.usapeptidedepot.com/product/bpc-157-5mg',
+      id: 'ccd695b8-0a3f-4669-bba7-33fbdfc4ae26',
+      price: { currency: 'USD', amount: 45 },
     })
   })
 
@@ -77,6 +80,81 @@ describe('fromUpdProduct', () => {
     expect(fromUpdProduct({ ...base, is_hidden: true })).toBeNull()
     expect(fromUpdProduct({ ...base, is_active: false })).toBeNull()
     expect(fromUpdProduct({ ...base, slug: '../admin' })).toBeNull()
+  })
+})
+
+describe('shop fields', () => {
+  const woo = {
+    id: 35150,
+    name: 'Semax + Selank 20mg',
+    slug: 'semax-selank-20mg',
+    is_in_stock: true,
+    low_stock_remaining: 3,
+    prices: { price: '63000', regular_price: '70176', currency_code: 'CRC', currency_minor_unit: 0 },
+    images: [{ src: 'https://peptidescostarica.net/a.webp', thumbnail: 'https://peptidescostarica.net/a-300x300.webp' }],
+    short_description: '<p>A dual-peptide &amp; research blend.</p>',
+  }
+
+  it('reads a WooCommerce price in its own currency, with the list price only when it is a markdown', () => {
+    const product = fromWooProduct(woo)
+    expect(product?.price).toEqual({ currency: 'CRC', amount: 63000 })
+    expect(product?.regularPrice).toEqual({ currency: 'CRC', amount: 70176 })
+    const notOnSale = fromWooProduct({ ...woo, prices: { ...woo.prices, price: '70176' } })
+    expect(notOnSale?.regularPrice).toBeUndefined()
+  })
+
+  it('scales minor units, and ignores a currency it does not know', () => {
+    const usd = fromWooProduct({ ...woo, prices: { price: '4500', regular_price: '4500', currency_code: 'USD', currency_minor_unit: 2 } })
+    expect(usd?.price).toEqual({ currency: 'USD', amount: 45 })
+    const eur = fromWooProduct({ ...woo, prices: { price: '4500', currency_code: 'EUR', currency_minor_unit: 2 } })
+    expect(eur?.price).toBeUndefined()
+  })
+
+  it('keeps the image, a plain-text description and the stock count', () => {
+    const product = fromWooProduct(woo)
+    expect(product?.imageUrl).toBe('https://peptidescostarica.net/a.webp')
+    expect(product?.thumbnailUrl).toBe('https://peptidescostarica.net/a-300x300.webp')
+    expect(product?.description).toBe('A dual-peptide & research blend.')
+    expect(product?.stock).toBe(3)
+  })
+
+  const upd = {
+    id: '5ef7f684-40c9-424e-a15c-d42cd6288623',
+    slug: '5-amino-1-mq',
+    name: '5 Amino 1 MQ 50mg',
+    price: 79,
+    sale_price: 69,
+    in_stock: true,
+    stock_count: 50,
+    image: 'https://example.supabase.co/storage/v1/object/public/product-media/a.png',
+    description_en: 'For research.',
+    description_es: 'Para investigación.',
+    coa_url: 'https://example.com/coa.pdf',
+  }
+
+  it('reads a UPD sale as the price now, with the list price as the "was" price', () => {
+    const product = fromUpdProduct(upd)
+    expect(product?.price).toEqual({ currency: 'USD', amount: 69 })
+    expect(product?.regularPrice).toEqual({ currency: 'USD', amount: 79 })
+    expect(fromUpdProduct({ ...upd, sale_price: null })?.price).toEqual({ currency: 'USD', amount: 79 })
+  })
+
+  it('keeps UPD\'s image, descriptions in both languages, stock and COA', () => {
+    const product = fromUpdProduct(upd)
+    expect(product?.imageUrl).toBe(upd.image)
+    expect(product?.descriptionEn).toBe('For research.')
+    expect(product?.descriptionEs).toBe('Para investigación.')
+    expect(product?.stock).toBe(50)
+    expect(product?.coaUrl).toBe('https://example.com/coa.pdf')
+  })
+
+  it('drops prices that are not positive numbers, and links that are not https', () => {
+    for (const price of [0, -5, 'abc', null, 1e12]) {
+      expect(fromUpdProduct({ ...upd, sale_price: null, price })?.price).toBeUndefined()
+    }
+    const unsafe = fromUpdProduct({ ...upd, image: 'javascript:alert(1)', coa_url: 'http://example.com/coa.pdf' })
+    expect(unsafe?.imageUrl).toBeUndefined()
+    expect(unsafe?.coaUrl).toBeUndefined()
   })
 })
 
