@@ -13,6 +13,7 @@ import { formatDate } from '../lib/dates'
 import { greetingKey } from '../lib/homeText'
 import type { GetStartedStepId } from '../lib/homeData'
 import { useHomeState } from '../lib/useHomeState'
+import type { ResolvedTheme } from '../lib/theme'
 import { updateSettings } from '../lib/useSettings'
 import { vialAlertKey } from '../lib/vials'
 
@@ -27,6 +28,9 @@ interface HomeScreenProps {
   onNavigateToProgress: () => void
   /** Tapping a specific protocol (a vial alert): straight to its own edit page. */
   onOpenProtocol: (protocolId: string) => void
+  /** The light/dark quick toggle in the hero; absent while theme switching is off. */
+  onToggleTheme?: () => void
+  resolvedTheme?: ResolvedTheme
 }
 
 /**
@@ -46,6 +50,8 @@ export function HomeScreen({
   onNavigateToCalculator,
   onNavigateToProgress,
   onOpenProtocol,
+  onToggleTheme,
+  resolvedTheme,
 }: HomeScreenProps) {
   const { t } = useTranslation()
   const home = useHomeState()
@@ -65,6 +71,9 @@ export function HomeScreen({
         hasUnread={home.notificationCount > 0}
         onOpenSettings={onNavigateToSettings}
         settingsLabel={t('nav.settings')}
+        onToggleTheme={onToggleTheme}
+        resolvedTheme={resolvedTheme}
+        themeLabel={t('settings.appearance.quickToggle')}
       />
 
       <HeroOverlap>

@@ -1,9 +1,10 @@
-import { Bell, ChevronLeft, Settings } from 'lucide-react'
+import { Bell, ChevronLeft, Moon, Settings, Sun } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { BRAND } from '@/brand'
+import type { ResolvedTheme } from '@/lib/theme'
 import { cn } from '@/lib/utils'
 
-/** A round translucent button on the brand-coloured band: back, bell, settings. 44px, per the touch-target floor. */
+/** A round translucent button on the brand-coloured band: back, theme, bell, settings. 44px, per the touch-target floor. */
 function HeroIconButton({
   label,
   onClick,
@@ -40,6 +41,11 @@ export interface HeroHeaderProps {
   /** Shows the settings gear next to the bell. */
   onOpenSettings?: () => void
   settingsLabel?: string
+  /** Shows the light/dark quick toggle first in the row, as the app bar does on every other page. */
+  onToggleTheme?: () => void
+  /** Which theme is showing, so the toggle can show the sun or the moon. */
+  resolvedTheme?: ResolvedTheme
+  themeLabel?: string
   /** More content on the band, below the greeting. */
   children?: ReactNode
   className?: string
@@ -64,9 +70,13 @@ export function HeroHeader({
   hasUnread = false,
   onOpenSettings,
   settingsLabel,
+  onToggleTheme,
+  resolvedTheme,
+  themeLabel,
   children,
   className,
 }: HeroHeaderProps) {
+  const ThemeIcon = resolvedTheme === 'light' ? Sun : Moon
   return (
     <header
       className={cn('rounded-b-[2rem] bg-hero pb-14 text-on-primary', className)}
@@ -79,15 +89,22 @@ export function HeroHeader({
               <ChevronLeft className="size-6" />
             </HeroIconButton>
           )}
+          {/* The logo gives way first: with the back arrow and four buttons on a 320px phone,
+              UPD's wide wordmark would otherwise push the row off the screen. */}
           <img
             src={BRAND.heroLogo.src}
             alt={BRAND.appName}
             width={BRAND.heroLogo.width}
             height={BRAND.heroLogo.height}
-            className="rounded-lg object-contain"
+            className="min-w-0 shrink rounded-lg object-contain object-left"
             style={{ width: BRAND.heroLogo.width, height: BRAND.heroLogo.height }}
           />
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            {onToggleTheme && (
+              <HeroIconButton label={themeLabel ?? ''} onClick={onToggleTheme}>
+                <ThemeIcon className="size-5" />
+              </HeroIconButton>
+            )}
             {onOpenNotifications && (
               <HeroIconButton label={notificationLabel ?? ''} onClick={onOpenNotifications}>
                 <Bell className="size-5" />

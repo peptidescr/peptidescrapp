@@ -329,6 +329,8 @@ function App() {
               onNavigateToCalculator={() => navigate(tabPage('tools'))}
               onNavigateToProgress={() => navigate(trackPage('progress'))}
               onOpenProtocol={openProtocolEditor}
+              onToggleTheme={toggleTheme}
+              resolvedTheme={resolvedTheme}
             />
           )}
           {page.tab === 'track' && (
