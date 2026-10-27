@@ -760,5 +760,28 @@
   },
   "tools": {
     "title": "Tools"
+  },
+  "shop": {
+    "subtitle": "Products from {{store}}, with today’s prices and stock.",
+    "search": "Search products",
+    "categories": "Categories",
+    "all": "All",
+    "loading": "Loading products…",
+    "loadErrorTitle": "Couldn’t load the products",
+    "loadErrorBody": "Check your connection and try again.",
+    "retry": "Try again",
+    "noMatchesTitle": "No products match",
+    "noMatchesBody": "Try another word or category.",
+    "was": "Was",
+    "outOfStock": "Out of stock",
+    "inStock": "In stock",
+    "lowStock_one": "Only {{count}} left",
+    "lowStock_other": "Only {{count}} left",
+    "coa": "Certificate of analysis",
+    "researchUse": "For research use only.",
+    "viewOnStore": "View on {{store}}",
+    "askWhatsapp": "Ask on WhatsApp",
+    "whatsappText": "Hi! I’m interested in {{product}}.",
+    "priceNote": "Prices and stock come from the store and are confirmed when you order."
   }
 }

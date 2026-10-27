@@ -760,5 +760,28 @@
   },
   "tools": {
     "title": "Utilidades"
+  },
+  "shop": {
+    "subtitle": "Productos de {{store}}, con los precios y la disponibilidad de hoy.",
+    "search": "Buscar productos",
+    "categories": "Categorías",
+    "all": "Todo",
+    "loading": "Cargando productos…",
+    "loadErrorTitle": "No pudimos cargar los productos",
+    "loadErrorBody": "Revisá tu conexión e intentá de nuevo.",
+    "retry": "Intentar de nuevo",
+    "noMatchesTitle": "Ningún producto coincide",
+    "noMatchesBody": "Probá con otra palabra o categoría.",
+    "was": "Antes",
+    "outOfStock": "Agotado",
+    "inStock": "Disponible",
+    "lowStock_one": "Solo queda {{count}}",
+    "lowStock_other": "Solo quedan {{count}}",
+    "coa": "Certificado de análisis",
+    "researchUse": "Solo para uso en investigación.",
+    "viewOnStore": "Ver en {{store}}",
+    "askWhatsapp": "Consultar por WhatsApp",
+    "whatsappText": "¡Hola! Me interesa {{product}}.",
+    "priceNote": "Los precios y la disponibilidad vienen de la tienda y se confirman al hacer el pedido."
   }
 }
