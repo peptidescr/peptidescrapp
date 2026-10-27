@@ -2,7 +2,9 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
   decodeStoreText,
+  fetchPcrPartnerProducts,
   fetchPcrProducts,
+  fromPcrPartnerProduct,
   fetchUpdProducts,
   fromUpdProduct,
   fromWooProduct,
@@ -66,6 +68,7 @@ describe('fromUpdProduct', () => {
     expect(fromUpdProduct(first)).toEqual({
       name: 'BPC-157 5mg',
       slug: 'bpc-157-5mg',
+      orderRef: 'bpc-157-5mg',
       sku: 'USP-BPC157-5',
       category: 'Extracellular Matrix and Cell-Migration Peptides',
       inStock: true,
@@ -208,5 +211,74 @@ describe('handleCatalogueRequest', () => {
     expect(toCatalogueBrand(undefined)).toBe('upd')
     expect(toCatalogueBrand('pcr')).toBe('pcr')
     expect(toCatalogueBrand('PCR')).toBe('upd')
+  })
+})
+
+// The partner API's documented product shape (partner integration doc, October 2026); not yet a real response.
+const partnerProduct = (over: Record<string, unknown> = {}) => ({
+  id: '11111111-2222-4333-8444-555555555555',
+  name: 'Sermorelin 10mg',
+  category: 'Peptides',
+  status: 'In Stock',
+  inStock: true,
+  stock: 4,
+  priceUsd: 150,
+  priceCrc: 75750,
+  originalPriceUsd: null,
+  discount: null,
+  coa: 'https://example.com/coa.pdf',
+  imageUrl: 'https://example.com/sermorelin.png',
+  descriptionEn: 'English text',
+  descriptionEs: 'Texto en español',
+  ...over,
+})
+
+describe('Peptides CR partner products', () => {
+  it('maps the documented shape, priced in USD, ordered by id', () => {
+    expect(fromPcrPartnerProduct(partnerProduct({ originalPriceUsd: 180 }))).toEqual({
+      name: 'Sermorelin 10mg',
+      slug: 'sermorelin-10mg',
+      id: '11111111-2222-4333-8444-555555555555',
+      orderRef: '11111111-2222-4333-8444-555555555555',
+      category: 'Peptides',
+      inStock: true,
+      stock: 4,
+      price: { currency: 'USD', amount: 150 },
+      regularPrice: { currency: 'USD', amount: 180 },
+      imageUrl: 'https://example.com/sermorelin.png',
+      thumbnailUrl: 'https://example.com/sermorelin.png',
+      descriptionEn: 'English text',
+      descriptionEs: 'Texto en español',
+      coaUrl: 'https://example.com/coa.pdf',
+    })
+  })
+
+  it('sends the partner key, reads a bare or wrapped list, and keeps same-named products apart', async () => {
+    const seen: (Record<string, string> | undefined)[] = []
+    const twins = [partnerProduct(), partnerProduct({ id: 'aaaaaaaa-0000-0000-0000-000000000000' })]
+    const products = await fetchPcrPartnerProducts(async (_url, init) => {
+      seen.push(init?.headers)
+      return json({ products: twins })
+    }, 'pk_sandbox_test-not-real')
+    expect(seen[0]?.['X-Partner-Key']).toBe('pk_sandbox_test-not-real')
+    expect(products.map((p) => p.slug)).toEqual(['sermorelin-10mg', 'sermorelin-10mg-aaaaaaaa'])
+    expect(await fetchPcrPartnerProducts(async () => json(twins), 'k')).toHaveLength(2)
+  })
+
+  it('falls back to the public feed, browse only, when the partner API fails', async () => {
+    const fetchFn: FetchLike = async (url) =>
+      url.startsWith('https://catalog.') ? new Response('Not found', { status: 404 }) : json(pcrFixture, { 'X-WP-TotalPages': '1' })
+    const res = await handleCatalogueRequest('pcr', fetchFn, new Date(), { pcrPartnerKey: 'k', checkout: true })
+    const body = (await res.json()) as CatalogueResponse
+    expect(body.products.length).toBeGreaterThan(0)
+    expect(body.products.every((p) => p.orderRef === undefined)).toBe(true)
+    expect(body.checkout).toBeUndefined()
+  })
+
+  it('says checkout is on only when asked and the products can be ordered', async () => {
+    const partner = await handleCatalogueRequest('pcr', async () => json([partnerProduct()]), new Date(), { pcrPartnerKey: 'k', checkout: true })
+    expect(((await partner.json()) as CatalogueResponse).checkout).toBe(true)
+    const upd = await handleCatalogueRequest('upd', async () => json(updFixture), new Date())
+    expect(((await upd.json()) as CatalogueResponse).checkout).toBeUndefined()
   })
 })

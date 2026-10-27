@@ -6,7 +6,10 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import { getBrand, type BrandConfig } from './src/brand/brands.ts'
-import { handleCatalogueRequest, toCatalogueBrand } from './netlify/lib/catalogue.ts'
+import { handleCatalogueRequest, toCatalogueBrand, type CatalogueResponse } from './netlify/lib/catalogue.ts'
+import { handleOrderRequest } from './netlify/lib/checkout.ts'
+import { MOCK_CHECKOUT_ENV, mockStore } from './netlify/lib/mockStore.ts'
+import { handleStatusRequest } from './netlify/lib/payments.ts'
 import { escapeHtml, ogLocale, robotsTxt, SHARE_IMAGE, sitemapXml, structuredData } from './src/brand/seo.ts'
 
 /**
@@ -55,13 +58,47 @@ function sharedPublicFiles(): Plugin {
  * sync can be exercised locally against the real store.
  */
 function catalogueApi(brand: BrandConfig): Plugin {
+  const mock = process.env.STORE_CHECKOUT_MOCK === '1'
+  const catalogueBrand = toCatalogueBrand(brand.id)
   const serve = ({ middlewares }: { middlewares: Connect.Server }) => {
     middlewares.use('/api/catalogue', (_req, res) => {
-      void handleCatalogueRequest(toCatalogueBrand(brand.id), fetch).then(async (response) => {
+      void handleCatalogueRequest(catalogueBrand, fetch).then(async (response) => {
         res.statusCode = response.status
         response.headers.forEach((value, key) => res.setHeader(key, value))
-        res.end(Buffer.from(await response.arrayBuffer()))
+        if (!mock || !response.ok) return res.end(Buffer.from(await response.arrayBuffer()))
+        // Mock checkout: every product orderable, by whatever id the public feed gives.
+        const body = (await response.json()) as CatalogueResponse
+        for (const p of body.products) p.orderRef ??= p.id ?? p.slug
+        body.checkout = true
+        res.removeHeader('content-length')
+        res.end(JSON.stringify(body))
       })
+    })
+    if (!mock) return
+    // STORE_CHECKOUT_MOCK=1 only: orders go to a pretend store (netlify/lib/mockStore.ts), never a real one.
+    const store = mockStore(catalogueBrand)
+    const toRequest = async (req: Connect.IncomingMessage): Promise<Request> => {
+      const chunks: Buffer[] = []
+      for await (const chunk of req) chunks.push(chunk as Buffer)
+      const headers = new Headers()
+      for (const [key, value] of Object.entries(req.headers)) if (typeof value === 'string') headers.set(key, value)
+      const body = req.method === 'POST' ? Buffer.concat(chunks).toString('utf8') : undefined
+      return new Request(`http://${req.headers.host}${req.originalUrl ?? req.url}`, { method: req.method, headers, body })
+    }
+    const send = async (res: import('node:http').ServerResponse, response: Response) => {
+      res.statusCode = response.status
+      response.headers.forEach((value, key) => res.setHeader(key, value))
+      res.end(Buffer.from(await response.arrayBuffer()))
+    }
+    middlewares.use('/api/orders', (req, res) => {
+      void toRequest(req)
+        .then((request) => handleOrderRequest(request, catalogueBrand, MOCK_CHECKOUT_ENV, store.fetchFn))
+        .then((response) => send(res, response))
+    })
+    middlewares.use('/api/order-status', (req, res) => {
+      void toRequest(req)
+        .then((request) => handleStatusRequest(request, catalogueBrand, store.payments))
+        .then((response) => send(res, response))
     })
   }
   return { name: 'catalogue-api', configureServer: serve, configurePreviewServer: serve }

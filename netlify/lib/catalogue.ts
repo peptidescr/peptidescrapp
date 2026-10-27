@@ -57,6 +57,14 @@ export interface StoreProduct {
   stock?: number
   /** Certificate of analysis. */
   coaUrl?: string
+  /**
+   * What an order names this product by (guest checkout, Part B phase B1):
+   * Peptides CR's partner id, or USA Peptide Depot's slug. Only set when the
+   * product came from a source the store takes orders against, so a product
+   * from PCR's public WooCommerce feed (whose ids the order API doesn't know)
+   * can't go in a cart.
+   */
+  orderRef?: string
 }
 
 export interface CatalogueResponse {
@@ -64,11 +72,18 @@ export interface CatalogueResponse {
   brand: CatalogueBrand
   fetchedAt: string
   products: StoreProduct[]
+  /** Present (true) only when this site takes orders in the app; see netlify/lib/checkout.ts. */
+  checkout?: true
 }
 
-export type FetchLike = (url: string, init?: { signal?: AbortSignal; headers?: Record<string, string> }) => Promise<Response>
+export type FetchLike = (
+  url: string,
+  init?: { method?: string; signal?: AbortSignal; headers?: Record<string, string>; body?: string },
+) => Promise<Response>
 
 const PCR_PRODUCTS_URL = 'https://peptidescostarica.net/wp-json/wc/store/v1/products'
+/** Peptides CR's partner API: ids the order API accepts, USD prices, and descriptions in both languages. */
+const PCR_PARTNER_PRODUCTS_URL = 'https://catalog.peptidescostarica.net/api/partner/products'
 /** The bare domain 308-redirects here; asking the final host directly saves a round trip. */
 const UPD_PRODUCTS_URL = 'https://www.usapeptidedepot.com/api/products'
 const UPD_PRODUCT_PAGE = 'https://www.usapeptidedepot.com/product/'
@@ -191,7 +206,7 @@ export function fromUpdProduct(raw: unknown): StoreProduct | null {
   const name = text(raw.name)
   const slug = text(raw.slug)
   if (!name || !slug || !/^[a-z0-9-]+$/.test(slug)) return null
-  const product: StoreProduct = { name, slug, inStock: raw.in_stock === true, url: UPD_PRODUCT_PAGE + slug }
+  const product: StoreProduct = { name, slug, inStock: raw.in_stock === true, url: UPD_PRODUCT_PAGE + slug, orderRef: slug }
   const sku = text(raw.sku)
   if (sku) product.sku = sku
   const category = text(raw.category)
@@ -221,10 +236,61 @@ export function fromUpdProduct(raw: unknown): StoreProduct | null {
   return product
 }
 
-async function getJson(fetchFn: FetchLike, url: string): Promise<{ body: unknown; response: Response }> {
+/** "Sermorelin 10mg" → "sermorelin-10mg": a slug for a store that gives none. */
+function slugify(name: string): string {
+  return name
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 120)
+}
+
+/**
+ * One Peptides CR partner-API product → StoreProduct. Shape from the partner
+ * integration doc (October 2026): id, name, category, inStock, stock, priceUsd,
+ * priceCrc, originalPriceUsd, coa, imageUrl, descriptionEn, descriptionEs. Not
+ * yet checked against a real response: the endpoint wasn't live when this was
+ * written.
+ *
+ * Prices are taken in USD, the currency PCR's orders are charged in.
+ */
+export function fromPcrPartnerProduct(raw: unknown): StoreProduct | null {
+  if (!isRecord(raw)) return null
+  const name = text(raw.name)
+  const id = text(raw.id)
+  if (!name || !id || !/^[A-Za-z0-9-]{1,64}$/.test(id)) return null
+  const slug = slugify(name)
+  if (!slug) return null
+  const product: StoreProduct = { name, slug, id, orderRef: id, inStock: raw.inStock === true }
+  const category = text(raw.category)
+  if (category) product.category = category
+  setPrices(product, 'USD', amount(raw.priceUsd), amount(raw.originalPriceUsd))
+  const imageUrl = httpsUrl(raw.imageUrl)
+  if (imageUrl) {
+    product.imageUrl = imageUrl
+    product.thumbnailUrl = imageUrl
+  }
+  const descriptionEn = text(raw.descriptionEn, MAX_DESCRIPTION)
+  if (descriptionEn) product.descriptionEn = descriptionEn
+  const descriptionEs = text(raw.descriptionEs, MAX_DESCRIPTION)
+  if (descriptionEs) product.descriptionEs = descriptionEs
+  const stock = wholeCount(raw.stock)
+  if (stock !== undefined) product.stock = stock
+  const coaUrl = httpsUrl(raw.coa)
+  if (coaUrl) product.coaUrl = coaUrl
+  return product
+}
+
+async function getJson(
+  fetchFn: FetchLike,
+  url: string,
+  headers: Record<string, string> = {},
+): Promise<{ body: unknown; response: Response }> {
   const response = await fetchFn(url, {
     signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-    headers: { Accept: 'application/json' },
+    headers: { Accept: 'application/json', ...headers },
   })
   if (!response.ok) throw new Error(`upstream ${response.status}`)
   return { body: await response.json(), response }
@@ -252,6 +318,33 @@ export async function fetchPcrProducts(fetchFn: FetchLike): Promise<StoreProduct
   return dedupeBySlug(products)
 }
 
+/**
+ * Peptides CR's partner API, with the partner key (a server secret; see
+ * netlify/lib/checkout.ts). The list may come bare or wrapped in
+ * `products`/`data`; the doc doesn't show the envelope. Products are kept
+ * apart by id, since two can share a name.
+ */
+export async function fetchPcrPartnerProducts(fetchFn: FetchLike, partnerKey: string): Promise<StoreProduct[]> {
+  const { body } = await getJson(fetchFn, PCR_PARTNER_PRODUCTS_URL, { 'X-Partner-Key': partnerKey })
+  let list: unknown
+  if (Array.isArray(body)) list = body
+  else if (isRecord(body)) list = body.products ?? (isRecord(body.data) ? body.data.products : body.data)
+  if (!Array.isArray(list)) throw new Error('unexpected partner response')
+  const products: StoreProduct[] = []
+  const ids = new Set<string>()
+  const slugs = new Set<string>()
+  for (const raw of list) {
+    const product = fromPcrPartnerProduct(raw)
+    if (!product?.id || ids.has(product.id)) continue
+    // Two products with one name would share a slug; the id keeps them apart.
+    if (slugs.has(product.slug)) product.slug = `${product.slug}-${product.id.slice(0, 8).toLowerCase()}`
+    ids.add(product.id)
+    slugs.add(product.slug)
+    products.push(product)
+  }
+  return products.slice(0, MAX_PRODUCTS)
+}
+
 /** USA Peptide Depot: its site's own product endpoint, `{ data: { products: [...] } }`. */
 export async function fetchUpdProducts(fetchFn: FetchLike): Promise<StoreProduct[]> {
   const { body } = await getJson(fetchFn, UPD_PRODUCTS_URL)
@@ -265,14 +358,39 @@ export function toCatalogueBrand(value: string | undefined): CatalogueBrand {
   return value === 'pcr' ? 'pcr' : 'upd'
 }
 
+export interface CatalogueOptions {
+  /** Peptides CR's partner key, when this site has one: the list then comes from the partner API. */
+  pcrPartnerKey?: string
+  /** Whether this site takes orders in the app (checkoutSettings(...).ok). */
+  checkout?: boolean
+}
+
+/**
+ * Peptides CR: the partner API when there's a key, falling back to the public
+ * WooCommerce feed if it fails (browse only, then: those products have no orderRef).
+ */
+async function fetchPcr(fetchFn: FetchLike, partnerKey: string | undefined): Promise<StoreProduct[]> {
+  if (partnerKey) {
+    try {
+      const products = await fetchPcrPartnerProducts(fetchFn, partnerKey)
+      if (products.length > 0) return products
+      console.error('catalogue: partner API returned no products; using the public feed')
+    } catch (err) {
+      console.error('catalogue: partner API failed; using the public feed:', err instanceof Error ? err.message : 'error')
+    }
+  }
+  return fetchPcrProducts(fetchFn)
+}
+
 export async function handleCatalogueRequest(
   brand: CatalogueBrand,
   fetchFn: FetchLike,
   now: Date = new Date(),
+  options: CatalogueOptions = {},
 ): Promise<Response> {
   let products: StoreProduct[]
   try {
-    products = brand === 'pcr' ? await fetchPcrProducts(fetchFn) : await fetchUpdProducts(fetchFn)
+    products = brand === 'pcr' ? await fetchPcr(fetchFn, options.pcrPartnerKey) : await fetchUpdProducts(fetchFn)
   } catch (err) {
     console.error('catalogue fetch failed', err)
     return new Response('Store unavailable', { status: 502, headers: { 'Cache-Control': 'no-store' } })
@@ -283,6 +401,8 @@ export async function handleCatalogueRequest(
     return new Response('Store returned no products', { status: 502, headers: { 'Cache-Control': 'no-store' } })
   }
   const body: CatalogueResponse = { version: 1, brand, fetchedAt: now.toISOString(), products }
+  // Checkout needs products the store's order API knows; without any, the shop stays browse-only.
+  if (options.checkout && products.some((p) => p.orderRef)) body.checkout = true
   return Response.json(body, {
     headers: {
       // Browsers always revalidate; Netlify's edge serves one copy for an
