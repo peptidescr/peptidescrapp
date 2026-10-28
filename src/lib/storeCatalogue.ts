@@ -261,26 +261,52 @@ export function buildStoreCompounds(
 // Sync and in-memory mirror
 // ---------------------------------------------------------------------------
 
-/** Writes a fresh catalogue: new and changed rows replace old ones; rows the store dropped stay, unlisted. */
-async function applyStoreCompounds(compounds: Compound[]): Promise<void> {
+/**
+ * Writes a fresh catalogue: new and changed rows replace old ones; rows the
+ * store dropped stay, unlisted. When the last sync here was another brand's
+ * (one address serving both builds, as in local dev), those leftovers lose
+ * their links, so a vial alert can never send customers to the other store.
+ */
+async function applyStoreCompounds(compounds: Compound[], otherBrand: boolean): Promise<void> {
   const freshIds = new Set(compounds.map((c) => c.id))
   await db.transaction('rw', db.compounds, async () => {
     const dropped = await db.compounds.filter((c) => c.source === 'store' && !freshIds.has(c.id)).toArray()
-    await db.compounds.bulkPut([...compounds, ...dropped.map((c) => ({ ...c, listed: false }))])
+    const kept = dropped.map((c) => {
+      const unlisted: Compound = { ...c, listed: false }
+      if (otherBrand && c.storeProducts) {
+        unlisted.storeProducts = c.storeProducts.map(({ label, slug, inStock, size, sku }) => {
+          const ref: StoreProductRef = { label, slug, inStock }
+          if (size !== undefined) ref.size = size
+          if (sku) ref.sku = sku
+          return ref
+        })
+      }
+      return unlisted
+    })
+    await db.compounds.bulkPut([...compounds, ...kept])
   })
 }
 
-function readSyncedAt(): number {
+/** When the catalogue was last synced, and for which brand ("pcr:1761600000000"); an old bare number has no brand. */
+function readLastSync(): { at: number; brand: string | undefined } {
   try {
-    return Number(localStorage.getItem(SYNCED_AT_KEY)) || 0
+    const raw = localStorage.getItem(SYNCED_AT_KEY) ?? ''
+    const [brand, time] = raw.includes(':') ? raw.split(':') : [undefined, raw]
+    return { at: Number(time) || 0, brand }
   } catch {
-    return 0
+    return { at: 0, brand: undefined }
   }
+}
+
+/** Throttle only on this brand's own sync: another brand's, or an untagged one, doesn't count. */
+function readSyncedAt(): number {
+  const { at, brand } = readLastSync()
+  return brand === BRAND.id ? at : 0
 }
 
 function writeSyncedAt(time: number): void {
   try {
-    localStorage.setItem(SYNCED_AT_KEY, String(time))
+    localStorage.setItem(SYNCED_AT_KEY, `${BRAND.id}:${time}`)
   } catch {
     // Only costs an early re-fetch next time.
   }
@@ -300,7 +326,8 @@ export function syncStoreCatalogue({ force = false }: { force?: boolean } = {}):
       if (!response.ok) return false
       const products = parseCatalogueResponse(await response.json(), BRAND.id)
       if (!products) return false
-      await applyStoreCompounds(buildStoreCompounds(products, STORE_ALIASES))
+      const last = readLastSync()
+      await applyStoreCompounds(buildStoreCompounds(products, STORE_ALIASES), last.brand !== undefined && last.brand !== BRAND.id)
       writeSyncedAt(Date.now())
       return true
     } catch {
