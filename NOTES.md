@@ -2500,3 +2500,30 @@ draws a saved mix on the barrel it was worked out for and says "· 3 mL syringe"
 migration and legacy backup reading came over unchanged. Checked: 455 tests, lint, parity; in the browser on UPD
 375 and PCR Spanish 320, the legacy migration, the barrel row per type, the 3 mL graphic, the fallback to 1 mL
 and the size surviving a reload.
+
+## Going live: Phase 2 and the retention redesign (October 2026, `release/phase-2-redesign`)
+
+Everything on `staging` up to the Part A look and dark mode, without Part B (no Shop, cart, checkout or order
+code; the Shop and Rewards tabs stay hidden because `features.store` is off). Two later fixes ride along: the
+catalogue sync no longer lets one brand's sync block another's on a shared address (a vial alert could link to
+the other store), and the vial alert's Reorder button is compact on phones. `shippingDays` is left unset, as on
+`main`, so there are still no "order by" dates.
+
+**Checked before release:** typecheck, lint, 455 tests, translation parity (628 keys each), both production
+builds (store flag off, no other-brand text, no shop code in the bundle). A copy of `main`'s current build wrote a
+protocol and six dose logs, and the new build opened the same browser data: schema 10 → 30, nothing lost, no
+legal re-acceptance, both brands. Every screen at 320, 375 and 1280px, every sheet at 320 and 375px, and the
+first-run onboarding, both brands: no overflow, small targets, low contrast, unlabelled controls or console
+errors. The catalogue endpoint answered for both real stores (PCR 81 products, UPD 28, each linking to its own
+store's site).
+
+**After the deploy, on each site:**
+1. `/api/catalogue` answers with that site's own brand (`pcr` or `upd`). The function reads `VITE_BRAND` at run
+   time; if the site's variable were limited to builds, the app would reject the mismatched answer and simply
+   not sync (no wrong links), but it would never get the store's products.
+2. Open the installed app once and reload: the service worker takes over (autoUpdate) and the data is there.
+3. A low vial with no unopened ones shows Reorder, and it opens that brand's own store.
+
+**Rolling back is not a plain redeploy of the old build.** Saved data moves to schema version 30, which the
+old app cannot open, so anyone who has already opened the new version would see it fail. Fix forward, or ask
+for a plan before rolling back.
