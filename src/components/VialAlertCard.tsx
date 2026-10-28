@@ -40,10 +40,11 @@ export function VialAlertCard({
         target="_blank"
         rel="noopener noreferrer"
         aria-label={t('reorder.aria', { product: product.label, appName: BRAND.appName })}
-        className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-2xl bg-primary px-4 text-sm font-semibold text-primary-foreground"
+        className="flex size-11 shrink-0 items-center justify-center gap-1.5 self-center rounded-xl border border-primary bg-card text-[13px] font-semibold text-primary outline-none active:bg-secondary focus-visible:ring-2 focus-visible:ring-ring sm:w-auto sm:px-3"
       >
         <ShoppingCart aria-hidden className="size-4" />
-        {t('reorder.cta')}
+        {/* Phones get the icon alone, so the alert's message keeps its width; the link's aria-label names it. */}
+        <span className="hidden sm:inline">{t('reorder.cta')}</span>
       </a>
     ) : null)
   const content = (
