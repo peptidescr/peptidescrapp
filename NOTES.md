@@ -2613,3 +2613,7 @@ and its order reference, and whether PCR's webhook signature matches UPD's docum
   (cards about 215px wide at 1280px instead of two huge ones).
 - **Shop categories:** the sideways chip row is now a dropdown with product counts, beside the search on wider
   screens. The store's category names are long (up to 50 characters) and a side scroll hid most of them.
+
+- **Reorder button on phones:** the solid dark button took about a third of the alert's row and stretched to
+  its height, squeezing the message onto two lines. It is now an outlined 44px icon button on phones (its
+  aria-label still names the product) and keeps the word "Reorder" from `sm` up.
