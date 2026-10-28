@@ -6,8 +6,8 @@ import { BRAND } from '@/brand'
 import { Badge } from '@/components/ui/badge'
 import { buttonVariants } from '@/components/ui/button-variants'
 import { Button } from '@/components/ui/button'
-import { Chip } from '@/components/ui/chip'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Stepper } from '@/components/ui/stepper'
 import { EmptyState } from '../components/EmptyState'
@@ -28,6 +28,9 @@ import type { Locale } from '../lib/units'
 
 /** Below this many units, the card says how many are left. */
 const LOW_STOCK = 5
+
+/** The category list's "everything" entry; a Select item can't have an empty value. */
+const ALL_CATEGORIES = '__all__'
 
 /**
  * The in-app Shop (Part B). Reached only when BRAND.features.store is on; with
@@ -56,12 +59,18 @@ export function ShopScreen() {
 
   const products = useMemo(() => (catalogue.status === 'ready' ? catalogue.products : []), [catalogue])
   const categories = useMemo(() => categoriesOf(products), [products])
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const p of products) if (p.category) counts.set(p.category, (counts.get(p.category) ?? 0) + 1)
+    return counts
+  }, [products])
   const shown = useMemo(() => filterProducts(products, { query, category }), [products, query, category])
   const canOrder = catalogue.status === 'ready' && catalogue.checkout
   const cartView = useMemo(() => viewCart(cart, products), [cart, products])
 
   return (
-    <div className="flex flex-col gap-4 px-4 pb-6 pt-2">
+    // Capped and centred so a desktop window gets more, smaller cards rather than two huge ones.
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 pb-6 pt-2">
       <header>
         <h1 className="font-display text-[1.375rem] font-bold leading-tight text-foreground">{t('nav.shop')}</h1>
         <p className="mt-1 text-[13px] leading-snug text-muted-foreground">{t('shop.subtitle', { store: BRAND.store.name })}</p>
@@ -69,32 +78,39 @@ export function ShopScreen() {
 
       {lastOrder && <LastOrderCard order={lastOrder} onOpen={() => setOrderOpen(true)} />}
 
-      <label className="relative block">
-        <span className="sr-only">{t('shop.search')}</span>
-        <Search aria-hidden className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={t('shop.search')}
-          className="pl-10"
-          enterKeyHint="search"
-        />
-      </label>
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <label className="relative block sm:flex-1">
+          <span className="sr-only">{t('shop.search')}</span>
+          <Search aria-hidden className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t('shop.search')}
+            className="pl-10"
+            enterKeyHint="search"
+          />
+        </label>
 
-      {categories.length > 1 && (
-        // Scrolls sideways inside the page's gutters; the page itself never does.
-        <div role="group" aria-label={t('shop.categories')} className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
-          <Chip selected={category === null} onClick={() => setCategory(null)} className="shrink-0">
-            {t('shop.all')}
-          </Chip>
-          {categories.map((c) => (
-            <Chip key={c} selected={category === c} onClick={() => setCategory(c)} className="shrink-0 whitespace-nowrap">
-              {c}
-            </Chip>
-          ))}
-        </div>
-      )}
+        {categories.length > 1 && (
+          // A list rather than a row of chips: the store's category names are long, and a sideways scroll hides most of them.
+          <Select value={category ?? ALL_CATEGORIES} onValueChange={(v) => setCategory(v === ALL_CATEGORIES ? null : v)}>
+            <SelectTrigger aria-label={t('shop.categories')} className="sm:w-80 sm:flex-none">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_CATEGORIES}>
+                {t('shop.all')} ({products.length})
+              </SelectItem>
+              {categories.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c} ({categoryCounts.get(c) ?? 0})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
 
       {catalogue.status === 'loading' && (
         <p aria-live="polite" className="py-10 text-center text-sm text-muted-foreground">
@@ -118,7 +134,7 @@ export function ShopScreen() {
         (shown.length === 0 ? (
           <EmptyState title={t('shop.noMatchesTitle')} body={t('shop.noMatchesBody')} />
         ) : (
-          <ul className="grid grid-cols-2 gap-3">
+          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {shown.map((p) => (
               <li key={p.slug}>
                 <ProductCard product={p} locale={locale} onOpen={() => setOpen(p)} />

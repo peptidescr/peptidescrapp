@@ -2601,3 +2601,15 @@ small targets, low contrast or console errors.
 for UPD a webhook is created in its sandbox ChargX store (dashboard access needed); UPD adds `paymentUrl`.
 Then check against real responses: the partner product list's envelope, UPD's error shape, the webhook payload
 and its order reference, and whether PCR's webhook signature matches UPD's documented scheme.
+
+### Fixes after first use of B1 (October 2026)
+
+- **Reorder sent UPD users to Peptides CR.** The store catalogue's once-an-hour throttle was one timestamp per
+  address, not per brand, so where one address served both builds (local dev, a shared staging domain) a PCR
+  sync blocked UPD's and its links stayed. The timestamp now carries the brand (`upd:<time>`; an old bare number
+  counts as no sync), and when the last sync was the other brand's, store compounds the new catalogue no longer
+  lists keep their ids but lose their links. A site serving one brand is unaffected.
+- **Shop on desktop:** the page is capped at `max-w-6xl` and centred, and the grid goes 2 → 3 → 4 → 5 columns
+  (cards about 215px wide at 1280px instead of two huge ones).
+- **Shop categories:** the sideways chip row is now a dropdown with product counts, beside the search on wider
+  screens. The store's category names are long (up to 50 characters) and a side scroll hid most of them.

@@ -765,7 +765,7 @@
     "subtitle": "Products from {{store}}, with today’s prices and stock.",
     "search": "Search products",
     "categories": "Categories",
-    "all": "All",
+    "all": "All categories",
     "loading": "Loading products…",
     "loadErrorTitle": "Couldn’t load the products",
     "loadErrorBody": "Check your connection and try again.",

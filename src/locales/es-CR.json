@@ -765,7 +765,7 @@
     "subtitle": "Productos de {{store}}, con los precios y la disponibilidad de hoy.",
     "search": "Buscar productos",
     "categories": "Categorías",
-    "all": "Todo",
+    "all": "Todas las categorías",
     "loading": "Cargando productos…",
     "loadErrorTitle": "No pudimos cargar los productos",
     "loadErrorBody": "Revisá tu conexión e intentá de nuevo.",
