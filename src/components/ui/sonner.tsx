@@ -8,10 +8,10 @@ export function Toaster(props: ToasterProps) {
       toastOptions={{
         classNames: {
           toast:
-            'rounded-2xl! border! border-border! bg-popover! text-popover-foreground! shadow-lg! font-sans!',
+            'rounded-2xl! border! border-border/60! bg-popover! text-popover-foreground! shadow-card! font-sans!',
           description: 'text-muted-foreground!',
-          actionButton: 'bg-primary! text-primary-foreground!',
-          cancelButton: 'bg-muted! text-muted-foreground!',
+          actionButton: 'bg-primary! text-primary-foreground! rounded-lg!',
+          cancelButton: 'bg-muted! text-muted-foreground! rounded-lg!',
         },
       }}
       {...props}

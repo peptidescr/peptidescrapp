@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { getNotificationCapability, requestNotificationPermission } from '../lib/notifications'
 import type { Protocol } from '../lib/db'
+import { doseOn, formatDose } from '../lib/titration'
 import { getCompoundById } from '../content/compounds'
 
 interface ProtocolSavedPromptProps {
@@ -25,7 +26,8 @@ export function ProtocolSavedPrompt({ protocol, onReconstitute, onSkip }: Protoc
   const [capability, setCapability] = useState(() => getNotificationCapability())
   const compound = getCompoundById(protocol.compoundId)
   const isSolution = compound?.form === 'solution'
-  const dose = `${protocol.doseAmount} ${protocol.doseUnit}`
+  // The dose to mix for first: today's, which for a titration is its first step.
+  const dose = formatDose(doseOn(protocol, new Date()))
 
   const canAskForReminders =
     capability.supported && !capability.requiresInstallOnIOS && capability.permission === 'default'
@@ -38,7 +40,7 @@ export function ProtocolSavedPrompt({ protocol, onReconstitute, onSkip }: Protoc
   return (
     <div className="flex flex-col gap-5 px-4 pb-6 pt-8">
       <div className="flex flex-col items-center gap-3 text-center">
-        <span className="flex size-14 items-center justify-center rounded-full bg-accent">
+        <span className="flex size-14 items-center justify-center rounded-2xl bg-tint">
           <CheckCircle2 className="size-7 text-primary" />
         </span>
         <h1 className="font-display text-2xl font-semibold text-foreground">{t('protocols.savedTitle')}</h1>
@@ -54,12 +56,12 @@ export function ProtocolSavedPrompt({ protocol, onReconstitute, onSkip }: Protoc
 
       {canAskForReminders && (
         <div className="flex items-start gap-3 rounded-2xl border border-border bg-card p-4">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-tint">
             <Bell className="size-4 text-primary" />
           </span>
           <div className="flex flex-1 flex-col gap-2">
             <div>
-              <p className="text-sm font-medium text-foreground">{t('protocols.remindersTitle')}</p>
+              <p className="font-display text-sm font-semibold text-foreground">{t('protocols.remindersTitle')}</p>
               <p className="text-sm text-muted-foreground">{t('protocols.remindersBody')}</p>
             </div>
             <Button variant="secondary" size="sm" onClick={() => void handleEnableReminders()} className="self-start">

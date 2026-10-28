@@ -1,11 +1,12 @@
 /// <reference types="vitest/config" />
 import { readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath, URL } from 'node:url'
-import { defineConfig, loadEnv, type Plugin } from 'vite'
+import { defineConfig, loadEnv, type Connect, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import { getBrand, type BrandConfig } from './src/brand/brands.ts'
+import { handleCatalogueRequest, toCatalogueBrand } from './netlify/lib/catalogue.ts'
 import { escapeHtml, ogLocale, robotsTxt, SHARE_IMAGE, sitemapXml, structuredData } from './src/brand/seo.ts'
 
 /**
@@ -46,6 +47,24 @@ function sharedPublicFiles(): Plugin {
       }
     },
   }
+}
+
+/**
+ * Serves /api/catalogue from `vite` and `vite preview` with the same handler
+ * the Netlify function wraps (netlify/functions/catalogue.ts), so the store
+ * sync can be exercised locally against the real store.
+ */
+function catalogueApi(brand: BrandConfig): Plugin {
+  const serve = ({ middlewares }: { middlewares: Connect.Server }) => {
+    middlewares.use('/api/catalogue', (_req, res) => {
+      void handleCatalogueRequest(toCatalogueBrand(brand.id), fetch).then(async (response) => {
+        res.statusCode = response.status
+        response.headers.forEach((value, key) => res.setHeader(key, value))
+        res.end(Buffer.from(await response.arrayBuffer()))
+      })
+    })
+  }
+  return { name: 'catalogue-api', configureServer: serve, configurePreviewServer: serve }
 }
 
 /**
@@ -144,6 +163,7 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
       sharedPublicFiles(),
+      catalogueApi(brand),
       brandHtml(brand, indexable),
       seoFiles(brand, indexable),
       VitePWA({
@@ -158,8 +178,10 @@ export default defineConfig(({ mode }) => {
           start_url: '/',
           scope: '/',
           display: 'standalone',
-          background_color: brand.themeColors.dark,
-          theme_color: brand.themeColors.dark,
+          // A manifest has one colour, not one per scheme, so the launch splash and
+          // title bar use the light page background; the page itself switches on load.
+          background_color: brand.themeColors.light,
+          theme_color: brand.themeColors.light,
           icons: [
             { src: '/brand/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
             { src: '/brand/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },

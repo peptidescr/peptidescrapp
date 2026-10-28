@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { DoseLog, Protocol, Settings } from './db'
 import {
+  computeAdherence,
   computeGetStartedSteps,
+  computeOverallAdherence,
   computeProtocolStats,
   computeRecentActivity,
   computeTodayProgress,
@@ -201,5 +203,49 @@ describe('computeProtocolStats', () => {
   it('is not perpetual once an end date is set', () => {
     const p = protocol({ endDate: '2026-04-01' })
     expect(computeProtocolStats(p, [], at(2026, 3, 10, 12, 0)).isPerpetual).toBe(false)
+  })
+})
+
+describe('computeAdherence', () => {
+  // Daily at 08:00, tracked from Mar 1. "Now" is Mar 5 at 09:00, so Mar 1–5 are all due.
+  const now = at(2026, 3, 5, 9, 0)
+  const p = protocol({ startDate: '2026-03-01', trackingStartsAt: at(2026, 3, 1, 0, 0).toISOString() })
+  const skipped = (d: Date): DoseLog => ({ ...log('p1', d), id: `s-${d.toISOString()}`, status: 'skipped' })
+
+  it('counts taken, skipped and missed doses, and scores taken over scheduled', () => {
+    const logs = [log('p1', at(2026, 3, 1, 8, 5)), log('p1', at(2026, 3, 2, 8, 0)), skipped(at(2026, 3, 3, 8, 0))]
+    const a = computeAdherence(p, logs, now)
+    // Mar 4 is missed (past 12h); Mar 5's dose is due an hour ago → not counted yet.
+    expect(a).toEqual({ scheduled: 4, taken: 2, skipped: 1, missed: 1, percent: 50 })
+  })
+
+  it('does not count a dose still inside the missed threshold against the protocol', () => {
+    const logs = [1, 2, 3, 4].map((d) => log('p1', at(2026, 3, d, 8, 0)))
+    expect(computeAdherence(p, logs, now).percent).toBe(100)
+  })
+
+  it('ignores logs for other protocols and extra logs beyond the schedule', () => {
+    const logs = [log('p2', at(2026, 3, 1, 8, 0)), log('p1', at(2026, 3, 1, 8, 0)), log('p1', at(2026, 3, 1, 21, 0))]
+    const a = computeAdherence(p, logs, now)
+    expect(a.taken).toBe(1)
+    expect(a.missed).toBe(3)
+  })
+
+  it('reports nothing for a paused protocol, or before anything has come due', () => {
+    expect(computeAdherence({ ...p, isActive: false }, [], now).percent).toBeNull()
+    const fresh = protocol({ startDate: '2026-03-05', trackingStartsAt: at(2026, 3, 5, 8, 30).toISOString() })
+    expect(computeAdherence(fresh, [], now)).toEqual({ scheduled: 0, taken: 0, skipped: 0, missed: 0, percent: null })
+  })
+
+  it('only looks back over the window', () => {
+    const old = protocol({ startDate: '2025-01-01' })
+    expect(computeAdherence(old, [], now, 30).scheduled).toBeLessThanOrEqual(31)
+  })
+
+  it('sums across active protocols for the overall figure', () => {
+    const other = { ...p, id: 'p2' }
+    const logs = [1, 2, 3, 4].map((d) => log('p1', at(2026, 3, d, 8, 0)))
+    const overall = computeOverallAdherence([p, other, { ...p, id: 'p3', isActive: false }], logs, now)
+    expect(overall).toEqual({ scheduled: 8, taken: 4, skipped: 0, missed: 4, percent: 50 })
   })
 })

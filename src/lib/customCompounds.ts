@@ -11,9 +11,13 @@
 import { liveQuery } from 'dexie'
 import { useSyncExternalStore } from 'react'
 import type { TFunction } from 'i18next'
+import type { ComboboxOption } from '@/components/ui/combobox'
 import {
   CUSTOM_CATEGORY,
+  getCompoundById,
   getCustomCompounds,
+  isStoreListed,
+  listDiluents,
   listSelectableCompounds,
   setCustomCompounds,
   subscribeToCompounds,
@@ -69,13 +73,42 @@ export function useSelectableCompounds(): Compound[] {
   return useSyncExternalStore(subscribeToCompounds, listSelectableCompounds)
 }
 
+/**
+ * One compound by id, re-rendering when the store catalogue or custom
+ * compounds change it — e.g. once a sync brings in the store's product links.
+ */
+export function useCompound(id: string): Compound | undefined {
+  return useSyncExternalStore(subscribeToCompounds, () => getCompoundById(id))
+}
+
+/** The calculator's quick-fill diluents, re-rendering when the store catalogue changes them. */
+export function useDiluents(): Compound[] {
+  return useSyncExternalStore(subscribeToCompounds, listDiluents)
+}
+
 export function useCustomCompounds(): readonly Compound[] {
   return useSyncExternalStore(subscribeToCompounds, getCustomCompounds)
 }
 
-/** Catalogue categories are shown as stored; the custom category is a key, shown translated. */
+/** Catalogue and store categories are shown as stored; the custom category is a key, shown translated. */
 export function compoundCategoryLabel(compound: Compound, t: TFunction): string {
   return compound.category === CUSTOM_CATEGORY ? t('compounds.customCategory') : compound.category
+}
+
+/**
+ * Picker options for a listSelectableCompounds() list: "From the store" and
+ * "Other" headings once a store catalogue is loaded (the list is already in
+ * that order), and the app's own name for a renamed compound kept searchable.
+ */
+export function toCompoundOptions(compounds: readonly Compound[], t: TFunction): ComboboxOption[] {
+  const grouped = compounds.some(isStoreListed)
+  return compounds.map((c) => ({
+    value: c.id,
+    label: c.name,
+    hint: compoundCategoryLabel(c, t),
+    keywords: c.aliases?.join(' '),
+    group: grouped ? (isStoreListed(c) ? t('compounds.groupStore') : t('compounds.groupOther')) : undefined,
+  }))
 }
 
 /** Normalises user input into a stored compound. Throws RangeError on anything unusable. */
@@ -132,11 +165,12 @@ export async function updateCustomCompound(
  * delete when this is false.
  */
 export async function isCompoundInUse(id: string): Promise<boolean> {
-  const [protocols, logs] = await Promise.all([
+  const [protocols, logs, vials] = await Promise.all([
     db.protocols.where('compoundId').equals(id).count(),
     db.doseLogs.where('compoundId').equals(id).count(),
+    db.vials.where('compoundId').equals(id).count(),
   ])
-  return protocols + logs > 0
+  return protocols + logs + vials > 0
 }
 
 export async function deleteCustomCompound(id: string): Promise<void> {

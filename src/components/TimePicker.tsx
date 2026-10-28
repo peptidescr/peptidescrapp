@@ -1,5 +1,6 @@
 import { ClockIcon } from 'lucide-react'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { formatClock, from12Hour, to12Hour, type Period } from '@/lib/dates'
@@ -23,6 +24,7 @@ interface TimePickerProps {
  * 24h "HH:mm" string; only what's displayed is 12-hour.
  */
 export function TimePicker({ value, onChange }: TimePickerProps) {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const { hour, minute, period } = to12Hour(value)
 
@@ -32,7 +34,7 @@ export function TimePicker({ value, onChange }: TimePickerProps) {
         <button
           type="button"
           className={cn(
-            'flex min-h-11 w-full items-center gap-2 rounded-full border border-input bg-card px-4 text-left text-base text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            'flex min-h-12 w-full items-center gap-2 rounded-xl border border-input bg-card px-4 text-left text-base text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring',
           )}
         >
           <ClockIcon className="size-4 shrink-0 text-muted-foreground" />
@@ -41,7 +43,7 @@ export function TimePicker({ value, onChange }: TimePickerProps) {
       </PopoverTrigger>
       <PopoverContent align="start" className="flex w-auto gap-2 p-2">
         <Select value={String(hour)} onValueChange={(h) => onChange(from12Hour(Number(h), minute, period))}>
-          <SelectTrigger className="w-20" aria-label="Hour">
+          <SelectTrigger className="w-20" aria-label={t('common.hour')}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -54,7 +56,7 @@ export function TimePicker({ value, onChange }: TimePickerProps) {
         </Select>
         <span className="flex items-center text-lg text-muted-foreground">:</span>
         <Select value={minute} onValueChange={(m) => onChange(from12Hour(hour, m, period))}>
-          <SelectTrigger className="w-20" aria-label="Minute">
+          <SelectTrigger className="w-20" aria-label={t('common.minute')}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

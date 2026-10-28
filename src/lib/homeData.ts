@@ -3,17 +3,19 @@
  * both Home's Catch-up section and the notification panel, so the two never
  * disagree about what counts as due/missed or how a streak is computed.
  */
-import { addDays, endOfDay, isSameDay, startOfDay } from 'date-fns'
+import { addDays, endOfDay, isSameDay, parseISO, startOfDay } from 'date-fns'
 import type { DoseLog, Protocol, Settings } from './db'
 import {
-  findUnloggedOccurrences,
+  findUnloggedInRange,
   getDueOccurrences,
   getMissedOccurrences,
   getNextOccurrence,
   getOccurrencesInRange,
+  matchLogsInRange,
   type Occurrence,
   type ScheduleContext,
 } from './schedule'
+import { doseChangeNotice, type DoseChange } from './titration'
 
 export const MISSED_THRESHOLD_HOURS = 12
 export const BACKUP_NUDGE_DAYS = 14
@@ -121,13 +123,12 @@ export function computeTodayProgress(protocols: Protocol[], doseLogs: DoseLog[],
 
   for (const protocol of protocols) {
     if (!protocol.isActive) continue
-    const occurrences = getOccurrencesInRange(contextOf(protocol), dayStart, dayEnd)
+    const ctx = contextOf(protocol)
+    const occurrences = getOccurrencesInRange(ctx, dayStart, dayEnd)
     if (occurrences.length === 0) continue
 
     const unlogged = new Set(
-      findUnloggedOccurrences(occurrences, loggedTimesFor(protocol, doseLogs)).map((o) =>
-        o.scheduledAt.getTime(),
-      ),
+      findUnloggedInRange(ctx, dayStart, dayEnd, loggedTimesFor(protocol, doseLogs)).map((o) => o.scheduledAt.getTime()),
     )
 
     for (const occurrence of occurrences) {
@@ -271,4 +272,96 @@ export function computeProtocolStats(protocol: Protocol, doseLogs: DoseLog[], no
       : 0,
     isPerpetual: !protocol.endDate,
   }
+}
+
+// ---------------------------------------------------------------------------
+// Adherence
+// ---------------------------------------------------------------------------
+
+export const ADHERENCE_WINDOW_DAYS = 30
+
+export interface Adherence {
+  /** Scheduled doses in the window that are settled: logged, or past the missed threshold. */
+  scheduled: number
+  taken: number
+  skipped: number
+  missed: number
+  /** Taken ÷ scheduled as a whole percent; null when nothing has come due yet. */
+  percent: number | null
+}
+
+const EMPTY_ADHERENCE: Adherence = { scheduled: 0, taken: 0, skipped: 0, missed: 0, percent: null }
+
+/**
+ * How closely a protocol has been followed over the last 30 days: every
+ * scheduled dose since then that is settled — logged (taken or skipped), or
+ * unlogged past the same 12-hour missed threshold Home uses. A dose that's
+ * due but still inside that window isn't counted yet either way, so logging
+ * it on time never shows as a dip first. Skipped doses are reported
+ * separately rather than folded in, keeping this a factual record, the same
+ * way the streak counts any log (see computeStreakDays).
+ *
+ * Paused protocols report nothing: while paused, nothing was expected, and
+ * the schedule alone can't tell when the pause began.
+ */
+export function computeAdherence(
+  protocol: Protocol,
+  doseLogs: DoseLog[],
+  now: Date,
+  days = ADHERENCE_WINDOW_DAYS,
+): Adherence {
+  if (!protocol.isActive) return EMPTY_ADHERENCE
+  const logs = doseLogs.filter((log) => log.protocolId === protocol.id)
+  const settled = matchLogsInRange(contextOf(protocol), addDays(now, -days), now, logs, (log) => new Date(log.administeredAt))
+  const missedBefore = now.getTime() - MISSED_THRESHOLD_HOURS * 60 * 60 * 1000
+
+  let taken = 0
+  let skipped = 0
+  let missed = 0
+  settled.forEach(({ occurrence, log }) => {
+    if (log?.status === 'taken') taken += 1
+    else if (log?.status === 'skipped') skipped += 1
+    else if (occurrence.scheduledAt.getTime() <= missedBefore) missed += 1
+  })
+  return withPercent({ scheduled: taken + skipped + missed, taken, skipped, missed })
+}
+
+/** The same figures summed across every active protocol. */
+export function computeOverallAdherence(protocols: Protocol[], doseLogs: DoseLog[], now: Date): Adherence {
+  const total = { scheduled: 0, taken: 0, skipped: 0, missed: 0 }
+  for (const protocol of protocols) {
+    const a = computeAdherence(protocol, doseLogs, now)
+    total.scheduled += a.scheduled
+    total.taken += a.taken
+    total.skipped += a.skipped
+    total.missed += a.missed
+  }
+  return withPercent(total)
+}
+
+function withPercent(counts: Omit<Adherence, 'percent'>): Adherence {
+  return {
+    ...counts,
+    percent: counts.scheduled > 0 ? Math.round((counts.taken / counts.scheduled) * 100) : null,
+  }
+}
+
+export interface DoseChangeItem {
+  protocol: Protocol
+  change: DoseChange
+}
+
+/**
+ * Titration steps about to change an active protocol's dose (or changing it
+ * today), soonest first — shown on Home and in the bell, from this one list,
+ * so the bell's count matches the panel.
+ */
+export function computeDoseChanges(protocols: Protocol[], now: Date): DoseChangeItem[] {
+  return protocols
+    .filter((p) => p.isActive && (!p.endDate || startOfDay(now) <= parseISO(p.endDate)))
+    .flatMap((protocol) => {
+      const change = doseChangeNotice(protocol, now)
+      return change ? [{ protocol, change }] : []
+    })
+    .sort((a, b) => a.change.on.getTime() - b.change.on.getTime())
 }

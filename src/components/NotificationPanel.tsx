@@ -4,15 +4,22 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DueCard } from './DoseCard'
+import { DoseChangeCard } from './DoseChangeCard'
+import { VialAlertCard } from './VialAlertCard'
 import type { DoseLog, Protocol, Settings } from '../lib/db'
-import { computeDueItems, computeShowBackupNudge } from '../lib/homeData'
+import { computeDueItems, computeShowBackupNudge, type DoseChangeItem } from '../lib/homeData'
 import { getNotificationCapability, requestNotificationPermission } from '../lib/notifications'
+import { vialAlertKey, type VialAlert } from '../lib/vials'
 
 interface NotificationPanelProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   protocols: Protocol[]
   doseLogs: DoseLog[]
+  /** Computed once by Home, so the bell's count and this list can't disagree. */
+  vialAlerts: VialAlert[]
+  /** Titration steps about to change a dose — also computed once by Home, for the same reason. */
+  doseChanges: DoseChangeItem[]
   settings: Settings | undefined
   now: Date
   onNavigateToSettings: () => void
@@ -34,6 +41,8 @@ export function NotificationPanel({
   onOpenChange,
   protocols,
   doseLogs,
+  vialAlerts,
+  doseChanges,
   settings,
   now,
   onNavigateToSettings,
@@ -47,7 +56,13 @@ export function NotificationPanel({
   const capability = getNotificationCapability()
   const showEnableNudge = capability.supported && !capability.requiresInstallOnIOS && capability.permission === 'default'
   const showIosNudge = capability.requiresInstallOnIOS
-  const hasAnything = dueItems.length > 0 || showBackupNudge || showEnableNudge || showIosNudge
+  const hasAnything =
+    dueItems.length > 0 ||
+    vialAlerts.length > 0 ||
+    doseChanges.length > 0 ||
+    showBackupNudge ||
+    showEnableNudge ||
+    showIosNudge
 
   function goToProtocol(protocolId: string) {
     onOpenChange(false)
@@ -114,6 +129,14 @@ export function NotificationPanel({
             </button>
           )}
 
+          {vialAlerts.map((alert) => (
+            <VialAlertCard key={vialAlertKey(alert)} alert={alert} onOpenProtocol={goToProtocol} />
+          ))}
+
+          {doseChanges.map((item) => (
+            <DoseChangeCard key={item.protocol.id} item={item} now={now} onOpenProtocol={goToProtocol} />
+          ))}
+
           {dueItems.map((item) => (
             <DueCard
               key={`${item.protocol.id}-${item.occurrence.scheduledAt.toISOString()}`}
@@ -126,7 +149,7 @@ export function NotificationPanel({
           {!hasAnything && (
             <div className="flex flex-col items-center gap-2 py-8 text-center">
               <CheckCircle2 className="size-8 text-primary" />
-              <p className="text-sm font-medium text-foreground">{t('notifications.emptyTitle')}</p>
+              <p className="font-display text-sm font-semibold text-foreground">{t('notifications.emptyTitle')}</p>
               <p className="text-sm text-muted-foreground">{t('notifications.emptyBody')}</p>
             </div>
           )}

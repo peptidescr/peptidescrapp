@@ -56,11 +56,45 @@ export interface BrandConfig {
    */
   description: string
   /**
-   * <meta name="theme-color"> per theme — mirrors each brand's tokens.css
-   * --brand-surface-2 (the page background). Browser chrome can't read a
-   * CSS custom property, so keep these in sync with tokens.css by hand.
+   * <meta name="theme-color"> and the manifest colours per theme — mirrors
+   * each brand's tokens.css --brand-surface-2 (the page background). Browser
+   * chrome can't read a CSS custom property, so keep these in sync with
+   * tokens.css by hand. Light and dark are both live (THEME_SWITCHING_ENABLED in
+   * src/lib/theme.ts), and each is the page background of its tokens.css block.
    */
   themeColors: { dark: string; light: string }
+  /**
+   * The logo drawn on the hero band (HeroHeader). `src` is a URL under the
+   * brand's own public/ folder; the box is its size in CSS px.
+   */
+  heroLogo: { src: string; width: number; height: number }
+  /**
+   * What a site has switched on. The defaults here are the production values;
+   * src/brand/index.ts lets the build's environment turn individual features on
+   * (this file is also read by vite.config.ts in Node, where import.meta.env
+   * doesn't exist, so the environment can't be read here).
+   */
+  features: {
+    /**
+     * The store connection (Part B): the Shop and Rewards tabs and Home's
+     * points, Your usual and credit cards. Off by default; set
+     * VITE_STORE_ENABLED=true on a site to show them.
+     */
+    store: boolean
+  }
+  /**
+   * Days after opening to prefill a new vial's discard-by date with. Left
+   * unset on purpose: how long a mixed vial stays usable is a product claim,
+   * so the app only fills one in if the client supplies the figure for
+   * their products. Unset = the user enters their own date (or none).
+   */
+  defaultDiscardDays?: number
+  /**
+   * Typical days from order to delivery, for "order by <date>" on a low vial
+   * (src/lib/reorder.ts). Unset until the client confirms it — with it unset
+   * the app shows the Reorder button but no date.
+   */
+  shippingDays?: number
   /**
    * The address this site is served from, no trailing slash: the canonical
    * link, share tags, structured data, robots.txt and the sitemap all use it.
@@ -94,7 +128,10 @@ export const PCR_BRAND: BrandConfig = {
   // comment above for why this isn't swapped per visitor language.
   description:
     'Llevá el registro de tus rutinas de péptidos de investigación y calculá las cantidades de reconstitución con el Registro de Péptidos y Calculadora de Reconstitución de Peptides Costa Rica.',
-  themeColors: { dark: '#060b1a', light: '#f0f5fa' },
+  themeColors: { dark: '#060b1a', light: '#f1f5fb' },
+  // The square logo tile, as in the approved Home screen.
+  heroLogo: { src: '/brand/icon-192.png', width: 44, height: 44 },
+  features: { store: false },
   siteUrl: 'https://app.peptidescostarica.net',
   store: PCR_STORE,
 }
@@ -113,7 +150,10 @@ export const UPD_BRAND: BrandConfig = {
   defaultLocale: 'en',
   description:
     'Track research peptide routines and calculate reconstitution amounts with the USA Peptide Depot Peptide Tracker & Reconstitution Calculator.',
-  themeColors: { dark: '#060f0a', light: '#fdfbf0' },
+  themeColors: { dark: '#060f0a', light: '#fcfaf0' },
+  // The ivory "UPD / USA Peptide Depot" wordmark (transparent), which sits on the forest-green band.
+  heroLogo: { src: '/brand/upd-logo.png', width: 109, height: 36 },
+  features: { store: false },
   siteUrl: 'https://app.usapeptidedepot.com',
   store: UPD_STORE,
 }

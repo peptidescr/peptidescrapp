@@ -1,98 +1,91 @@
 /*
  * Brand tokens — the single file to edit when swapping the palette.
  *
- * Rebranded to USA Peptide Depot (usapeptidedepot.com). Everything here is
- * sampled from their live site (computed styles read via headless Chrome,
- * not eyeballed) and from public/brand/upd-logo.png, their own logo file:
- *   forest   #1f4233  — header/nav background, the logo's own tile colour
- *   green    #274b3b  — their nav/category button (same hue, one step lighter)
- *   ivory    #ece8d8  — the logo mark's colour, and their header/body text on
- *                       the forest header
- *   cream    #fdfbf0  — their page background
- *   card     #f6f2e2  — their card/panel background (a touch deeper than the
- *                       page, which is how their own layout reads — not a typo)
- *   ink      #2a3530  — their body text on the cream background
- *   muted    #5e6661  — their secondary/muted text
- *   sage     #bcd4c5  — their muted secondary-text-on-dark colour; reused
- *                       below as dark mode's light accent (see next para)
- *   rust     #bf4f0b  — their commerce "Add to cart" accent. Kept out of the
- *                       UI palette on purpose: it is their store's buy-button
- *                       colour, not their identity colour, and this app has
- *                       no equivalent action — reusing it as a UI accent
- *                       would invent a meaning they never gave it.
+ * USA Peptide Depot (usapeptidedepot.com), light look (retention redesign,
+ * Part A). The values were sampled pixel-for-pixel from the client-approved
+ * screens in docs/design/retention/upd/, which match the live site's own
+ * colours (computed styles read via headless Chrome for the rebrand):
+ *   forest   #1f4233  — the hero band, primary buttons, selected chips, active
+ *                       tab: their header green and the logo tile's own colour
+ *   cream    #fcfaf0  — the page background: their page cream
+ *   tint     #f4f1e1  — segmented-control track, stepper pill, icon tiles, info rows
+ *   ink      #17231d  — headings and body text (also the darkest tier card)
+ *   mint     #9fe0b8  — the syringe fill on the forest-green result card
+ *   rust     #c2410c  — the attention CTA ("Redeem") only. The mock-up samples
+ *                       #c2410c; their store's Add-to-cart colour is #bf4f0b.
+ *                       The sampled value is used; both clear 4.5:1 with white.
+ *   muted    #5e6661  — their secondary text
+ *   ivory    #ece8d8  — the logo mark's colour, and their text on the forest header
  *
- * Dark is the default theme. The PAGE background (--brand-surface-2) was
- * tried as a neutral grey — a client request, wanting cards to read as
- * colour against a colourless canvas — but grey next to this saturated a
- * green looked like a clash, not a canvas, so that was reverted. What's here
- * instead is still on-brand: the same forest-green family, just taken darker
- * relative to the card than the original near-black was (#060f0a vs card's
- * #122a20), so cards/hero/accent separate from the page by actual luminance,
- * not just by being a fractionally different shade of the same green.
- * Everything else in this block is unchanged — cards, borders, ink, and the
- * sage accent are still exactly what the rebrand set. The accent is their
- * own sampled sage — light enough to pop on the dark surfaces, so filled
- * controls carry a dark-forest label (--brand-primary-fg) rather than white,
- * the same reasoning the previous palette used for its light accent.
- *
- * Light mode uses their real header forest green as the primary colour. The
- * page background is their real cream, kept white/near-white per the same
- * request above — but the card/border/accent surfaces below it are a
- * deliberately more saturated mint than a literal sample of their (very
- * subtle, cream-on-cream) real card colour would give: on a phone screen,
- * where cards are most of what's visible, that subtlety read as "bland, no
- * colour" rather than "refined." These are still the brand's own green, just
- * turned up enough to actually show as colour against the white page.
+ * Light and dark are both live (THEME_SWITCHING_ENABLED in src/lib/theme.ts):
+ * the dark palette is the second block below, with a value for every role.
  *
  * --brand-warn is intentionally NOT sourced from the brand — it's a
  * deliberately non-alarming amber for measurement-accuracy notices (see
- * units.ts). --destructive* is likewise a standard UI danger red, not a
- * brand colour. Neither changed by the rebrand or by this pass.
+ * units.ts). --destructive* is likewise a standard UI danger red, not a brand
+ * colour; --brand-attention is a button colour and is not used for errors.
  */
 :root {
-  --brand-primary: #bcd4c5;
-  --brand-primary-dk: #9bb9a6;
-  /* Raised from #1a3a28 — that sat only 1.22:1 from the card (#122a20), so a
-     "selected" chip/badge was nearly invisible against a plain card. This
-     blends further toward the sage accent (5.9:1 for sage text on top, still
-     comfortably legible) so a highlighted state actually reads as one. */
-  --brand-primary-lt: #344c41;
-  --brand-primary-fg: #0e1f16;
-  --brand-ink: #ece8d8;
-  --brand-muted: #8fa396;
-  --brand-surface: #122a20;
-  /* Deep near-black forest — see the doc comment above (a neutral grey was
-     tried and reverted). Everything else in this block stayed exactly as
-     the rebrand left it. */
-  --brand-surface-2: #060f0a;
-  /* Raised from #1f3b2c — that sat only 1.25:1 from the card, so card
-     outlines, dividers, and outlined ("secondary") buttons were barely
-     visible, which is what actually made the whole page read as "everything
-     blends together." Now ~2.1:1 against the card, ~2.7:1 against the page —
-     a real line, not just a marginally-different green. */
-  --brand-border: #455d52;
-  --brand-warn: #e0954b;
-  --brand-warn-lt: #2f2418;
+  --brand-primary: #1f4233;
+  --brand-primary-dk: #142d22;
+  /* Selected / accent surfaces (the soft tint family). */
+  --brand-primary-lt: #f4f1e1;
+  --brand-primary-fg: #ffffff;
+  --brand-ink: #17231d;
+  --brand-muted: #5e6661;
+  --brand-surface: #ffffff;
+  --brand-surface-2: #fcfaf0;
+  --brand-border: #e6e2cf;
+
+  /* Segmented-control track, stepper pill, chip track, icon tiles, info rows. */
+  --brand-tint: #f4f1e1;
+  /* The darkest tier card ("Institute"); also the ink. */
+  --brand-tier-dark: #17231d;
+  /* The one loud button ("Redeem"): attention, not danger. */
+  --brand-attention: #c2410c;
+  --brand-attention-dk: #9a3412;
+  --brand-attention-fg: #ffffff;
+  /* Light accent that sits on the forest green: the syringe fill, ring track. */
+  --brand-accent-light: #9fe0b8;
+  /* "Earned" pill, "+$15": green text on a pale green. */
+  --brand-positive: #15603a;
+  --brand-positive-lt: #e4f2e8;
+  /* Text on the brand-coloured hero band, and the translucent tiles that sit on it. */
+  --brand-on-primary: #fdfbf0;
+  --brand-on-primary-muted: rgb(253 251 240 / 0.78);
+  --brand-on-primary-tile: rgb(255 255 255 / 0.1);
+  --brand-shadow-card: 0 1px 2px rgb(23 35 29 / 0.04), 0 4px 14px -2px rgb(23 35 29 / 0.07);
+
+  --brand-warn: #9a5420;
+  --brand-warn-lt: #fbf1e7;
+  /* Progress charts (validated against the white card surface). Dose steps: one
+     brand hue, lowest dose → highest. Side-effect severity: one amber hue,
+     mild → severe, the same in both brands. */
+  --chart-dose-1: #7fa48c;
+  --chart-dose-2: #4f7a60;
+  --chart-dose-3: #2f5a42;
+  --chart-dose-4: #173628;
+  --chart-sev-1: #de8d4a;
+  --chart-sev-2: #b8621f;
+  --chart-sev-3: #7f3e0d;
   /* Standard destructive-action red (delete, wipe+import) — a UI safety
      convention, not a brand colour, and deliberately distinct from
      --brand-warn's non-alarming amber (which is about measurement accuracy,
      never framed as danger — see units.ts). */
-  --destructive: #f87171;
-  --destructive-foreground: #1f0a0a;
-  /* Missed/overdue dose cards read as "lit" via this glow — reads correctly
-     only on a near-black page, so the light block below replaces it with a
-     ring + tint instead of tuning the same shadow shape. See DoseCard.tsx. */
-  --destructive-glow: 0 0 24px -10px var(--destructive);
+  --destructive: #c81e1e;
+  --destructive-foreground: #ffffff;
+  /* Missed/overdue dose cards: a crisp ring plus a soft tinted drop shadow.
+     See DoseCard.tsx. */
+  --destructive-glow:
+    0 0 0 1.5px var(--destructive),
+    0 6px 16px -6px rgb(220 38 38 / 0.35);
 
-  /* The Home hero and any other "brand art" surface: the logo's own field.
-     Fixed (not themed) so the card looks like the logo in both modes. */
-  --brand-hero:
-    radial-gradient(90% 120% at 90% -10%, rgb(39 75 59 / 0.9) 0%, rgb(39 75 59 / 0) 62%),
-    linear-gradient(165deg, #1f4233 0%, #060f0a 100%);
+  /* The Home hero band and any other "brand art" surface: flat forest green, as
+     in the mock-ups. */
+  --brand-hero: var(--brand-primary);
 
-  /* Soft glow behind the logo on the first onboarding step — the logo tile's
-     own green (it was still the previous brand's blue until this was a token). */
-  --brand-logo-glow: rgb(39 75 59 / 0.9);
+  /* Soft glow behind the logo on the first onboarding step — the logo tile's own green. */
+  --brand-logo-glow: rgb(39 75 59 / 0.55);
 
   --brand-contrast: #ffffff;
   --brand-contrast-foreground: #000000;
@@ -113,43 +106,46 @@
 }
 
 /*
- * Light mode. JS (src/lib/theme.ts) always resolves 'system' to a concrete
- * theme and sets this attribute on <html> — this selector never has to
- * compete with a media query. Overriding at the --brand-* / --destructive*
- * layer (not --color-*) is deliberate: src/index.css's `@theme` block is
- * NOT `@theme inline`, so every --color-* semantic token is late-bound as
- * var(--brand-*) and re-resolves automatically. It also catches the call
- * sites that read --brand-* names directly (bg-brand-warn-lt/text-brand-warn
- * in HomeScreen/NotificationPanel/CalculatorScreen, and
- * active:bg-brand-primary-dk in button-variants.ts) for free.
+ * Dark palette, selected by data-theme="dark" (src/lib/theme.ts). Every role
+ * the light block defines has a dark value here; the pairings were checked with
+ * a script (text >= 4.5:1 on the page, card and tint; chart colours >= 3:1).
  *
- * Only properties that actually need a different light value are listed —
- * --brand-hero, --brand-contrast/-foreground, --radius and the font stacks
- * aren't redefined here and simply cascade down from the dark :root block.
+ * Buttons and links invert (a light mint on the dark card, dark text on it);
+ * the hero band does not: --brand-hero stays the forest green so the ivory text,
+ * mint syringe and translucent tiles on it read exactly as in the light look.
+ *
+ * Overriding at the --brand-* / --destructive* layer (not --color-*) is
+ * deliberate: src/index.css's `@theme` block is NOT `@theme inline`, so every
+ * --color-* semantic token is late-bound as var(--brand-*) and re-resolves
+ * automatically.
  */
-:root[data-theme='light'] {
-  --brand-primary: #1f4233;
-  --brand-primary-dk: #142d22;
-  /* More saturated than a literal sample of their site would give — see the
-     doc comment above. Ordered lightest→most-saturated as page < surface <
-     border < primary-lt, so a selected/accent state still visibly outranks
-     a plain card, and a card still visibly outranks the bare page. */
-  --brand-primary-lt: #ccded0;
-  --brand-primary-fg: #ffffff;
-  --brand-ink: #2a3530;
-  --brand-muted: #5e6661;
-  --brand-surface: #e0e9dd;
-  --brand-surface-2: #fdfbf0;
-  --brand-border: #d6e4d6;
-  --brand-warn: #a95f22;
-  --brand-warn-lt: #fbf1e7;
-
-  --destructive: #dc2626;
-  --destructive-foreground: #ffffff;
-  /* A glow only reads as "lit" on a dark page — on light it was a muddy
-     smudge, so this is a crisp ring plus a soft tinted drop shadow instead,
-     not a tuned version of the same shadow shape. */
-  --destructive-glow:
-    0 0 0 1.5px var(--destructive),
-    0 6px 16px -6px rgb(220 38 38 / 0.35);
+:root[data-theme='dark'] {
+  --brand-primary: #bcd4c5;
+  --brand-primary-dk: #9bb9a6;
+  --brand-primary-lt: #2d463a;
+  --brand-primary-fg: #0e1f16;
+  --brand-ink: #ece8d8;
+  --brand-muted: #8fa396;
+  --brand-surface: #122a20;
+  --brand-surface-2: #060f0a;
+  --brand-border: #455d52;
+  --brand-tint: #1c352a;
+  --brand-tier-dark: #020604;
+  --brand-positive: #7fd9a2;
+  --brand-positive-lt: #123525;
+  --brand-shadow-card: 0 1px 2px rgb(0 0 0 / 0.5), 0 4px 14px -2px rgb(0 0 0 / 0.55);
+  --brand-hero: #1f4233;
+  --brand-warn: #efa86c;
+  --brand-warn-lt: #2f2418;
+  --chart-dose-1: #4f7d63;
+  --chart-dose-2: #6f9c80;
+  --chart-dose-3: #94bba1;
+  --chart-dose-4: #c2dcc9;
+  --chart-sev-1: #ad6a30;
+  --chart-sev-2: #cf7d38;
+  --chart-sev-3: #f0ac70;
+  --destructive: #f87171;
+  --destructive-foreground: #1f0a0a;
+  --destructive-glow: 0 0 24px -10px var(--destructive);
+  --brand-logo-glow: rgb(39 75 59 / 0.9);
 }

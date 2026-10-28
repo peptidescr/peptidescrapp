@@ -18,6 +18,10 @@ import { parseDecimal } from './units'
 export const MAX_DOSE_AMOUNT = 100_000
 /** Longest repeating interval / cycle length we accept, in days. */
 export const MAX_DAY_COUNT = 365
+/** Longest on / off / washout stretch of a weeks cycle we accept, in weeks (two years). */
+export const MAX_WEEK_COUNT = 104
+/** Most repetitions a fixed-length weeks cycle can have. */
+export const MAX_CYCLES = 52
 export const MAX_NAME_LENGTH = 60
 export const MAX_NOTES_LENGTH = 1000
 

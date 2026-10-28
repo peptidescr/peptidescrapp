@@ -117,7 +117,7 @@ function CustomCompoundForm({
   return (
     <div className="flex flex-col gap-4">
       <label className="flex flex-col gap-2">
-        <span className="text-sm font-medium text-foreground">{t('compounds.name')}</span>
+        <span className="font-display text-sm font-semibold text-foreground">{t('compounds.name')}</span>
         <Input
           value={name}
           maxLength={MAX_NAME_LENGTH}
@@ -126,7 +126,7 @@ function CustomCompoundForm({
         />
       </label>
       <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium text-foreground">{t('compounds.unit')}</span>
+        <span className="font-display text-sm font-semibold text-foreground">{t('compounds.unit')}</span>
         <Segmented
           ariaLabel={t('compounds.unit')}
           value={unit}
@@ -139,7 +139,7 @@ function CustomCompoundForm({
         />
       </div>
       <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium text-foreground">{t('compounds.form')}</span>
+        <span className="font-display text-sm font-semibold text-foreground">{t('compounds.form')}</span>
         <Segmented
           ariaLabel={t('compounds.form')}
           value={form}
@@ -151,7 +151,7 @@ function CustomCompoundForm({
         />
       </div>
       <label className="flex flex-col gap-2">
-        <span className="text-sm font-medium text-foreground">{t('compounds.vialSize')}</span>
+        <span className="font-display text-sm font-semibold text-foreground">{t('compounds.vialSize')}</span>
         <div className="flex items-center gap-2">
           <NumericInput
             kind="decimal"

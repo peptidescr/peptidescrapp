@@ -100,7 +100,7 @@ function SimpleMessage({ children }: { children: ReactNode }) {
   return (
     <div className="flex items-start gap-3 text-sm text-muted-foreground">
       <IconBadge icon={Smartphone} />
-      <p className="pt-1.5">{children}</p>
+      <p className="pt-2.5">{children}</p>
     </div>
   )
 }
@@ -109,12 +109,12 @@ function StepList({ titleKey, footerKey, steps }: { titleKey: string; footerKey:
   const { t } = useTranslation()
   return (
     <div className="flex flex-col gap-3">
-      <p className="font-medium text-foreground">{t(titleKey)}</p>
+      <p className="font-display font-bold text-foreground">{t(titleKey)}</p>
       <ol className="flex flex-col gap-3">
         {steps.map(({ icon, textKey }, index) => (
           <li key={textKey} className="flex items-start gap-3">
             <IconBadge icon={icon} />
-            <span className="pt-1.5 text-sm text-foreground">
+            <span className="pt-2.5 text-sm text-foreground">
               <span className="mr-1.5 text-muted-foreground">{index + 1}.</span>
               {t(textKey)}
             </span>
@@ -128,8 +128,8 @@ function StepList({ titleKey, footerKey, steps }: { titleKey: string; footerKey:
 
 function IconBadge({ icon: Icon }: { icon: LucideIcon }) {
   return (
-    <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent">
-      <Icon className="size-4 text-primary" />
+    <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-tint">
+      <Icon className="size-5 text-primary" />
     </span>
   )
 }

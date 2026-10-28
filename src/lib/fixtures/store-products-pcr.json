@@ -1,0 +1,633 @@
+[
+  {
+    "name": "AHK-Cu 50mg",
+    "slug": "ahk-cu-50mg",
+    "inStock": true,
+    "sku": "ahk-cu-50mg",
+    "category": "Copper & Dermatological Peptides",
+    "url": "https://peptidescostarica.net/product/ahk-cu-50mg/"
+  },
+  {
+    "name": "VIP 5 mg",
+    "slug": "vip-5-mg",
+    "inStock": false,
+    "sku": "vip-5-mg",
+    "category": "Nootropic & Neuropeptides",
+    "url": "https://peptidescostarica.net/product/vip-5-mg/"
+  },
+  {
+    "name": "TB-500 10mg",
+    "slug": "tb-500-10mg",
+    "inStock": false,
+    "sku": "tb-500-10mg",
+    "category": "Tissue Repair Compounds",
+    "url": "https://peptidescostarica.net/product/tb-500-10mg/"
+  },
+  {
+    "name": "SNAP-8 10mg",
+    "slug": "snap-8-10mg",
+    "inStock": false,
+    "sku": "snap-8-10mg",
+    "category": "Copper & Dermatological Peptides",
+    "url": "https://peptidescostarica.net/product/snap-8-10mg/"
+  },
+  {
+    "name": "HMG 75 IU",
+    "slug": "hmg-75-iu",
+    "inStock": false,
+    "sku": "hmg-75-iu",
+    "category": "Reproductive Signalling Peptides",
+    "url": "https://peptidescostarica.net/product/hmg-75-iu/"
+  },
+  {
+    "name": "GHRP-6 10mg",
+    "slug": "ghrp-6-10mg",
+    "inStock": false,
+    "sku": "ghrp-6-10mg",
+    "category": "Growth Hormone Secretagogues",
+    "url": "https://peptidescostarica.net/product/ghrp-6-10mg/"
+  },
+  {
+    "name": "AA Water 3ml",
+    "slug": "aa-water-3ml",
+    "inStock": false,
+    "sku": "aa-water-3ml",
+    "category": "Bacteriostatic Water",
+    "url": "https://peptidescostarica.net/product/aa-water-3ml/"
+  },
+  {
+    "name": "Tirzepatide 120mg",
+    "slug": "tirzepatide-120mg",
+    "inStock": true,
+    "sku": "TIRZEPATIDE-120MG",
+    "category": "Cardiovascular Research Compounds",
+    "url": "https://peptidescostarica.net/product/tirzepatide-120mg/"
+  },
+  {
+    "name": "SS-31 25mg",
+    "slug": "ss-31-25mg",
+    "inStock": true,
+    "sku": "ss-31-25mg",
+    "category": "Cardiovascular Research Compounds",
+    "url": "https://peptidescostarica.net/product/ss-31-25mg/"
+  },
+  {
+    "name": "Oxytocin Acetate 5mg",
+    "slug": "oxytocin-acetate-5mg",
+    "inStock": true,
+    "sku": "OXYTOCIN-ACETATE-5MG",
+    "category": "Nootropic & Neuropeptides",
+    "url": "https://peptidescostarica.net/product/oxytocin-acetate-5mg/"
+  },
+  {
+    "name": "5-Amino-1MQ 50mg",
+    "slug": "5-amino-1mq-50mg",
+    "inStock": true,
+    "sku": "5-AMINO-1MQ-50MG",
+    "category": "Mitochondrial Compounds",
+    "url": "https://peptidescostarica.net/product/5-amino-1mq-50mg/"
+  },
+  {
+    "name": "Adamax 10mg",
+    "slug": "adamax-10mg",
+    "inStock": true,
+    "sku": "ADAMAX-10MG",
+    "category": "Nootropic & Neuropeptides",
+    "url": "https://peptidescostarica.net/product/adamax-10mg/"
+  },
+  {
+    "name": "DSIP 5mg",
+    "slug": "dsip-5mg",
+    "inStock": true,
+    "sku": "DSIP-5MG",
+    "category": "Nootropic & Neuropeptides",
+    "url": "https://peptidescostarica.net/product/dsip-5mg/"
+  },
+  {
+    "name": "GLP-1 5mg",
+    "slug": "retatrutide-5mg",
+    "inStock": true,
+    "sku": "glp-1-5mg",
+    "category": "Cardiovascular Research Compounds",
+    "url": "https://peptidescostarica.net/product/retatrutide-5mg/"
+  },
+  {
+    "name": "Tesamorelin 20mg",
+    "slug": "tesamorelin-20mg",
+    "inStock": true,
+    "sku": "TESAMORELIN-20MG",
+    "category": "Growth Hormone Secretagogues",
+    "url": "https://peptidescostarica.net/product/tesamorelin-20mg/"
+  },
+  {
+    "name": "Tirzepatide 60mg",
+    "slug": "tirzepatide-60mg",
+    "inStock": true,
+    "sku": "TIRZEPATIDE-60MG",
+    "category": "Cardiovascular Research Compounds",
+    "url": "https://peptidescostarica.net/product/tirzepatide-60mg/"
+  },
+  {
+    "name": "HGH 50 IU (Pfizer Brand Genotropin)",
+    "slug": "hgh-50-iu-pfizer-brand-genotropin",
+    "inStock": true,
+    "sku": "HGH-50-IU-PFIZER-GENOTROPIN",
+    "category": "Somatropin & Related Compounds",
+    "url": "https://peptidescostarica.net/product/hgh-50-iu-pfizer-brand-genotropin/"
+  },
+  {
+    "name": "DSIP 10mg",
+    "slug": "dsip-10mg",
+    "inStock": true,
+    "sku": "DSIP-10MG",
+    "category": "Nootropic & Neuropeptides",
+    "url": "https://peptidescostarica.net/product/dsip-10mg/"
+  },
+  {
+    "name": "Tirzepatide 40mg",
+    "slug": "tirzepatide-40mg",
+    "inStock": true,
+    "sku": "TIRZEPATIDE-40MG",
+    "category": "Cardiovascular Research Compounds",
+    "url": "https://peptidescostarica.net/product/tirzepatide-40mg/"
+  },
+  {
+    "name": "Cartalax 20mg",
+    "slug": "cartalax-20mg",
+    "inStock": true,
+    "sku": "CARTALAX-20MG",
+    "category": "Bioregulator Peptides",
+    "url": "https://peptidescostarica.net/product/cartalax-20mg/"
+  },
+  {
+    "name": "NAD+ 1000mg",
+    "slug": "nad-1000mg",
+    "inStock": true,
+    "sku": "nad-1000mg",
+    "category": "Mitochondrial Compounds",
+    "url": "https://peptidescostarica.net/product/nad-1000mg/"
+  },
+  {
+    "name": "GLP-1 60mg",
+    "slug": "retatrutide-60mg",
+    "inStock": true,
+    "sku": "glp-1-60mg",
+    "category": "Cardiovascular Research Compounds",
+    "url": "https://peptidescostarica.net/product/retatrutide-60mg/"
+  },
+  {
+    "name": "GLP-1 50mg",
+    "slug": "retatrutide-50mg",
+    "inStock": true,
+    "sku": "glp-1-50mg",
+    "category": "Cardiovascular Research Compounds",
+    "url": "https://peptidescostarica.net/product/retatrutide-50mg/"
+  },
+  {
+    "name": "HGH 30 IU",
+    "slug": "hgh-30-iu",
+    "inStock": true,
+    "sku": "HGH-30-IU",
+    "category": "Somatropin & Related Compounds",
+    "url": "https://peptidescostarica.net/product/hgh-30-iu/"
+  },
+  {
+    "name": "GLOW 50mg",
+    "slug": "glow-50mg",
+    "inStock": false,
+    "sku": "GLOW-50MG",
+    "category": "Copper & Dermatological Peptides",
+    "url": "https://peptidescostarica.net/product/glow-50mg/"
+  },
+  {
+    "name": "KPV 10mg",
+    "slug": "kpv-10mg",
+    "inStock": true,
+    "sku": "KPV-10MG",
+    "category": "Tissue Repair Compounds",
+    "url": "https://peptidescostarica.net/product/kpv-10mg/"
+  },
+  {
+    "name": "SLU-PP-332 5mg",
+    "slug": "slu-pp-332-5mg",
+    "inStock": true,
+    "sku": "slu-pp-332-5mg",
+    "category": "Mitochondrial Compounds",
+    "url": "https://peptidescostarica.net/product/slu-pp-332-5mg/"
+  },
+  {
+    "name": "Semaglutide 10mg",
+    "slug": "semaglutide-10mg",
+    "inStock": true,
+    "sku": "SEMAGLUTIDE-10MG",
+    "category": "Cardiovascular Research Compounds",
+    "url": "https://peptidescostarica.net/product/semaglutide-10mg/"
+  },
+  {
+    "name": "Semax 10mg",
+    "slug": "semax-10mg",
+    "inStock": true,
+    "sku": "SEMAX-10MG",
+    "category": "Nootropic & Neuropeptides",
+    "url": "https://peptidescostarica.net/product/semax-10mg/"
+  },
+  {
+    "name": "AICAR 50mg",
+    "slug": "aicar-50mg",
+    "inStock": true,
+    "sku": "AICAR-50MG",
+    "category": "Mitochondrial Compounds",
+    "url": "https://peptidescostarica.net/product/aicar-50mg/"
+  },
+  {
+    "name": "MT-II",
+    "slug": "mt-ii",
+    "inStock": true,
+    "sku": "mt-ii",
+    "category": "Copper & Dermatological Peptides",
+    "url": "https://peptidescostarica.net/product/mt-ii/"
+  },
+  {
+    "name": "Tirzepatide 30mg",
+    "slug": "tirzepatide-30mg",
+    "inStock": true,
+    "sku": "TIRZEPATIDE-30MG",
+    "category": "Cardiovascular Research Compounds",
+    "url": "https://peptidescostarica.net/product/tirzepatide-30mg/"
+  },
+  {
+    "name": "Tirzepatide 20mg",
+    "slug": "tirzepatide-20mg",
+    "inStock": true,
+    "sku": "TIRZEPATIDE-20MG",
+    "category": "Cardiovascular Research Compounds",
+    "url": "https://peptidescostarica.net/product/tirzepatide-20mg/"
+  },
+  {
+    "name": "Tirzepatide 15mg",
+    "slug": "tirzepatide-15mg",
+    "inStock": true,
+    "sku": "TIRZEPATIDE-15MG",
+    "category": "Cardiovascular Research Compounds",
+    "url": "https://peptidescostarica.net/product/tirzepatide-15mg/"
+  },
+  {
+    "name": "Tirzepatide 10mg",
+    "slug": "tirzepatide-10mg",
+    "inStock": true,
+    "sku": "TIRZEPATIDE-10MG",
+    "category": "Cardiovascular Research Compounds",
+    "url": "https://peptidescostarica.net/product/tirzepatide-10mg/"
+  },
+  {
+    "name": "Pinealon 20mg",
+    "slug": "pinealon-20mg",
+    "inStock": true,
+    "sku": "PINEALON-20MG",
+    "category": "Bioregulator Peptides",
+    "url": "https://peptidescostarica.net/product/pinealon-20mg/"
+  },
+  {
+    "name": "Semaglutide 30mg",
+    "slug": "semaglutide-30mg",
+    "inStock": true,
+    "sku": "SEMAGLUTIDE-30MG",
+    "category": "Cardiovascular Research Compounds",
+    "url": "https://peptidescostarica.net/product/semaglutide-30mg/"
+  },
+  {
+    "name": "Semaglutide 20mg",
+    "slug": "semaglutide-20mg",
+    "inStock": true,
+    "sku": "SEMAGLUTIDE-20MG",
+    "category": "Cardiovascular Research Compounds",
+    "url": "https://peptidescostarica.net/product/semaglutide-20mg/"
+  },
+  {
+    "name": "Thymosin Alpha-1 10mg",
+    "slug": "thymosin-alpha-1-10mg",
+    "inStock": true,
+    "sku": "THYMOSIN-ALPHA-1-10MG",
+    "category": "Bioregulator Peptides",
+    "url": "https://peptidescostarica.net/product/thymosin-alpha-1-10mg/"
+  },
+  {
+    "name": "CJC-1295 without DAC + IPA 10mg",
+    "slug": "cjc-1295-without-dac-ipa-10mg",
+    "inStock": true,
+    "sku": "cjc-1295-without-dac-ipamorelin",
+    "category": "Growth Hormone Secretagogues",
+    "url": "https://peptidescostarica.net/product/cjc-1295-without-dac-ipa-10mg/"
+  },
+  {
+    "name": "GHK-CU 100mg",
+    "slug": "ghk-cu-100mg",
+    "inStock": true,
+    "sku": "GHK-CU-100MG",
+    "category": "Collagen Peptides",
+    "url": "https://peptidescostarica.net/product/ghk-cu-100mg/"
+  },
+  {
+    "name": "Lipotropic Blend 10ml",
+    "slug": "fat-blaster-10ml",
+    "inStock": true,
+    "sku": "lipotropic-blend-10ml",
+    "url": "https://peptidescostarica.net/product/fat-blaster-10ml/"
+  },
+  {
+    "name": "Bacteriostatic Water 10ml",
+    "slug": "bac-water-10ml",
+    "inStock": true,
+    "sku": "BAC-WATER-10ML",
+    "category": "Bacteriostatic Water",
+    "url": "https://peptidescostarica.net/product/bac-water-10ml/"
+  },
+  {
+    "name": "Bacteriostatic Water 3ml",
+    "slug": "bac-water-3ml",
+    "inStock": true,
+    "sku": "BAC-WATER-3ML",
+    "category": "Bacteriostatic Water",
+    "url": "https://peptidescostarica.net/product/bac-water-3ml/"
+  },
+  {
+    "name": "Glutathione 1500mg",
+    "slug": "glutathione-1500mg",
+    "inStock": true,
+    "sku": "GLUTATHIONE-1500MG",
+    "category": "Copper & Dermatological Peptides",
+    "url": "https://peptidescostarica.net/product/glutathione-1500mg/"
+  },
+  {
+    "name": "KissPeptin-10 10mg",
+    "slug": "kisspeptin-10-10mg",
+    "inStock": true,
+    "sku": "KISSPEPTIN-10-10MG",
+    "category": "Reproductive Signalling Peptides",
+    "url": "https://peptidescostarica.net/product/kisspeptin-10-10mg/"
+  },
+  {
+    "name": "PT-141 10mg",
+    "slug": "pt-141-10mgtest",
+    "inStock": true,
+    "sku": "PT-141-10MG",
+    "category": "Reproductive Signalling Peptides",
+    "url": "https://peptidescostarica.net/product/pt-141-10mgtest/"
+  },
+  {
+    "name": "Mots-C 40mg",
+    "slug": "mots-c-40mg",
+    "inStock": true,
+    "sku": "MOTS-C-40MG",
+    "category": "Mitochondrial Compounds",
+    "url": "https://peptidescostarica.net/product/mots-c-40mg/"
+  },
+  {
+    "name": "IGF-1LR3 1mg",
+    "slug": "igf-1lr3-1mg",
+    "inStock": true,
+    "sku": "igf-1-lr3-1mg",
+    "category": "Growth Hormone Secretagogues",
+    "url": "https://peptidescostarica.net/product/igf-1lr3-1mg/"
+  },
+  {
+    "name": "Sermorelin 10mg",
+    "slug": "sermorelin-10mg",
+    "inStock": true,
+    "sku": "SERMORELIN-10MG",
+    "category": "Growth Hormone Secretagogues",
+    "url": "https://peptidescostarica.net/product/sermorelin-10mg/"
+  },
+  {
+    "name": "GLP-1 20mg",
+    "slug": "retatrutide-20mg",
+    "inStock": true,
+    "sku": "glp-1-20mg",
+    "category": "Cardiovascular Research Compounds",
+    "url": "https://peptidescostarica.net/product/retatrutide-20mg/"
+  },
+  {
+    "name": "SUPER Human Blend 10ml",
+    "slug": "super-human-blend-10ml",
+    "inStock": true,
+    "sku": "SUPER-HUMAN-AMINO-BLEND-10ML",
+    "category": "Mitochondrial Compounds",
+    "url": "https://peptidescostarica.net/product/super-human-blend-10ml/"
+  },
+  {
+    "name": "GLP-1 24mg",
+    "slug": "retatrutide-24mg",
+    "inStock": true,
+    "sku": "glp-1-24mg",
+    "category": "Cardiovascular Research Compounds",
+    "url": "https://peptidescostarica.net/product/retatrutide-24mg/"
+  },
+  {
+    "name": "GLP-1 15mg",
+    "slug": "retatrutide-15mg",
+    "inStock": true,
+    "sku": "glp-1-15mg",
+    "category": "Cardiovascular Research Compounds",
+    "url": "https://peptidescostarica.net/product/retatrutide-15mg/"
+  },
+  {
+    "name": "CJC with DAC 5mg",
+    "slug": "cjc-with-dac-5mg",
+    "inStock": true,
+    "sku": "cjc-1295-with-dac-5mg",
+    "category": "Growth Hormone Secretagogues",
+    "url": "https://peptidescostarica.net/product/cjc-with-dac-5mg/"
+  },
+  {
+    "name": "Ipamorelin 10mg",
+    "slug": "ipamorelin-10mg",
+    "inStock": true,
+    "sku": "IPAMORELIN-10MG",
+    "category": "Growth Hormone Secretagogues",
+    "url": "https://peptidescostarica.net/product/ipamorelin-10mg/"
+  },
+  {
+    "name": "BPC-157 + TB 500 20mg (Wolverine Stack)",
+    "slug": "bpc-157-tb-500-20mg-wolverine-stack",
+    "inStock": true,
+    "sku": "bpc-157-tb-500-20mg-wolverine-stack",
+    "category": "Tissue Repair Compounds",
+    "url": "https://peptidescostarica.net/product/bpc-157-tb-500-20mg-wolverine-stack/"
+  },
+  {
+    "name": "GLP-1 10mg",
+    "slug": "reta-10mg",
+    "inStock": true,
+    "sku": "glp-1-10mg",
+    "category": "Cardiovascular Research Compounds",
+    "url": "https://peptidescostarica.net/product/reta-10mg/"
+  },
+  {
+    "name": "GLOW 70mg",
+    "slug": "glow-70mg",
+    "inStock": true,
+    "sku": "GLOW-70MG",
+    "category": "Copper & Dermatological Peptides",
+    "url": "https://peptidescostarica.net/product/glow-70mg/"
+  },
+  {
+    "name": "TB-4 10mg",
+    "slug": "tb-4-10mg",
+    "inStock": true,
+    "sku": "TB-4-10MG",
+    "category": "Cardiovascular Research Compounds",
+    "url": "https://peptidescostarica.net/product/tb-4-10mg/"
+  },
+  {
+    "name": "Epithalon 50mg",
+    "slug": "epithalon-50mg",
+    "inStock": true,
+    "sku": "EPITHALON-50MG",
+    "category": "Bioregulator Peptides",
+    "url": "https://peptidescostarica.net/product/epithalon-50mg/"
+  },
+  {
+    "name": "HGH 24 IU",
+    "slug": "hgh-24-iu",
+    "inStock": false,
+    "sku": "HGH-24-IU",
+    "category": "Somatropin & Related Compounds",
+    "url": "https://peptidescostarica.net/product/hgh-24-iu/"
+  },
+  {
+    "name": "HGH 12 IU",
+    "slug": "hgh-12-iu",
+    "inStock": true,
+    "sku": "HGH-12-IU",
+    "category": "Somatropin & Related Compounds",
+    "url": "https://peptidescostarica.net/product/hgh-12-iu/"
+  },
+  {
+    "name": "DSIP 15mg",
+    "slug": "dsip-15mg",
+    "inStock": false,
+    "sku": "DSIP-15MG",
+    "category": "Nootropic & Neuropeptides",
+    "url": "https://peptidescostarica.net/product/dsip-15mg/"
+  },
+  {
+    "name": "Adamax 5mg",
+    "slug": "adamax-5mg",
+    "inStock": false,
+    "sku": "ADAMAX-5MG",
+    "category": "Nootropic & Neuropeptides",
+    "url": "https://peptidescostarica.net/product/adamax-5mg/"
+  },
+  {
+    "name": "SS-31 10mg",
+    "slug": "ss-31-10mg",
+    "inStock": false,
+    "sku": "ss-31-10mg",
+    "category": "Cardiovascular Research Compounds",
+    "url": "https://peptidescostarica.net/product/ss-31-10mg/"
+  },
+  {
+    "name": "Thymalin 10mg",
+    "slug": "thymalin-10mg",
+    "inStock": true,
+    "sku": "THYMALIN-10MG",
+    "category": "Bioregulator Peptides",
+    "url": "https://peptidescostarica.net/product/thymalin-10mg/"
+  },
+  {
+    "name": "Tesamorelin 10mg",
+    "slug": "tesamorelin-10mg",
+    "inStock": true,
+    "sku": "TESAMORELIN-10MG",
+    "category": "Growth Hormone Secretagogues",
+    "url": "https://peptidescostarica.net/product/tesamorelin-10mg/"
+  },
+  {
+    "name": "GLP-1 12mg",
+    "slug": "reta-12mg",
+    "inStock": true,
+    "sku": "glp-1-12mg",
+    "category": "Cardiovascular Research Compounds",
+    "url": "https://peptidescostarica.net/product/reta-12mg/"
+  },
+  {
+    "name": "GHK-CU 50mg",
+    "slug": "ghk-cu-50mg",
+    "inStock": true,
+    "sku": "GHK-CU-50MG",
+    "category": "Collagen Peptides",
+    "url": "https://peptidescostarica.net/product/ghk-cu-50mg/"
+  },
+  {
+    "name": "Selank 10mg",
+    "slug": "selank-10mg",
+    "inStock": true,
+    "sku": "SELANK-10MG",
+    "category": "Nootropic & Neuropeptides",
+    "url": "https://peptidescostarica.net/product/selank-10mg/"
+  },
+  {
+    "name": "Mots-C 10mg",
+    "slug": "mots-c-10mg",
+    "inStock": false,
+    "sku": "MOTS-C-10MG",
+    "category": "Mitochondrial Compounds",
+    "url": "https://peptidescostarica.net/product/mots-c-10mg/"
+  },
+  {
+    "name": "NAD+ 500mg",
+    "slug": "nad-500mg",
+    "inStock": true,
+    "sku": "nad-500mg",
+    "category": "Mitochondrial Compounds",
+    "url": "https://peptidescostarica.net/product/nad-500mg/"
+  },
+  {
+    "name": "5-Amino-1MQ 5mg",
+    "slug": "5-amino-1mq-5mg",
+    "inStock": false,
+    "sku": "5-AMINO-1MQ-5MG",
+    "category": "Mitochondrial Compounds",
+    "url": "https://peptidescostarica.net/product/5-amino-1mq-5mg/"
+  },
+  {
+    "name": "KLOW 80mg",
+    "slug": "klow-80mg",
+    "inStock": true,
+    "sku": "KLOW-80MG",
+    "category": "Collagen Peptides",
+    "url": "https://peptidescostarica.net/product/klow-80mg/"
+  },
+  {
+    "name": "HCG 10,000 IU",
+    "slug": "hcg-10000-iu",
+    "inStock": true,
+    "sku": "HCG-10-000-IU",
+    "category": "Reproductive Signalling Peptides",
+    "url": "https://peptidescostarica.net/product/hcg-10000-iu/"
+  },
+  {
+    "name": "BPC-157 10mg",
+    "slug": "bpc-157-10mg",
+    "inStock": true,
+    "sku": "BPC-157-10MG",
+    "category": "Tissue Repair Compounds",
+    "url": "https://peptidescostarica.net/product/bpc-157-10mg/"
+  },
+  {
+    "name": "GLP-1 40mg",
+    "slug": "reta-40mg",
+    "inStock": false,
+    "sku": "glp-1-40mg",
+    "category": "Cardiovascular Research Compounds",
+    "url": "https://peptidescostarica.net/product/reta-40mg/"
+  },
+  {
+    "name": "GLP-1 30mg",
+    "slug": "reta-30mg",
+    "inStock": false,
+    "sku": "glp-1-30mg",
+    "category": "Cardiovascular Research Compounds",
+    "url": "https://peptidescostarica.net/product/reta-30mg/"
+  }
+]

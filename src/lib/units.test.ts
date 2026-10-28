@@ -265,6 +265,18 @@ describe('display helpers', () => {
     expect(formatMass(2500 as Microgram, 'mcg', 'en')).toBe('2500')
   })
 
+  it('formatVolumeMlFixed keeps its decimals, with the locale separator', () => {
+    expect(units.formatVolumeMlFixed(microlitersFromMl(0.1), 'en')).toBe('0.100')
+    expect(units.formatVolumeMlFixed(microlitersFromMl(0.1), 'es-CR')).toBe('0,100')
+    expect(units.formatVolumeMlFixed(microlitersFromMl(0.25), 'en', 2)).toBe('0.25')
+  })
+
+  it('formatGrouped groups digits and trims trailing zeros', () => {
+    expect(units.formatGrouped(2500, 'en', 0)).toBe('2,500')
+    expect(units.formatGrouped(2.5, 'en')).toBe('2.5')
+    expect(units.formatGrouped(1234567, 'en', 0)).toBe('1,234,567')
+  })
+
   it('formatVolumeMl shows mL with locale decimals', () => {
     expect(formatVolumeMl(microlitersFromMl(1.5), 'es-CR')).toBe('1,5')
     expect(formatVolumeMl(microlitersFromMl(1.5), 'en')).toBe('1.5')

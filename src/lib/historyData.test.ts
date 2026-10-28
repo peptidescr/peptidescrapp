@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { DoseLog, Protocol } from './db'
-import { computeDayActivity, groupLogsByDay, relativeDayKey } from './historyData'
+import { computeDayActivity, computeDaySlots, computeMonthMarks, groupLogsByDay, relativeDayKey } from './historyData'
 
 function at(y: number, m: number, d: number, h = 0, min = 0): Date {
   return new Date(y, m - 1, d, h, min, 0, 0)
@@ -110,5 +110,44 @@ describe('computeDayActivity', () => {
     const activity = computeDayActivity([protocol], [log('other', at(2026, 3, 9, 8, 0))], at(2026, 3, 10))
     expect(activity.logs).toEqual([])
     expect(activity.missedSlots.map((s) => s.occurrence.time)).toEqual(['08:00', '20:00'])
+  })
+})
+
+describe('computeMonthMarks', () => {
+  // Twice daily (08:00, 20:00) from Mar 1; "now" is Mar 3 at 12:00.
+  const now = at(2026, 3, 3, 12, 0)
+  const march = at(2026, 3, 15)
+
+  it('counts logs by status and classifies unlogged doses as missed or still scheduled', () => {
+    const logs = [log('a', at(2026, 3, 1, 8, 0)), log('b', at(2026, 3, 1, 20, 0), 'skipped'), log('c', at(2026, 3, 3, 8, 5))]
+    const marks = computeMonthMarks([protocol], logs, march, now)
+    expect(marks.get('2026-03-01')).toEqual({ taken: 1, skipped: 1, missed: 0, scheduled: 0 })
+    expect(marks.get('2026-03-02')).toEqual({ taken: 0, skipped: 0, missed: 2, scheduled: 0 })
+    // Mar 3: 08:00 logged; 20:00 still ahead.
+    expect(marks.get('2026-03-03')).toEqual({ taken: 1, skipped: 0, missed: 0, scheduled: 1 })
+    expect(marks.get('2026-03-31')).toEqual({ taken: 0, skipped: 0, missed: 0, scheduled: 2 })
+  })
+
+  it('treats a dose due only a little while ago as scheduled, not missed', () => {
+    const marks = computeMonthMarks([protocol], [], march, at(2026, 3, 1, 9, 0))
+    expect(marks.get('2026-03-01')).toEqual({ taken: 0, skipped: 0, missed: 0, scheduled: 2 })
+  })
+
+  it('stays inside the month and ignores paused protocols', () => {
+    const marks = computeMonthMarks([{ ...protocol, isActive: false }], [log('x', at(2026, 2, 28, 8, 0))], march, now)
+    expect(marks.size).toBe(0)
+  })
+})
+
+describe('computeDaySlots', () => {
+  it('lists a day’s unlogged doses in time order, flagged missed or future', () => {
+    const now = at(2026, 3, 3, 12, 0)
+    const past = computeDaySlots([protocol], [log('a', at(2026, 3, 2, 8, 0))], at(2026, 3, 2), now)
+    expect(past.map((s) => [s.occurrence.time, s.isMissed, s.isFuture])).toEqual([['20:00', true, false]])
+    const today = computeDaySlots([protocol], [], at(2026, 3, 3), now)
+    expect(today.map((s) => [s.occurrence.time, s.isMissed, s.isFuture])).toEqual([
+      ['08:00', false, false],
+      ['20:00', false, true],
+    ])
   })
 })

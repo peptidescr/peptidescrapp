@@ -2,27 +2,29 @@ import * as SwitchPrimitive from '@radix-ui/react-switch'
 import type { ComponentProps } from 'react'
 import { cn } from '@/lib/utils'
 
+/**
+ * On = the brand colour. Off = a visible muted track (a plain border-coloured
+ * one disappears on a white card). The thumb is the white card colour in both
+ * states, with a hairline shadow so it reads on either track.
+ *
+ * The button itself is 44px tall (the touch-target floor) while the drawn track
+ * is the usual 48x28: the track is a pseudo-element, so the target is bigger
+ * than what you see.
+ */
 export function Switch({ className, ...props }: ComponentProps<typeof SwitchPrimitive.Root>) {
   return (
     <SwitchPrimitive.Root
       className={cn(
-        'peer inline-flex h-7 w-12 shrink-0 items-center rounded-full border border-transparent outline-none transition-colors data-[state=checked]:bg-primary data-[state=unchecked]:bg-input focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40',
+        'peer relative inline-flex h-11 w-14 shrink-0 items-center rounded-full outline-none',
+        "before:absolute before:left-1 before:top-2 before:h-7 before:w-12 before:rounded-full before:transition-colors before:content-['']",
+        'data-[state=checked]:before:bg-primary data-[state=unchecked]:before:bg-muted-foreground/40',
+        'focus-visible:before:ring-2 focus-visible:before:ring-ring focus-visible:before:ring-offset-2 focus-visible:before:ring-offset-background',
+        'disabled:cursor-not-allowed disabled:opacity-40',
         className,
       )}
       {...props}
     >
-      <SwitchPrimitive.Thumb
-        className={cn(
-          // bg-foreground rather than a literal white: in dark mode
-          // foreground is near-white (matches the previous look), but in
-          // light mode it's dark ink — which is what actually keeps the
-          // thumb visible against the light-grey unchecked track, where a
-          // literal white thumb nearly disappeared. The checked track is
-          // always the saturated primary blue, so primary-foreground (always
-          // white) reads fine there in both themes.
-          'pointer-events-none block size-6 rounded-full shadow-sm ring-0 transition-transform data-[state=checked]:translate-x-5 data-[state=checked]:bg-primary-foreground data-[state=unchecked]:translate-x-0.5 data-[state=unchecked]:bg-foreground',
-        )}
-      />
+      <SwitchPrimitive.Thumb className="pointer-events-none absolute left-1.5 top-1/2 block size-6 -translate-y-1/2 rounded-full bg-card shadow-sm transition-transform data-[state=checked]:translate-x-5" />
     </SwitchPrimitive.Root>
   )
 }

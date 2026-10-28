@@ -24,7 +24,7 @@ interface DatePickerProps {
  * the underlying value stays a plain yyyy-MM-dd string either way.
  */
 export function DatePicker({ value, onChange, disabled, placeholder }: DatePickerProps) {
-  const { i18n } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [open, setOpen] = useState(false)
   /** What the user has typed; null means "not editing — show the formatted value". */
   const [text, setText] = useState<string | null>(null)
@@ -60,15 +60,15 @@ export function DatePicker({ value, onChange, disabled, placeholder }: DatePicke
               }
             }}
             className={cn(
-              'min-h-11 w-full rounded-full border border-input bg-card pl-4 pr-11 text-base text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40',
+              'min-h-12 w-full rounded-xl border border-input bg-card pl-4 pr-12 text-base text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40',
             )}
           />
           <PopoverPrimitive.Trigger asChild>
             <button
               type="button"
               disabled={disabled}
-              aria-label="Calendar"
-              className="absolute inset-y-0 right-1 flex w-10 items-center justify-center text-muted-foreground outline-none focus-visible:text-foreground disabled:opacity-40"
+              aria-label={t('common.calendar')}
+              className="absolute inset-y-0 right-0.5 flex w-11 items-center justify-center text-muted-foreground outline-none focus-visible:text-foreground disabled:opacity-40"
             >
               <CalendarIcon className="size-4" />
             </button>

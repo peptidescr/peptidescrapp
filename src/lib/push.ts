@@ -74,8 +74,12 @@ export async function syncPushSchedule(): Promise<void> {
     const subscription = await getOrCreateSubscription()
     if (!subscription) return
 
-    const [protocols, doseLogs] = await Promise.all([db.protocols.toArray(), db.doseLogs.toArray()])
-    const items = buildPushSchedule(protocols, doseLogs, new Date())
+    const [protocols, doseLogs, vials] = await Promise.all([
+      db.protocols.toArray(),
+      db.doseLogs.toArray(),
+      db.vials.toArray(),
+    ])
+    const items = buildPushSchedule(protocols, doseLogs, new Date(), vials)
     const response = await fetch(SCHEDULE_URL, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

@@ -24,13 +24,29 @@ import {
 /** date-fns `getDay()` convention: 0 = Sunday .. 6 = Saturday. */
 export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6
 
+/** The repeating patterns a weeks cycle can run while it's "on". */
+export type CycleInnerSchedule = { kind: 'daily' } | { kind: 'everyNDays'; n: number } | { kind: 'weekdays'; days: Weekday[] }
+
 export type Schedule =
-  | { kind: 'daily' }
-  | { kind: 'everyNDays'; n: number }
-  | { kind: 'weekdays'; days: Weekday[] }
+  | CycleInnerSchedule
   | { kind: 'cycle'; daysOn: number; daysOff: number }
   /** Hand-picked calendar days (yyyy-MM-dd), for irregular schedules no repeating pattern fits. */
   | { kind: 'custom'; dates: string[] }
+  /**
+   * An inner pattern run for `weeksOn` weeks, then nothing for `weeksOff`,
+   * repeating from the start date ("Mon/Wed/Fri for 8 weeks, 4 off"). With
+   * `cycles` set it stops after that many on-blocks; `washoutWeeks` is then
+   * the rest period after the last one (it schedules nothing — see cyclePhase,
+   * which is what reports it), after which the protocol is complete.
+   */
+  | {
+      kind: 'cycleWeeks'
+      inner: CycleInnerSchedule
+      weeksOn: number
+      weeksOff: number
+      cycles?: number
+      washoutWeeks?: number
+    }
 
 /** The subset of a Protocol that scheduling needs — kept local to avoid a circular import with db.ts. */
 export interface ScheduleContext {
@@ -92,6 +108,33 @@ function validateSchedule(schedule: Schedule): void {
         throw new RangeError('custom.dates must not be empty')
       }
       return
+    case 'cycleWeeks':
+      validateSchedule(schedule.inner)
+      if (!Number.isInteger(schedule.weeksOn) || schedule.weeksOn < 1) {
+        throw new RangeError('cycleWeeks.weeksOn must be a positive integer')
+      }
+      if (!Number.isInteger(schedule.weeksOff) || schedule.weeksOff < 0) {
+        throw new RangeError('cycleWeeks.weeksOff must be a non-negative integer')
+      }
+      if (schedule.cycles !== undefined && (!Number.isInteger(schedule.cycles) || schedule.cycles < 1)) {
+        throw new RangeError('cycleWeeks.cycles must be a positive integer')
+      }
+      if (schedule.washoutWeeks !== undefined && (!Number.isInteger(schedule.washoutWeeks) || schedule.washoutWeeks < 1)) {
+        throw new RangeError('cycleWeeks.washoutWeeks must be a positive integer')
+      }
+      return
+  }
+}
+
+/** A repeating pattern's answer for a day `offset` days into it (the protocol, or one on-block of a weeks cycle). */
+function isInnerScheduledDay(schedule: CycleInnerSchedule, offset: number, day: Date): boolean {
+  switch (schedule.kind) {
+    case 'daily':
+      return true
+    case 'everyNDays':
+      return offset % schedule.n === 0
+    case 'weekdays':
+      return schedule.days.includes(getDay(day) as Weekday)
   }
 }
 
@@ -113,11 +156,9 @@ export function isScheduledDay(ctx: Pick<ScheduleContext, 'schedule' | 'startDat
 
   switch (ctx.schedule.kind) {
     case 'daily':
-      return true
     case 'everyNDays':
-      return offset % ctx.schedule.n === 0
     case 'weekdays':
-      return ctx.schedule.days.includes(getDay(day) as Weekday)
+      return isInnerScheduledDay(ctx.schedule, offset, day)
     case 'cycle': {
       const period = ctx.schedule.daysOn + ctx.schedule.daysOff
       if (period === 0) return false
@@ -125,6 +166,83 @@ export function isScheduledDay(ctx: Pick<ScheduleContext, 'schedule' | 'startDat
     }
     case 'custom':
       return ctx.schedule.dates.includes(toIsoDate(day))
+    case 'cycleWeeks': {
+      const { inner, weeksOn, weeksOff, cycles } = ctx.schedule
+      const period = (weeksOn + weeksOff) * 7
+      const cycleIndex = Math.floor(offset / period)
+      if (cycles !== undefined && cycleIndex >= cycles) return false
+      const dayInCycle = offset % period
+      // Every N days counts from the first day of each on-block, so each block starts with a dose.
+      return dayInCycle < weeksOn * 7 && isInnerScheduledDay(inner, dayInCycle, day)
+    }
+  }
+}
+
+export interface CyclePhase {
+  /** 'washout' and 'done' only happen with a set number of cycles. */
+  phase: 'on' | 'off' | 'washout' | 'done'
+  /** Which cycle this is, from 1. */
+  cycle: number
+  totalCycles?: number
+  /** Which week of this phase, from 1, and how many weeks it lasts (both 0 once done). */
+  week: number
+  weeks: number
+  /** The day the next phase starts — dosing resumes on it after 'off'. Absent once done. */
+  nextPhaseOn?: Date
+}
+
+/**
+ * Where a weeks-cycle protocol is on a given day; null for any other kind of
+ * schedule or before it starts. Only for display: what's actually scheduled
+ * always comes from isScheduledDay.
+ */
+export function cyclePhase(ctx: Pick<ScheduleContext, 'schedule' | 'startDate' | 'endDate'>, day: Date): CyclePhase | null {
+  if (ctx.schedule.kind !== 'cycleWeeks') return null
+  const start = parseISO(ctx.startDate)
+  const offset = differenceInCalendarDays(day, start)
+  if (offset < 0) return null
+  const { weeksOn, weeksOff, cycles, washoutWeeks } = ctx.schedule
+  const done: CyclePhase = { phase: 'done', cycle: cycles ?? 1, totalCycles: cycles, week: 0, weeks: 0 }
+  if (ctx.endDate && differenceInCalendarDays(day, parseISO(ctx.endDate)) > 0) return done
+
+  const onDays = weeksOn * 7
+  const period = (weeksOn + weeksOff) * 7
+  if (cycles !== undefined) {
+    const afterLastOn = (cycles - 1) * period + onDays
+    if (offset >= afterLastOn) {
+      const washoutDays = (washoutWeeks ?? 0) * 7
+      if (offset >= afterLastOn + washoutDays) return done
+      return {
+        phase: 'washout',
+        cycle: cycles,
+        totalCycles: cycles,
+        week: Math.floor((offset - afterLastOn) / 7) + 1,
+        weeks: washoutWeeks!,
+        nextPhaseOn: addDays(start, afterLastOn + washoutDays),
+      }
+    }
+  }
+  const cycleIndex = Math.floor(offset / period)
+  const dayInCycle = offset % period
+  const base = { cycle: cycleIndex + 1, totalCycles: cycles }
+  if (dayInCycle < onDays) {
+    return {
+      ...base,
+      phase: 'on',
+      week: Math.floor(dayInCycle / 7) + 1,
+      weeks: weeksOn,
+      // With no off weeks an on-block runs straight into the next, so there's
+      // no change to announce — unless it's the last block of a fixed run.
+      nextPhaseOn:
+        weeksOff > 0 || cycleIndex + 1 === cycles ? addDays(start, cycleIndex * period + onDays) : undefined,
+    }
+  }
+  return {
+    ...base,
+    phase: 'off',
+    week: Math.floor((dayInCycle - onDays) / 7) + 1,
+    weeks: weeksOff,
+    nextPhaseOn: addDays(start, (cycleIndex + 1) * period),
   }
 }
 
@@ -162,37 +280,129 @@ function toIsoDate(day: Date): string {
   return `${y}-${m}-${d}`
 }
 
+/** The furthest a dose can be logged before or after its scheduled time and still count for it. */
+export const MAX_OFF_SCHEDULE_MS = 3.5 * 24 * 60 * 60 * 1000
+/** Late/early matching only applies between doses at least this far apart (every other day or sparser). */
+const MIN_GAP_FOR_OFF_SCHEDULE_MS = 2 * 24 * 60 * 60 * 1000
+/** How far beyond a range matching looks, so a late or early log just outside it still finds its dose. */
+const MATCH_PADDING_DAYS = 4
+
 /**
- * Pairs logged administration times to occurrences so a logged dose stops
- * showing as due/missed. Matching is same-calendar-day + nearest-in-time,
- * processed in chronological occurrence order — exact for the common once-
- * or twice-daily cases; with several same-day reminder times and irregular
- * logging times a log could in principle pair with a neighbouring occurrence
- * instead of its "true" one, but the visible result (that day's occurrences
- * are accounted for) is the same either way.
+ * Which unlogged occurrences remain once logs are matched — see matchLogsToOccurrences.
+ * Prefer findUnloggedInRange, which also sees logs and doses just outside the range.
  */
 export function findUnloggedOccurrences(occurrences: Occurrence[], loggedAdministeredAt: Date[]): Occurrence[] {
-  const available = loggedAdministeredAt.map((log, idx) => ({ idx, log }))
+  const matches = matchLogsToOccurrences(occurrences, loggedAdministeredAt, (at) => at)
+  return occurrences.filter((_, i) => matches[i] === null)
+}
+
+/**
+ * Pairs logged administration times to occurrences, so a logged dose stops
+ * showing as due or missed. Result is parallel to `occurrences`. Two passes:
+ *
+ * 1. **Same day, nearest in time** — exact for the everyday case, including
+ *    several doses a day; unchanged from before late/early matching existed.
+ * 2. **Late or early** — for doses at least two days apart, a log still
+ *    unmatched pairs with the nearest occurrence still unmatched, if it's
+ *    within half the gap to that occurrence's neighbours (capped at 3½ days).
+ *    A weekly dose taken a day late counts for its week instead of reading as
+ *    missed. Daily doses stay same-day only, so an extra evening log can't
+ *    swallow the next morning's dose. Closest pairs are settled first.
+ *
+ * `occurrences` must be chronological. The gap is measured within the list
+ * given, so callers should pass occurrences a little beyond the range they
+ * care about (see findUnloggedInRange / matchLogsInRange).
+ */
+export function matchLogsToOccurrences<T>(occurrences: Occurrence[], logs: T[], timeOf: (log: T) => Date): (T | null)[] {
+  const available = logs.map((log, idx) => ({ idx, log, at: timeOf(log).getTime() }))
   const consumed = new Set<number>()
-  const unlogged: Occurrence[] = []
+  const result: (T | null)[] = occurrences.map(() => null)
 
-  for (const occ of occurrences) {
-    const candidates = available.filter(
-      ({ idx, log }) => !consumed.has(idx) && isSameDay(log, occ.scheduledAt),
-    )
-    if (candidates.length === 0) {
-      unlogged.push(occ)
-      continue
+  occurrences.forEach((occ, i) => {
+    const target = occ.scheduledAt.getTime()
+    let best: (typeof available)[number] | undefined
+    for (const candidate of available) {
+      if (consumed.has(candidate.idx) || !isSameDay(candidate.at, occ.scheduledAt)) continue
+      if (!best || Math.abs(candidate.at - target) < Math.abs(best.at - target)) best = candidate
     }
-    candidates.sort(
-      (a, b) =>
-        Math.abs(a.log.getTime() - occ.scheduledAt.getTime()) -
-        Math.abs(b.log.getTime() - occ.scheduledAt.getTime()),
-    )
-    consumed.add(candidates[0]!.idx)
-  }
+    if (best) {
+      consumed.add(best.idx)
+      result[i] = best.log
+    }
+  })
 
-  return unlogged
+  // Pass 2 looks only at nearby logs (binary search over the leftovers by
+  // time), so a long horizon against years of history stays cheap.
+  const leftover = available.filter((log) => !consumed.has(log.idx)).sort((a, b) => a.at - b.at)
+  const firstAtOrAfter = (time: number) => {
+    let lo = 0
+    let hi = leftover.length
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1
+      if (leftover[mid]!.at < time) lo = mid + 1
+      else hi = mid
+    }
+    return lo
+  }
+  const pairs: { occurrence: number; log: (typeof available)[number]; distance: number }[] = []
+  if (leftover.length > 0) {
+    occurrences.forEach((occ, i) => {
+      if (result[i] !== null) return
+      const target = occ.scheduledAt.getTime()
+      const prev = occurrences[i - 1]?.scheduledAt.getTime()
+      const next = occurrences[i + 1]?.scheduledAt.getTime()
+      const gap = Math.min(prev === undefined ? Infinity : target - prev, next === undefined ? Infinity : next - target)
+      // Doses a day or less apart are settled by pass 1 alone: an evening log
+      // must not quietly stand in for tomorrow morning's dose.
+      if (gap < MIN_GAP_FOR_OFF_SCHEDULE_MS) return
+      const tolerance = Math.min(MAX_OFF_SCHEDULE_MS, gap / 2)
+      for (let j = firstAtOrAfter(target - tolerance); j < leftover.length && leftover[j]!.at <= target + tolerance; j++) {
+        const log = leftover[j]!
+        pairs.push({ occurrence: i, log, distance: Math.abs(log.at - target) })
+      }
+    })
+  }
+  pairs.sort((a, b) => a.distance - b.distance)
+  for (const { occurrence, log } of pairs) {
+    if (result[occurrence] !== null || consumed.has(log.idx)) continue
+    consumed.add(log.idx)
+    result[occurrence] = log.log
+  }
+  return result
+}
+
+/**
+ * Occurrences in [from, to] with the log (if any) that settled each, matched
+ * over a few extra days either side so a dose logged late or early just
+ * outside the range — or a neighbouring dose just outside it — is taken into
+ * account. The way to ask "which of these doses are logged".
+ */
+export function matchLogsInRange<T>(
+  ctx: ScheduleContext,
+  from: Date,
+  to: Date,
+  logs: T[],
+  timeOf: (log: T) => Date,
+): { occurrence: Occurrence; log: T | null }[] {
+  if (from > to) return []
+  const occurrences = getOccurrencesInRange(ctx, addDays(from, -MATCH_PADDING_DAYS), addDays(to, MATCH_PADDING_DAYS))
+  const matches = matchLogsToOccurrences(occurrences, logs, timeOf)
+  return occurrences
+    .map((occurrence, i) => ({ occurrence, log: matches[i] ?? null }))
+    .filter(({ occurrence }) => occurrence.scheduledAt >= from && occurrence.scheduledAt <= to)
+}
+
+/** The unlogged occurrences in [from, to] (see matchLogsInRange). */
+export function findUnloggedInRange(ctx: ScheduleContext, from: Date, to: Date, loggedAdministeredAt: Date[]): Occurrence[] {
+  return matchLogsInRange(ctx, from, to, loggedAdministeredAt, (at) => at)
+    .filter(({ log }) => log === null)
+    .map(({ occurrence }) => occurrence)
+}
+
+/** Whether logging a dose at `at` would settle this occurrence — e.g. "can Next up's dose be logged now?". */
+export function wouldSettle(ctx: ScheduleContext, occurrence: Occurrence, loggedAdministeredAt: Date[], at: Date): boolean {
+  const before = occurrence.scheduledAt
+  return !findUnloggedInRange(ctx, before, before, [...loggedAdministeredAt, at]).length
 }
 
 function getUnloggedOccurrencesUpTo(
@@ -204,9 +414,7 @@ function getUnloggedOccurrencesUpTo(
   const start = parseISO(ctx.startDate)
   const lookback = new Date(now.getTime() - MISSED_LOOKBACK_DAYS * 24 * 60 * 60 * 1000)
   const from = start > lookback ? start : lookback
-  if (from > upTo) return []
-  const occurrences = getOccurrencesInRange(ctx, from, upTo)
-  return findUnloggedOccurrences(occurrences, loggedAdministeredAt)
+  return findUnloggedInRange(ctx, from, upTo, loggedAdministeredAt)
 }
 
 /**
@@ -251,7 +459,5 @@ export function getNextOccurrence(
     ? parseISO(ctx.endDate)
     : addDays(now, NEXT_OCCURRENCE_HORIZON_DAYS)
   if (horizonEnd < now) return null
-  const occurrences = getOccurrencesInRange(ctx, now, horizonEnd)
-  const unlogged = findUnloggedOccurrences(occurrences, loggedAdministeredAt)
-  return unlogged[0] ?? null
+  return findUnloggedInRange(ctx, now, horizonEnd, loggedAdministeredAt)[0] ?? null
 }

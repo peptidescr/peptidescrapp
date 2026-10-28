@@ -278,6 +278,18 @@ export function formatSyringeUnits(units: number, locale: Locale): string {
   return formatDecimal(units, locale, 1)
 }
 
+/** A volume in mL with a fixed number of decimals ("0.100"), the way the calculator's result reads. */
+export function formatVolumeMlFixed(ul: Microliter, locale: Locale, decimals = 3): string {
+  const fixed = mlFromMicroliters(ul).toFixed(decimals)
+  return DECIMAL_SEPARATOR[locale] === ',' ? fixed.replace('.', ',') : fixed
+}
+
+/** A number with the locale's digit grouping ("2,500"), trailing zeros trimmed. */
+export function formatGrouped(value: number, locale: Locale, maximumFractionDigits = 2): string {
+  assertFinite(value, 'value')
+  return new Intl.NumberFormat(locale, { maximumFractionDigits }).format(value)
+}
+
 export function formatIU(mIu: MilliIU, locale: Locale): string {
   return formatDecimal(iuFromMilliIU(mIu), locale, 2)
 }

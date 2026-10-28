@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="%BRAND_THEME_DARK%" />
+    <meta name="theme-color" content="%BRAND_THEME_LIGHT%" />
     <meta name="description" content="%BRAND_DESCRIPTION%" />
     <!-- One address for search engines, whichever one a visitor used (see src/brand/seo.ts). -->
     <link rel="canonical" href="%BRAND_SITE_URL%/" />
@@ -37,7 +37,8 @@
 
     <!-- iOS home-screen install support -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <!-- "default" (dark text): "black-translucent" draws white status-bar text over the page, which a light page swallows. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="%BRAND_SHORT_NAME%" />
 
     <title>%BRAND_TITLE%</title>
@@ -50,16 +51,21 @@
       flash of the wrong theme. Runs as a plain classic script (not
       type="module", which is deferred) so it executes immediately, before
       the module script and before anything is painted. Deliberately tiny
-      and dependency-free; the 'peptidescr:theme' key must be kept in sync
-      with src/lib/theme.ts by hand. The %BRAND_*% placeholders are filled
-      at build time from src/brand/brands.ts (see vite.config.ts).
+      and dependency-free; the 'peptidescr:theme' key and SWITCHING must be
+      kept in sync with src/lib/theme.ts by hand. The %BRAND_*% placeholders
+      are filled at build time from src/brand/brands.ts (see vite.config.ts).
+      While SWITCHING is false the stored value is ignored and the page is
+      always light.
     -->
     <script>
       (function () {
+        // Keep in sync with THEME_SWITCHING_ENABLED in src/lib/theme.ts.
+        var SWITCHING = true
         try {
           var stored = localStorage.getItem('peptidescr:theme')
-          var theme =
-            stored === 'light' || stored === 'dark'
+          var theme = !SWITCHING
+            ? 'light'
+            : stored === 'light' || stored === 'dark'
               ? stored
               : window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
                 ? 'dark'
@@ -68,8 +74,9 @@
           var meta = document.querySelector('meta[name="theme-color"]')
           if (meta) meta.setAttribute('content', theme === 'light' ? '%BRAND_THEME_LIGHT%' : '%BRAND_THEME_DARK%')
         } catch (e) {
-          // localStorage can throw (private mode, disabled) — default stays
-          // dark, matching tokens.css's base :root block.
+          // localStorage can throw (private mode, disabled) — fall back to
+          // light, matching tokens.css's base :root block.
+          document.documentElement.setAttribute('data-theme', 'light')
         }
       })()
     </script>

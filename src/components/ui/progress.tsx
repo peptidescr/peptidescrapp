@@ -1,8 +1,9 @@
 import { cn } from '@/lib/utils'
 
 /**
- * The thin determinate bar PeptIQ runs across the top of every onboarding
- * step, also used for Home's "N of M doses logged today".
+ * The thin determinate bar run across the top of every onboarding step, also
+ * used for "N of M doses logged today". For the points ring and the tier track
+ * see progress-ring.tsx and segmented-progress-track.tsx.
  *
  * Deliberately not a Radix primitive: it's a div with a width, and pulling in
  * @radix-ui/react-progress would add a dependency for markup we'd write
@@ -20,7 +21,7 @@ export function Progress({
   className?: string
   /** Accessible name — required, since a bare bar tells a screen reader nothing. */
   label: string
-  /** 'onBrand' is for use on the blue Home hero: white fill on a translucent white track. */
+  /** 'onBrand' is for use on the brand-coloured hero band: light fill on a translucent track. */
   variant?: 'default' | 'onBrand'
 }) {
   const safeMax = max <= 0 ? 1 : max
@@ -35,14 +36,14 @@ export function Progress({
       aria-label={label}
       className={cn(
         'w-full overflow-hidden rounded-full',
-        variant === 'onBrand' ? 'h-2 bg-white/20' : 'h-1.5 bg-border',
+        variant === 'onBrand' ? 'h-2 bg-on-primary-tile' : 'h-1.5 bg-tint',
         className,
       )}
     >
       <div
         className={cn(
           'h-full rounded-full transition-[width] duration-300 ease-out',
-          variant === 'onBrand' ? 'bg-white' : 'bg-primary',
+          variant === 'onBrand' ? 'bg-on-primary' : 'bg-primary',
         )}
         style={{ width: `${pct}%` }}
       />

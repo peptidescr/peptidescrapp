@@ -1,0 +1,91 @@
+{
+  "data": {
+    "products": [
+      {
+        "id": "ccd695b8-0a3f-4669-bba7-33fbdfc4ae26",
+        "slug": "bpc-157-5mg",
+        "name": "BPC-157 5mg",
+        "category": "Extracellular Matrix and Cell-Migration Peptides",
+        "category_slug": "extracellular-matrix-cell-migration-peptides",
+        "price": 45,
+        "sku": "USP-BPC157-5",
+        "in_stock": true,
+        "is_active": true,
+        "is_hidden": false
+      },
+      {
+        "id": "88eb07c7-9624-4f69-a880-13208bb75772",
+        "slug": "cjc-1295-5mg",
+        "name": "CJC-1295 (No DAC) 5mg",
+        "category": "GHRH and Ghrelin Receptor Peptides",
+        "category_slug": "ghrh-ghrelin-receptor-peptides",
+        "price": 40,
+        "sku": "USP-CJC-5",
+        "in_stock": true,
+        "is_active": true,
+        "is_hidden": false
+      },
+      {
+        "id": "a567d96d-e8d0-4fe6-aae6-a13b9c47eca7",
+        "slug": "ghk-cu-50mg",
+        "name": "GHK-Cu (Copper Tripeptide) 50mg",
+        "category": "Extracellular Matrix and Cell-Migration Peptides",
+        "category_slug": "extracellular-matrix-cell-migration-peptides",
+        "price": 48,
+        "sku": "USP-GHKCU-50",
+        "in_stock": true,
+        "is_active": true,
+        "is_hidden": false
+      },
+      {
+        "id": "d36b4e82-a2d5-4ec6-95c8-1ae0b3e0f402",
+        "slug": "glp3-10mg",
+        "name": "GLP-1 / GIP / Glucagon 10mg",
+        "category": "Incretin and Metabolic Receptor Compounds",
+        "category_slug": "incretin-metabolic-receptor-compounds",
+        "price": 115,
+        "sku": "USP-GLP3-10",
+        "in_stock": true,
+        "is_active": true,
+        "is_hidden": false
+      },
+      {
+        "id": "b6a5ae5d-5209-4df6-af6a-d7652f036ec5",
+        "slug": "melanotan-2-10mg",
+        "name": "Melanotan 2 (MT-2) 10mg",
+        "category": "Melanocortin Receptor Peptides",
+        "category_slug": "melanocortin-receptor-peptides",
+        "price": 40,
+        "sku": "USP-MT2-10",
+        "in_stock": true,
+        "is_active": true,
+        "is_hidden": false
+      },
+      {
+        "id": "c91acfcd-022c-4a02-bf40-43830be3f919",
+        "slug": "tesamorelin-10mg",
+        "name": "Tesamorelin 10mg",
+        "category": "GHRH and Ghrelin Receptor Peptides",
+        "category_slug": "ghrh-ghrelin-receptor-peptides",
+        "price": 130,
+        "sku": "USP-TESA-10",
+        "in_stock": true,
+        "is_active": true,
+        "is_hidden": false
+      },
+      {
+        "id": "1d35e897-5d07-420b-927e-e04c56d3e7dc",
+        "slug": "klow-80mg",
+        "name": "KLOW 80mg",
+        "category": "Incretin and Metabolic Receptor Compounds",
+        "category_slug": "incretin-metabolic-receptor-compounds",
+        "price": 100,
+        "sku": null,
+        "in_stock": true,
+        "is_active": true,
+        "is_hidden": false
+      }
+    ],
+    "count": 7
+  }
+}

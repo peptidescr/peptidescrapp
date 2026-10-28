@@ -38,7 +38,7 @@ export function OptionCard({
       aria-pressed={selected}
       className={cn(
         'flex min-h-11 w-full items-center gap-3 rounded-2xl border p-4 text-left transition-colors',
-        selected ? 'border-primary bg-accent' : 'border-border bg-card',
+        selected ? 'border-primary bg-accent' : 'border-border/70 bg-card shadow-card',
         className,
       )}
     >
@@ -50,8 +50,8 @@ export function OptionCard({
             // a translucent primary/20 badge on top of the equally-tinted
             // bg-accent card collapsed to nearly the same colour in light
             // mode. A solid vs. soft-tint contrast holds at any palette.
-            'flex size-10 shrink-0 items-center justify-center rounded-full transition-colors',
-            selected ? 'bg-primary' : 'bg-accent',
+            'flex size-11 shrink-0 items-center justify-center rounded-xl transition-colors',
+            selected ? 'bg-primary' : 'bg-secondary',
           )}
         >
           <Icon className={cn('size-5', selected ? 'text-primary-foreground' : 'text-primary')} />

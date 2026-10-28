@@ -17,6 +17,14 @@ import type { ThemeMode } from './units'
 export type ResolvedTheme = 'light' | 'dark'
 
 /**
+ * Light, dark and follow-the-device are all live. Turning this off pins every
+ * mode to 'light' and hides the Light/Dark/System control and the app bar's
+ * quick toggle (the stored `Settings.theme` is left alone, and backups still
+ * carry it). Keep it in step with SWITCHING in index.html's pre-paint script.
+ */
+export const THEME_SWITCHING_ENABLED = true
+
+/**
  * Pre-paint cache key (localStorage). Holds only the *resolved* theme
  * ('light' | 'dark'), never the raw mode — index.html's inline script reads
  * this synchronously, before any module script runs, to set `data-theme` on
@@ -44,10 +52,17 @@ export function prefersDarkColorScheme(): boolean {
 }
 
 /**
- * Mode → concrete theme. `prefersDark` is injectable (rather than read
- * internally every call) so this stays a pure function for testing.
+ * Mode → concrete theme. `prefersDark` and `switching` are injectable (rather
+ * than read internally every call) so this stays a pure function for testing.
+ * While theme switching is off every mode, whatever a settings row or an
+ * imported backup holds, resolves to light.
  */
-export function resolveTheme(mode: ThemeMode, prefersDark: boolean = prefersDarkColorScheme()): ResolvedTheme {
+export function resolveTheme(
+  mode: ThemeMode,
+  prefersDark: boolean = prefersDarkColorScheme(),
+  switching: boolean = THEME_SWITCHING_ENABLED,
+): ResolvedTheme {
+  if (!switching) return 'light'
   if (mode === 'light') return 'light'
   if (mode === 'dark') return 'dark'
   return prefersDark ? 'dark' : 'light'
