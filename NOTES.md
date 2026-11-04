@@ -2639,3 +2639,30 @@ $total") whose button opens a **Confirm reorder** sheet (lines, estimated total,
 - **Checked:** typecheck, lint, 526 tests, i18n parity (742 keys), both production builds (flag off, no mock code). Against the
   mock store: UPD at 375 (light) and PCR in Spanish at 320 (dark): first order, card appears on Home, stepper, confirm sheet,
   untick refusal, order, Shop cart untouched, Forget details. No overflow, untranslated text or console errors.
+
+### Every screen against the approved designs (November 2026, on `staging`)
+
+Compared with the client's four boards (Home, Rewards, Refer & earn, Calculator: the artifact's source files and the
+approved screenshots in `docs/design/retention/`, both brands) at the design's 390x844, then at 320, light and dark.
+The artifact itself can't be played in an automated browser (claude.ai puts a bot check in front of it), so the
+comparison is against its source and the screenshots.
+
+- **Home** now matches: no Next dose card (doses live in Track > Today, and the bell lists what is due, as the proposal
+  has it), the points ring card straddling the hero, Your usual with its "Free BAC water + earns N pts" chip, the credit
+  banner, then the calculator shortcut; the hero greets by name. `HeroHeader` gained `overlap` (less padding when nothing
+  straddles the band, which is what Home is without an account). This changes the live Home when it ships: with the store
+  features off it now has no overlapping card at all.
+- **Rewards** (hero with the track, Redeem, Tier perks) and **Refer & earn** (credit card, ladder, invite link, share,
+  activity) are built. **Calculator** gained "Need more BAC water? Add" (finds the store's BAC water, adds it to the
+  Shop's cart). **Reorder** ends in the design's "Order placed" screen (check, number, arrives-by date, Done).
+- **They draw a `StoreAccount`** (`src/lib/store/account.ts`), which nobody supplies yet: the stores have no customer
+  accounts. For real customers every account-dependent piece is simply absent (Rewards and Refer say so). A SAMPLE
+  account with the designs' numbers (940 points, $45 credit, 3 referrals) is there for review builds only:
+  `VITE_STORE_DEMO=true` with the store features on. It is not in the production bundle (checked).
+- **Known differences from the designs:** the 44px stepper buttons (the design's are 34px; 44 is the touch-target floor);
+  the Rewards locked state is quieter through colour rather than 60% opacity (opacity fails text contrast); the "next
+  rung" on Refer uses the app's soft amber, not the red/orange of the design; the UPD logo in the designs carries a
+  "LIMITLESS POTENTIAL" tagline our logo file doesn't (needs the client's file); the design's "bundle discount",
+  "shipping" and points-animation lines wait on the stores' rules and accounts.
+- **Numbers on screen are the sample's, not the rules'.** The designs' scale (1 point per $1, 50 points = $1, tiers at
+  1,500 and 5,000) differs from the client's later answers and `rules.ts`; which wins is still the client's to confirm.

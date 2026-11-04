@@ -33,7 +33,9 @@ export type ProtocolsView =
   | { kind: 'form'; protocolId?: string; template?: ProtocolPrefill; compoundId?: string }
 
 export type Page =
-  | { tab: 'home' | 'shop' | 'rewards' | 'settings' }
+  | { tab: 'home' | 'shop' | 'settings' }
+  /** Rewards, or Refer & earn (opened from Home's credit banner; it belongs to the Rewards tab). */
+  | { tab: 'rewards'; view?: 'refer' }
   | { tab: 'track'; segment: 'today' | 'progress' }
   | { tab: 'track'; segment: 'protocols'; view: ProtocolsView }
   | { tab: 'track'; segment: 'history'; editLogId?: string }

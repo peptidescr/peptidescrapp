@@ -1,6 +1,6 @@
-import { RefreshCw } from 'lucide-react'
+import { Gift, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { Trans, useTranslation } from 'react-i18next'
 import { BRAND } from '@/brand'
 import { Button } from '@/components/ui/button'
 import { SectionLabel } from '@/components/ui/section-label'
@@ -8,6 +8,8 @@ import { Stepper } from '@/components/ui/stepper'
 import { MAX_LINE_QTY, useLocalCart, viewCart } from '../../lib/shop/cart'
 import { formatPrice, useShopCatalogue } from '../../lib/shop/catalogue'
 import { loadPlacedOrder, type PlacedOrder } from '../../lib/shop/checkout'
+import { useStoreAccount } from '../../lib/store/account'
+import { pointsEarnedFor } from '../../lib/store/loyaltyView'
 import type { Locale } from '../../lib/units'
 import { CheckoutSheet, Thumb } from './CheckoutSheet'
 
@@ -26,6 +28,7 @@ export function YourUsual() {
   const { t, i18n } = useTranslation()
   const locale = i18n.language as Locale
   const catalogue = useShopCatalogue(BRAND.id)
+  const account = useStoreAccount()
   const [usual, setUsual] = useState<PlacedOrder | null>(() => loadPlacedOrder())
   const cart = useLocalCart(usual?.lines ?? [])
   const [open, setOpen] = useState(false)
@@ -36,6 +39,9 @@ export function YourUsual() {
   const products = catalogue.status === 'ready' ? catalogue.products : []
   const view = viewCart(cart.lines, products)
   const showCard = ready && usual !== null && view.lines.length > 0
+  // "Free BAC water + earns 273 pts": only with an account (points are the store's), and only for dollar prices.
+  const earned = account && view.subtotal?.currency === 'USD' ? pointsEarnedFor(account, view.subtotal.amount) : 0
+  const freeBacWater = account?.tiers.find((x) => x.id === account.tier)?.perks.includes('freeBacWater') ?? false
 
   return (
     <>
@@ -48,7 +54,7 @@ export function YourUsual() {
           >
             {t('usual.title')}
           </SectionLabel>
-          <div className="rounded-2xl border border-border bg-card p-3.5 shadow-card">
+          <div className="rounded-2xl border border-border/60 bg-card p-3.5">
             <ul className="flex flex-col">
               {view.lines.map(({ line, product }) => (
                 // On the narrowest phones the stepper drops under the name rather than squeezing it.
@@ -76,6 +82,18 @@ export function YourUsual() {
             </ul>
             {view.unavailable.length > 0 && (
               <p className="mt-1 text-xs text-muted-foreground">{t('usual.someUnavailable', { count: view.unavailable.length })}</p>
+            )}
+            {earned > 0 && (
+              <p className="mt-2 flex items-center gap-2 rounded-xl bg-positive-lt px-3 py-2.5 text-[13px] font-medium text-positive">
+                <Gift aria-hidden className="size-4 shrink-0" />
+                <span>
+                  <Trans
+                    i18nKey={freeBacWater ? 'usual.freeBac' : 'usual.earns'}
+                    values={{ points: earned.toLocaleString(locale) }}
+                    components={{ b: <b /> }}
+                  />
+                </span>
+              </p>
             )}
             <Button
               fullWidth

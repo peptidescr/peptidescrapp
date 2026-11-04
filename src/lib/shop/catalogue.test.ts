@@ -3,6 +3,7 @@ import {
   categoriesOf,
   descriptionFor,
   filterProducts,
+  findBacWater,
   formatPrice,
   loadShopCatalogue,
   parseShopProducts,
@@ -102,5 +103,32 @@ describe('loadShopCatalogue', () => {
   it('ends in an error state, not a throw, when the request fails', async () => {
     const failing = (() => Promise.reject(new Error('offline'))) as unknown as typeof fetch
     await expect(loadShopCatalogue('upd', failing)).resolves.toBeUndefined()
+  })
+})
+
+describe('findBacWater', () => {
+  const p = (name: string, extra: Partial<ShopProduct> = {}): ShopProduct => ({
+    name,
+    slug: name,
+    inStock: true,
+    orderRef: name,
+    price: { currency: 'USD', amount: 10 },
+    ...extra,
+  })
+
+  it('finds the bacteriostatic water, not another diluent or a blend', () => {
+    expect(findBacWater([p('AA Water 3ml'), p('Bac Water 3ml', { price: { currency: 'USD', amount: 9 } }), p('BPC-157 + TB-500 Blend')])?.name).toBe('Bac Water 3ml')
+    expect(findBacWater([p('Water for injection', { category: 'Bacteriostatic Water' })])?.name).toBe('Water for injection')
+    expect(findBacWater([p('AA Water 3ml'), p('BPC-157 5mg')])).toBeUndefined()
+  })
+
+  it('takes only what can be ordered and is in stock, and the cheapest of those', () => {
+    const found = findBacWater([
+      p('Bacteriostatic Water 10ml', { price: { currency: 'USD', amount: 12 } }),
+      p('Bacteriostatic Water 3ml', { price: { currency: 'USD', amount: 6 } }),
+      p('Bacteriostatic Water 30ml', { inStock: false, price: { currency: 'USD', amount: 3 } }),
+      p('Bac Water 1ml', { orderRef: undefined, price: { currency: 'USD', amount: 1 } }),
+    ])
+    expect(found?.name).toBe('Bacteriostatic Water 3ml')
   })
 })

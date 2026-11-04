@@ -138,6 +138,21 @@ export function descriptionFor(product: ShopProduct, locale: Locale): string | u
   return own ?? product.description ?? product.descriptionEn ?? product.descriptionEs
 }
 
+/**
+ * The store's bacteriostatic water, for the calculator's "Need more BAC water?"
+ * card: an orderable product in stock whose name says BAC or bacteriostatic
+ * water (not "AA Water", acetic acid water, a different diluent), or that sits in
+ * the store's bacteriostatic-water category. The cheapest of those.
+ */
+export function findBacWater(products: readonly ShopProduct[]): ShopProduct | undefined {
+  const isBac = (p: ShopProduct) =>
+    /\bbac(teriostatic)?\b[^+]*\bwater\b|\bwater\b[^+]*\bbac(teriostatic)?\b|agua[^+]*bacteriost/i.test(p.name) ||
+    /bacteriostatic water|agua bacteriost/i.test(p.category ?? '')
+  return products
+    .filter((p) => p.orderRef && p.inStock && isBac(p) && !/\bblend\b|\+/i.test(p.name))
+    .sort((a, b) => (a.price?.amount ?? Number.POSITIVE_INFINITY) - (b.price?.amount ?? Number.POSITIVE_INFINITY))[0]
+}
+
 /** Lower-case, accents off, so "peptido" finds "Péptido". */
 function fold(text: string): string {
   return text.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()

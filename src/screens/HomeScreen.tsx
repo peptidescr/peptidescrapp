@@ -5,12 +5,14 @@ import { Card } from '@/components/ui/card'
 import { HeroHeader, HeroOverlap } from '@/components/ui/hero-header'
 import { InfoRowCard } from '@/components/ui/info-row-card'
 import { SectionLabel } from '@/components/ui/section-label'
+import { BRAND } from '@/brand'
 import { HomeCommerceSlots } from '../components/HomeCommerceSlots'
-import { NextDoseCard } from '../components/NextDoseCard'
+import { PointsCard } from '../components/shop/LoyaltyCards'
 import { NotificationPanel } from '../components/NotificationPanel'
 import { VialAlertCard } from '../components/VialAlertCard'
 import { formatDate } from '../lib/dates'
 import { greetingKey } from '../lib/homeText'
+import { useStoreAccount } from '../lib/store/account'
 import type { GetStartedStepId } from '../lib/homeData'
 import { useHomeState } from '../lib/useHomeState'
 import type { ResolvedTheme } from '../lib/theme'
@@ -21,11 +23,12 @@ interface HomeScreenProps {
   /** The back arrow in the hero, when there is a page to go back to (Home has no app bar). */
   onBack?: () => void
   onNavigateToSettings: () => void
-  /** The Next dose card's link, and the rest of today's doses. */
-  onNavigateToToday: () => void
   onNavigateToProtocols: () => void
   onNavigateToCalculator: () => void
   onNavigateToProgress: () => void
+  /** The points card and the credit banner (store features only). */
+  onNavigateToRewards: () => void
+  onNavigateToRefer: () => void
   /** Tapping a specific protocol (a vial alert): straight to its own edit page. */
   onOpenProtocol: (protocolId: string) => void
   /** The light/dark quick toggle in the hero; absent while theme switching is off. */
@@ -34,36 +37,43 @@ interface HomeScreenProps {
 }
 
 /**
- * Home: a hero band with the greeting, the bell and Settings, the Next dose card
- * straddling its edge, then what needs a look (vial alerts), the calculator
- * shortcut, and the first-run and backup nudges. The tracking itself — catching
- * up on doses, what's coming, streak and recent activity — lives in Track > Today.
- *
- * The slots for the store (points, Your usual, credit) come after the Next dose
- * card and show only when the store features are on.
+ * Home, as the approved screen has it: a hero band with the greeting, the bell
+ * and Settings, the points card straddling its edge, Your usual, the credit
+ * banner, then what needs a look (vial alerts), the calculator shortcut, and
+ * the first-run and backup nudges. The store's parts (points, Your usual,
+ * credit) show only when the store features are on. Doses are not here: taking
+ * or skipping one, catching up, what's coming, streak and recent activity all
+ * live in Track > Today, and the bell lists what is due.
  */
 export function HomeScreen({
   onBack,
   onNavigateToSettings,
-  onNavigateToToday,
   onNavigateToProtocols,
   onNavigateToCalculator,
   onNavigateToProgress,
+  onNavigateToRewards,
+  onNavigateToRefer,
   onOpenProtocol,
   onToggleTheme,
   resolvedTheme,
 }: HomeScreenProps) {
   const { t } = useTranslation()
   const home = useHomeState()
+  const account = useStoreAccount()
+  // The points card straddles the hero's edge, as on the approved screen; without an account (and with the
+  // store features off) nothing does. Doses live in Track > Today, and the bell lists what is due.
+  const pointsCard = BRAND.features.store ? account : null
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const { now } = home
 
   return (
     <div className="pb-6">
       <HeroHeader
-        // No name to greet yet (no sign-in), so the date sits small above the greeting.
-        greeting={formatDate(now)}
-        title={t(greetingKey(now))}
+        overlap={pointsCard !== null}
+        // With a signed-in store account the hero greets them by name, as the approved
+        // screen does; without one there is no name, so the date sits above the greeting.
+        greeting={account?.displayName ? `${t(greetingKey(now))},` : formatDate(now)}
+        title={account?.displayName ?? t(greetingKey(now))}
         onBack={onBack}
         backLabel={t('common.back')}
         onOpenNotifications={() => setNotificationsOpen(true)}
@@ -76,16 +86,11 @@ export function HomeScreen({
         themeLabel={t('settings.appearance.quickToggle')}
       />
 
-      <HeroOverlap>
-        <NextDoseCard
-          dueItems={home.dueItems}
-          upcoming={home.upcoming}
-          now={now}
-          hasActiveProtocols={home.activeProtocols.length > 0}
-          onOpenToday={onNavigateToToday}
-          onOpenProtocols={onNavigateToProtocols}
-        />
-      </HeroOverlap>
+      {pointsCard && (
+        <HeroOverlap>
+          <PointsCard account={pointsCard} onOpen={onNavigateToRewards} />
+        </HeroOverlap>
+      )}
 
       <NotificationPanel
         open={notificationsOpen}
@@ -100,8 +105,8 @@ export function HomeScreen({
         onOpenProtocol={onOpenProtocol}
       />
 
-      <div className="mt-6 flex flex-col gap-4 px-4">
-        <HomeCommerceSlots />
+      <div className={`flex flex-col gap-4 px-4 ${pointsCard ? 'mt-[1.375rem]' : 'mt-6'}`}>
+        <HomeCommerceSlots onOpenRefer={onNavigateToRefer} />
 
         {home.vialAlerts.length > 0 && (
           <section className="flex flex-col gap-2">

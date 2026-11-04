@@ -179,7 +179,7 @@ export function ShopScreen() {
             <SheetTitle>{t('checkout.resultTitle')}</SheetTitle>
             <SheetDescription className="sr-only">{t('checkout.resultTitle')}</SheetDescription>
           </SheetHeader>
-          {lastOrder && <OrderResult order={lastOrder} locale={locale} />}
+          {lastOrder && <OrderResult order={lastOrder} locale={locale} onDone={() => setOrderOpen(false)} />}
         </SheetContent>
       </Sheet>
     </div>

@@ -48,6 +48,8 @@ export interface HeroHeaderProps {
   themeLabel?: string
   /** More content on the band, below the greeting. */
   children?: ReactNode
+  /** Leaves room for the first card to overlap the band's edge (a <HeroOverlap> right after); false when nothing does. */
+  overlap?: boolean
   className?: string
 }
 
@@ -74,12 +76,13 @@ export function HeroHeader({
   resolvedTheme,
   themeLabel,
   children,
+  overlap = true,
   className,
 }: HeroHeaderProps) {
   const ThemeIcon = resolvedTheme === 'light' ? Sun : Moon
   return (
     <header
-      className={cn('rounded-b-[2rem] bg-hero pb-14 text-on-primary', className)}
+      className={cn('rounded-b-[2rem] bg-hero text-on-primary', overlap ? 'pb-14' : 'pb-6', className)}
       style={{ paddingTop: 'env(safe-area-inset-top)' }}
     >
       <div className="px-4">

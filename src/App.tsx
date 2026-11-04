@@ -39,6 +39,7 @@ import { LegalGate, OnboardingScreen } from './screens/OnboardingScreen'
 import { ProtocolsScreen } from './screens/ProtocolsScreen'
 import { HistoryScreen } from './screens/HistoryScreen'
 import { ProgressScreen } from './screens/ProgressScreen'
+import { ReferScreen } from './screens/ReferScreen'
 import { RewardsScreen } from './screens/RewardsScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { ShopScreen } from './screens/ShopScreen'
@@ -155,10 +156,14 @@ function App() {
     navigate({ tab: 'track', segment: 'protocols', view: { kind: 'form', protocolId } })
   }
 
-  /** A tab-bar tap. Tapping the tab already showing just returns to the top of it. */
+  /**
+   * A tab-bar tap. Tapping the tab already showing returns to the top of it, or
+   * from a sub-page of the tab (Refer & earn, under Rewards) to the tab itself.
+   */
   function goToTab(next: Tab) {
     if (tab === next) {
-      window.scrollTo({ top: 0, behavior: 'smooth' })
+      if (page.tab === 'rewards' && page.view) navigate(tabPage('rewards'))
+      else window.scrollTo({ top: 0, behavior: 'smooth' })
       return
     }
     navigate(tabPage(next, trackSegment.current))
@@ -285,9 +290,10 @@ function App() {
     return <LegalGate onAccept={() => setGate('app')} />
   }
 
-  // Home's hero band carries the back arrow, the bell and Settings itself, so the
-  // app bar is everywhere else.
-  const showAppBar = page.tab !== 'home'
+  // Home's hero band carries the back arrow, the bell and Settings itself, and
+  // Rewards has its own band with the title, so the app bar is everywhere else
+  // (Refer & earn included, for its back arrow).
+  const showAppBar = page.tab !== 'home' && !(page.tab === 'rewards' && !page.view)
   const backArrow = canGoBack ? () => backStack.back() : undefined
 
   // What animates between pages: a tab, or a segment inside Track, or the tool open.
@@ -296,7 +302,9 @@ function App() {
       ? `track:${page.segment}`
       : page.tab === 'tools'
         ? `tools:${page.tool}:${page.protocolId ?? ''}`
-        : page.tab
+        : page.tab === 'rewards'
+          ? `rewards:${page.view ?? ''}`
+          : page.tab
 
   return (
     <div
@@ -324,10 +332,11 @@ function App() {
             <HomeScreen
               onBack={backArrow}
               onNavigateToSettings={() => navigate(tabPage('settings'))}
-              onNavigateToToday={() => navigate(trackPage('today'))}
               onNavigateToProtocols={() => navigate(trackPage('protocols'))}
               onNavigateToCalculator={() => navigate(tabPage('tools'))}
               onNavigateToProgress={() => navigate(trackPage('progress'))}
+              onNavigateToRewards={() => navigate(tabPage('rewards'))}
+              onNavigateToRefer={() => navigate({ tab: 'rewards', view: 'refer' })}
               onOpenProtocol={openProtocolEditor}
               onToggleTheme={toggleTheme}
               resolvedTheme={resolvedTheme}
@@ -379,7 +388,7 @@ function App() {
             </ToolsScreen>
           )}
           {page.tab === 'shop' && <ShopScreen />}
-          {page.tab === 'rewards' && <RewardsScreen />}
+          {page.tab === 'rewards' && (page.view === 'refer' ? <ReferScreen onUseCredit={() => navigate(HOME)} /> : <RewardsScreen />)}
           {page.tab === 'settings' && <SettingsScreen />}
         </motion.div>
       </AnimatePresence>

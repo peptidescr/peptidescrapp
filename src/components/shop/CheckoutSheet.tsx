@@ -1,4 +1,4 @@
-import { CheckCircle2, CircleAlert, ExternalLink, Loader2, MessageCircle, Trash2 } from 'lucide-react'
+import { Check, CircleAlert, ExternalLink, Loader2, MessageCircle, Trash2 } from 'lucide-react'
 import { useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BRAND } from '@/brand'
@@ -447,7 +447,7 @@ export function CheckoutSheet({
           </>
         )}
 
-        {step === 'result' && (unconfirmed ? <Unconfirmed /> : order ? <OrderResult order={order} locale={locale} /> : null)}
+        {step === 'result' && (unconfirmed ? <Unconfirmed /> : order ? <OrderResult order={order} locale={locale} onDone={() => onOpenChange(false)} /> : null)}
       </SheetContent>
     </Sheet>
   )
@@ -509,20 +509,32 @@ function TotalsList({ totals, locale }: { totals: OrderTotals; locale: Locale })
   )
 }
 
-/** The placed order: pay (card), or wait for the store's WhatsApp message. */
-export function OrderResult({ order, locale }: { order: PlacedOrder; locale: Locale }) {
+/**
+ * The placed order, as the approved design's "Order placed": a big check, the
+ * order number and when it should arrive, then what happens next (pay on the
+ * store's page, or wait for the store's WhatsApp message) and Done.
+ */
+export function OrderResult({ order, locale, onDone }: { order: PlacedOrder; locale: Locale; onDone: () => void }) {
   const { t } = useTranslation()
   const paid = useOrderPaid(order)
   const card = order.paymentMethod === 'card'
+  const needsPayment = card && order.paymentUrl !== undefined && !paid
+  const arrives =
+    BRAND.shippingDays !== undefined
+      ? new Intl.DateTimeFormat(locale, { weekday: 'short', month: 'short', day: 'numeric' }).format(arriveByDate(new Date(order.placedAt), BRAND.shippingDays))
+      : null
   return (
     <>
       <SheetBody className="flex flex-col gap-4">
-        <div className="flex items-start gap-3">
-          <CheckCircle2 className="mt-0.5 size-6 shrink-0 text-positive" />
-          <div className="flex flex-col gap-1">
-            <p className="font-display text-lg font-semibold text-foreground">{t('checkout.placed', { number: order.orderNumber })}</p>
-            <p className="text-sm text-muted-foreground">{t('checkout.keepNumber')}</p>
-          </div>
+        <div className="flex flex-col items-center pt-1 text-center">
+          <span aria-hidden className="flex size-[4.75rem] items-center justify-center rounded-full bg-primary text-primary-foreground">
+            <Check className="size-9" strokeWidth={3} />
+          </span>
+          <p className="mt-3.5 font-display text-[1.375rem] font-bold text-foreground">{t('checkout.orderPlaced')}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {arrives ? t('checkout.orderLine', { number: order.orderNumber, date: arrives }) : order.orderNumber}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">{t('checkout.keepNumber')}</p>
         </div>
         {order.totals && <TotalsList totals={order.totals} locale={locale} />}
         <p aria-live="polite" className="text-sm leading-relaxed text-foreground">
@@ -534,21 +546,24 @@ export function OrderResult({ order, locale }: { order: PlacedOrder; locale: Loc
                 ? t('checkout.payNext')
                 : t('checkout.noPaymentLink', { store: BRAND.store.name })}
         </p>
-        {card && order.paymentUrl && !paid && (
+        {needsPayment && (
           <p className="flex items-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="size-3.5 animate-spin" />
             {t('checkout.waitingForPayment')}
           </p>
         )}
       </SheetBody>
-      {card && order.paymentUrl && !paid && (
-        <Footer>
+      <Footer>
+        {needsPayment && (
           <a href={order.paymentUrl} target="_blank" rel="noopener noreferrer" className={buttonVariants({ fullWidth: true })}>
             <ExternalLink />
             {t('checkout.payNow')}
           </a>
-        </Footer>
-      )}
+        )}
+        <Button fullWidth variant={needsPayment ? 'ghost' : 'primary'} onClick={onDone}>
+          {t('checkout.done')}
+        </Button>
+      </Footer>
     </>
   )
 }
