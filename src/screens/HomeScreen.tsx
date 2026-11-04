@@ -1,4 +1,4 @@
-import { AlertTriangle, Calculator, Check, ChevronRight, HeartPulse, X } from 'lucide-react'
+import { Calculator, Check, HeartPulse, X } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Card } from '@/components/ui/card'
@@ -6,6 +6,7 @@ import { HeroHeader, HeroOverlap } from '@/components/ui/hero-header'
 import { InfoRowCard } from '@/components/ui/info-row-card'
 import { SectionLabel } from '@/components/ui/section-label'
 import { BRAND } from '@/brand'
+import { BackupNudge } from '../components/BackupNudge'
 import { HomeCommerceSlots } from '../components/HomeCommerceSlots'
 import { PointsCard } from '../components/shop/LoyaltyCards'
 import { NotificationPanel } from '../components/NotificationPanel'
@@ -143,17 +144,7 @@ export function HomeScreen({
           />
         )}
 
-        {home.showBackupNudge && (
-          <button
-            type="button"
-            onClick={onNavigateToSettings}
-            className="flex min-h-11 items-start gap-2 rounded-2xl border border-brand-warn/60 bg-brand-warn-lt px-4 py-3 text-left text-sm text-brand-warn"
-          >
-            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-            <span className="min-w-0 flex-1">{t('home.backupNudge')}</span>
-            <ChevronRight aria-hidden className="mt-0.5 size-4 shrink-0 opacity-70" />
-          </button>
-        )}
+        {home.showBackupNudge && <BackupNudge onOpen={onNavigateToSettings} />}
       </div>
     </div>
   )

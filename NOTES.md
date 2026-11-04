@@ -2666,3 +2666,20 @@ comparison is against its source and the screenshots.
   "shipping" and points-animation lines wait on the stores' rules and accounts.
 - **Numbers on screen are the sample's, not the rules'.** The designs' scale (1 point per $1, 50 points = $1, tiers at
   1,500 and 5,000) differs from the client's later answers and `rules.ts`; which wins is still the client's to confirm.
+
+### Notifications: one shape, grouped and filterable (November 2026, on `staging`)
+
+The bell's panel used to stack five different cards (an outlined enable-notifications card, an amber backup banner, amber
+vial pills with a cart button, a tinted dose-change row, and large red-bordered dose cards) in one long scroll with the
+due and missed doses at the bottom.
+
+- **`NoticeRow`** (`src/components/ui/notice-row.tsx`) is now the one shape: an icon tile coloured by tone (amber `warn`,
+  calm `info`, `due`, red `missed`), an optional status line, a title, a muted line, then a chevron when it opens something,
+  a separate trailing action (Reorder) and room underneath for buttons (Taken / Skipped, Enable). Vial alerts, dose changes
+  and the backup nudge (new `BackupNudge`) use it, so Home, Today and the panel match. Today's and History's big dose cards
+  (`DueCard`) are unchanged.
+- **The panel is a bottom sheet** (like the app's other lists, closes on back) with a summary ("8 things need your
+  attention"), filter chips with counts (All / Doses / Vials / Dose changes / Reminders; shown when there is more than one
+  kind), sections in order of urgency (doses first), and a "Notification settings" link. A filter whose group empties
+  (a dose was just logged) falls back to All; closing resets it.
+- Checked at 390 and 320, light and dark, English and Spanish: no overflow, small targets or contrast problems.

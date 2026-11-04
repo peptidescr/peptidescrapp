@@ -1,21 +1,24 @@
-import { ChevronRight, FlaskConical, ShoppingCart } from 'lucide-react'
-import { BRAND } from '../brand'
+import { FlaskConical, ShoppingCart } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { NoticeRow } from '@/components/ui/notice-row'
+import { BRAND } from '../brand'
 import { useCompound } from '../lib/customCompounds'
 import { reorderProduct, shouldNudgeReorder } from '../lib/reorder'
 import { describeVialAlert } from '../lib/vialText'
 import type { VialAlert } from '../lib/vials'
 
 /**
- * One vial alert (low, empty, discard-by or label expiry), as shown on Home
- * and in the bell panel. Tapping it opens the protocol, where the vial's own
- * actions live. Styled with the same non-alarming amber as the app's other
- * notices — a vial running low is something to plan for, not a danger.
+ * One vial alert (low, empty, discard-by or label expiry), as shown on Home,
+ * in Today and in the bell panel, in the app's one notice shape (NoticeRow).
+ * Tapping it opens the protocol, where the vial's own actions live. Amber like
+ * the app's other plan-for-this notices: a vial running low is something to
+ * handle, not a danger.
  *
  * A stock alert with no unopened vials left gets a Reorder link to the
- * product on the brand's store (src/lib/reorder.ts) in the action slot, unless
- * the caller fills that slot itself or the store doesn't sell it.
+ * product on the brand's store (src/lib/reorder.ts) beside it, unless the
+ * caller fills that slot itself or the store doesn't sell it. On a phone the
+ * link is just the cart icon, so the message keeps its width.
  */
 export function VialAlertCard({
   alert,
@@ -40,33 +43,21 @@ export function VialAlertCard({
         target="_blank"
         rel="noopener noreferrer"
         aria-label={t('reorder.aria', { product: product.label, appName: BRAND.appName })}
-        className="flex size-11 shrink-0 items-center justify-center gap-1.5 self-center rounded-xl border border-primary bg-card text-[13px] font-semibold text-primary outline-none active:bg-secondary focus-visible:ring-2 focus-visible:ring-ring sm:w-auto sm:px-3"
+        className="flex size-11 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-primary bg-card text-[13px] font-semibold text-primary outline-none active:bg-secondary focus-visible:ring-2 focus-visible:ring-ring sm:w-auto sm:px-3"
       >
         <ShoppingCart aria-hidden className="size-4" />
         {/* Phones get the icon alone, so the alert's message keeps its width; the link's aria-label names it. */}
         <span className="hidden sm:inline">{t('reorder.cta')}</span>
       </a>
     ) : null)
-  const content = (
-    <>
-      <FlaskConical className="mt-0.5 size-4 shrink-0" />
-      <span className="min-w-0 flex-1">{text}</span>
-      {protocolId && onOpenProtocol && <ChevronRight className="mt-0.5 size-4 shrink-0 opacity-70" />}
-    </>
-  )
-  const cardClass =
-    'flex min-h-11 w-full items-start gap-2 rounded-2xl border border-brand-warn/60 bg-brand-warn-lt px-4 py-3 text-left text-sm text-brand-warn'
 
   return (
-    <div className="flex items-stretch gap-2">
-      {protocolId && onOpenProtocol ? (
-        <button type="button" onClick={() => onOpenProtocol(protocolId)} className={cardClass}>
-          {content}
-        </button>
-      ) : (
-        <p className={cardClass}>{content}</p>
-      )}
-      {slot}
-    </div>
+    <NoticeRow
+      icon={FlaskConical}
+      tone="warn"
+      title={text}
+      onClick={protocolId && onOpenProtocol ? () => onOpenProtocol(protocolId) : undefined}
+      trailing={slot}
+    />
   )
 }
