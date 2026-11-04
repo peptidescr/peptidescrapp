@@ -7,7 +7,7 @@
  * Kept in localStorage so it survives a reload. It's a convenience, not a
  * record: when storage is unavailable the cart simply lasts the visit.
  */
-import { useSyncExternalStore } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import type { ShopPrice, ShopProduct } from './catalogue'
 
 export interface CartLine {
@@ -21,16 +21,25 @@ export const MAX_LINE_QTY = 100
 
 const STORAGE_KEY = 'shop-cart-v1'
 
+/** Lines read from stored JSON: anything that isn't a whole quantity of 1–100 of a named product is dropped. */
+export function readLines(raw: unknown): CartLine[] {
+  if (!Array.isArray(raw)) return []
+  const lines: CartLine[] = []
+  const seen = new Set<string>()
+  for (const l of raw) {
+    if (typeof l !== 'object' || l === null) continue
+    const { ref, qty } = l as Record<string, unknown>
+    if (typeof ref !== 'string' || !ref || ref.length > 120 || seen.has(ref)) continue
+    if (typeof qty !== 'number' || !Number.isInteger(qty) || qty < 1 || qty > MAX_LINE_QTY) continue
+    seen.add(ref)
+    lines.push({ ref, qty })
+  }
+  return lines.slice(0, MAX_CART_LINES)
+}
+
 function load(): CartLine[] {
   try {
-    const raw: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]')
-    if (!Array.isArray(raw)) return []
-    return raw
-      .filter(
-        (l): l is CartLine =>
-          typeof l === 'object' && l !== null && typeof l.ref === 'string' && Number.isInteger(l.qty) && l.qty >= 1 && l.qty <= MAX_LINE_QTY,
-      )
-      .slice(0, MAX_CART_LINES)
+    return readLines(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]'))
   } catch {
     return []
   }
@@ -85,6 +94,34 @@ export function useCart(): CartLine[] {
     },
     current,
   )
+}
+
+/**
+ * Whatever the checkout sheet is ordering: the Shop's own cart, or the lines
+ * of a reorder from Home, which must not touch what's in that cart.
+ */
+export interface CartSource {
+  lines: readonly CartLine[]
+  setQuantity: (ref: string, qty: number) => void
+  clear: () => void
+}
+
+/** The Shop's cart (kept on the phone), as a CartSource. */
+export function useGlobalCart(): CartSource {
+  const lines = useCart()
+  return { lines, setQuantity: setCartQuantity, clear: clearCart }
+}
+
+/** A cart that lives only in this component, starting from `initial` (a reorder from Home). */
+export function useLocalCart(initial: readonly CartLine[]): CartSource & { replace: (next: readonly CartLine[]) => void } {
+  const [lines, setLines] = useState<readonly CartLine[]>(initial)
+  return {
+    lines,
+    setQuantity: (ref, qty) =>
+      setLines((prev) => (qty <= 0 ? prev.filter((l) => l.ref !== ref) : prev.map((l) => (l.ref === ref ? { ref, qty: Math.min(MAX_LINE_QTY, qty) } : l)))),
+    clear: () => setLines([]),
+    replace: setLines,
+  }
 }
 
 export interface CartView {

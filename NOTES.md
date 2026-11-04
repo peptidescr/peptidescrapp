@@ -2617,3 +2617,25 @@ and its order reference, and whether PCR's webhook signature matches UPD's docum
 - **Reorder button on phones:** the solid dark button took about a third of the alert's row and stretched to
   its height, squeezing the message onto two lines. It is now an outlined 44px icon button on phones (its
   aria-label still names the product) and keeps the word "Reorder" from `sm` up.
+
+### Your usual and one-tap Reorder on Home (November 2026, on `staging`)
+
+From the client's approved Home screen: a **Your usual** card (the last order's products, a stepper on each, "Reorder ·
+$total") whose button opens a **Confirm reorder** sheet (lines, estimated total, Ship to, Arrives, then the button), then
+"Placing your order…" and the order result. Same checkout sheet as the Shop, with a second way in (`variant="reorder"`).
+
+- **No account needed:** the phone remembers the last order's references and quantities (`PlacedOrder.lines`, from the
+  order onward; older saved orders have none, so no card until the next order) and the customer's details
+  (`shop-customer-v1`, never the research-use confirmation). A first order still goes through the details form.
+- **The Shop's cart is never touched** by a reorder: the sheet takes its cart as a prop (`CartSource`; the Shop passes its
+  own, Home passes a local one). Quantities on the card apply to that reorder only.
+- **Arrives** is today plus `shippingDays` (3), shown as "By <date>"; without `shippingDays` the tile shows the payment method.
+- **The research-use confirmation is asked again on every order**, as a checkbox on the confirm sheet. The design has none;
+  both stores' order APIs require it, and it isn't something to tick for the customer. "Forget my saved details" clears the rest.
+- **Left out of the design for now:** the "Free BAC water + earns N pts" chip, the bundle-discount and free-shipping lines, the
+  Apple Pay button and the points animation: none has data behind it (points and credit wait for the stores' accounts; the
+  stores price the order, so the estimate is shelf prices and the sheet says so). Payment is still the store's own page.
+- Also fixed: the Shop's product sheet kept the previous quantity after "Add to cart" (the next product opened at 2).
+- **Checked:** typecheck, lint, 526 tests, i18n parity (742 keys), both production builds (flag off, no mock code). Against the
+  mock store: UPD at 375 (light) and PCR in Spanish at 320 (dark): first order, card appears on Home, stepper, confirm sheet,
+  untick refusal, order, Shop cart untouched, Forget details. No overflow, untranslated text or console errors.

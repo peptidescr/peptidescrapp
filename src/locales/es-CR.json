@@ -761,6 +761,16 @@
   "tools": {
     "title": "Utilidades"
   },
+  "usual": {
+    "title": "Lo de siempre",
+    "lastOrdered": "Último pedido: {{date}}",
+    "vials_one": "{{count}} vial",
+    "vials_other": "{{count}} viales",
+    "reorder": "Reordenar",
+    "reorderPrice": "Reordenar · {{price}}",
+    "someUnavailable_one": "{{count}} producto de tu último pedido no está disponible por ahora.",
+    "someUnavailable_other": "{{count}} productos de tu último pedido no están disponibles por ahora."
+  },
   "shop": {
     "subtitle": "Productos de {{store}}, con los precios y la disponibilidad de hoy.",
     "search": "Buscar productos",
@@ -822,6 +832,17 @@
     "back": "Atrás",
     "placing": "Haciendo el pedido…",
     "placeOrder": "Hacer pedido",
+    "placeOrderPrice": "Hacer pedido · {{price}}",
+    "confirmTitle": "Confirmá tu pedido",
+    "estimatedTotal": "Total estimado",
+    "shipTo": "Enviar a",
+    "arrives": "Llega",
+    "arrivesBy": "A más tardar el {{date}}",
+    "editOrder": "Editar pedido",
+    "changeDetails": "Cambiar datos",
+    "forgetDetails": "Olvidar mis datos guardados",
+    "someUnavailable_one": "{{count}} producto no está disponible por ahora y no se va a pedir.",
+    "someUnavailable_other": "{{count}} productos no están disponibles por ahora y no se van a pedir.",
     "errors": {
       "name": "Escribí tu nombre completo.",
       "phone": "Escribí un número de teléfono.",

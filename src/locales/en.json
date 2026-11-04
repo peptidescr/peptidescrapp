@@ -761,6 +761,16 @@
   "tools": {
     "title": "Tools"
   },
+  "usual": {
+    "title": "Your usual",
+    "lastOrdered": "Last ordered {{date}}",
+    "vials_one": "{{count}} vial",
+    "vials_other": "{{count}} vials",
+    "reorder": "Reorder",
+    "reorderPrice": "Reorder · {{price}}",
+    "someUnavailable_one": "{{count}} item from your last order isn’t available right now.",
+    "someUnavailable_other": "{{count}} items from your last order aren’t available right now."
+  },
   "shop": {
     "subtitle": "Products from {{store}}, with today’s prices and stock.",
     "search": "Search products",
@@ -822,6 +832,17 @@
     "back": "Back",
     "placing": "Placing order…",
     "placeOrder": "Place order",
+    "placeOrderPrice": "Place order · {{price}}",
+    "confirmTitle": "Confirm reorder",
+    "estimatedTotal": "Estimated total",
+    "shipTo": "Ship to",
+    "arrives": "Arrives",
+    "arrivesBy": "By {{date}}",
+    "editOrder": "Edit order",
+    "changeDetails": "Change details",
+    "forgetDetails": "Forget my saved details",
+    "someUnavailable_one": "{{count}} item isn’t available right now and won’t be ordered.",
+    "someUnavailable_other": "{{count}} items aren’t available right now and won’t be ordered.",
     "errors": {
       "name": "Enter your full name.",
       "phone": "Enter a phone number.",

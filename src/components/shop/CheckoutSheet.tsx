@@ -8,13 +8,17 @@ import { Input } from '@/components/ui/input'
 import { Segmented } from '@/components/ui/segmented'
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Stepper } from '@/components/ui/stepper'
-import { clearCart, MAX_LINE_QTY, setCartQuantity, useCart, viewCart } from '../../lib/shop/cart'
+import { MAX_LINE_QTY, viewCart, type CartSource } from '../../lib/shop/cart'
 import { formatPrice, type ShopProduct } from '../../lib/shop/catalogue'
 import {
+  arriveByDate,
   emptyCheckoutForm,
   firstInvalidField,
+  forgetSavedCustomer,
+  loadSavedCustomer,
   paymentMethodsFor,
   placeOrder,
+  saveCustomer,
   savePlacedOrder,
   type CheckoutField,
   type CheckoutForm,
@@ -24,7 +28,7 @@ import {
 import { useOrderPaid } from '../../lib/shop/useOrderPaid'
 import type { Locale } from '../../lib/units'
 
-type Step = 'cart' | 'details' | 'result'
+type Step = 'cart' | 'confirm' | 'details' | 'result'
 
 /** What went wrong with the last attempt, shown above the button. */
 type Problem = { kind: 'refused'; message?: string } | { kind: 'notSent' } | { kind: 'off' } | { kind: 'invalid' }
@@ -34,12 +38,21 @@ type Problem = { kind: 'refused'; message?: string } | { kind: 'notSent' } | { k
  * checkout, Part B phase B1). The order goes to the store through
  * /api/orders; a card is paid on the store's own payment page, opened from the
  * result by the customer's own tap.
+ *
+ * Two ways in. From the Shop (`variant` 'cart') it starts at the cart. A reorder
+ * from Home (`variant` 'reorder') starts at "Confirm reorder" when the phone
+ * remembers the customer's details from an earlier order, and at the details
+ * form when it doesn't. Details are remembered after every order; the research-use
+ * confirmation never is. The sheet keeps its state while mounted, so a parent
+ * that reopens it for a new order gives it a new `key`.
  */
 export function CheckoutSheet({
   open,
   onOpenChange,
   products,
   locale,
+  cart,
+  variant = 'cart',
   order,
   onPlaced,
 }: {
@@ -47,15 +60,17 @@ export function CheckoutSheet({
   onOpenChange: (open: boolean) => void
   products: ShopProduct[]
   locale: Locale
+  cart: CartSource
+  variant?: 'cart' | 'reorder'
   /** The order placed from this sheet, shown on the result step. */
   order: PlacedOrder | null
   onPlaced: (order: PlacedOrder) => void
 }) {
   const { t } = useTranslation()
-  const cart = useCart()
-  const view = viewCart(cart, products)
-  const [step, setStep] = useState<Step>('cart')
-  const [form, setForm] = useState<CheckoutForm>(() => emptyCheckoutForm(BRAND.id))
+  const view = viewCart(cart.lines, products)
+  const [saved, setSaved] = useState(() => loadSavedCustomer(BRAND.id))
+  const [step, setStep] = useState<Step>(variant === 'reorder' ? (saved ? 'confirm' : 'details') : 'cart')
+  const [form, setForm] = useState<CheckoutForm>(() => ({ ...(saved ?? emptyCheckoutForm(BRAND.id)), researchUseAck: false }))
   const [showErrors, setShowErrors] = useState(false)
   const [sending, setSending] = useState(false)
   const [problem, setProblem] = useState<Problem | null>(null)
@@ -90,9 +105,12 @@ export function CheckoutSheet({
         paymentMethod: form.paymentMethod,
         paymentUrl: result.paymentUrl,
         totals: result.totals,
+        lines,
       }
       savePlacedOrder(placed)
-      clearCart()
+      saveCustomer(form)
+      setSaved(loadSavedCustomer(BRAND.id))
+      cart.clear()
       onPlaced(placed)
       setStep('result')
       return
@@ -106,7 +124,14 @@ export function CheckoutSheet({
     setProblem(result.kind === 'refused' ? { kind: 'refused', message: result.message } : { kind: result.kind })
   }
 
-  const title = step === 'cart' ? t('checkout.cartTitle') : step === 'details' ? t('checkout.detailsTitle') : t('checkout.resultTitle')
+  const title =
+    step === 'cart'
+      ? t('checkout.cartTitle')
+      : step === 'confirm'
+        ? t('checkout.confirmTitle')
+        : step === 'details'
+          ? t('checkout.detailsTitle')
+          : t('checkout.resultTitle')
 
   return (
     <Sheet
@@ -150,7 +175,7 @@ export function CheckoutSheet({
                       value={line.qty}
                       min={0}
                       max={Math.min(MAX_LINE_QTY, product.stock && product.stock > 0 ? product.stock : MAX_LINE_QTY)}
-                      onChange={(qty) => setCartQuantity(line.ref, qty)}
+                      onChange={(qty) => cart.setQuantity(line.ref, qty)}
                       decrementLabel={t('checkout.fewer', { product: product.name })}
                       incrementLabel={t('checkout.more', { product: product.name })}
                     />
@@ -166,7 +191,7 @@ export function CheckoutSheet({
                     </div>
                     <button
                       type="button"
-                      onClick={() => setCartQuantity(line.ref, 0)}
+                      onClick={() => cart.setQuantity(line.ref, 0)}
                       aria-label={t('checkout.remove', { product: product?.name ?? t('checkout.goneProduct') })}
                       className="flex size-11 items-center justify-center rounded-xl text-muted-foreground outline-none active:bg-secondary focus-visible:ring-2 focus-visible:ring-ring"
                     >
@@ -190,6 +215,118 @@ export function CheckoutSheet({
             </Footer>
           </>
         )}
+
+        {step === 'confirm' &&
+          (sending ? (
+            <SheetBody className="flex min-h-72 flex-col items-center justify-center gap-4">
+              <Loader2 aria-hidden className="size-10 animate-spin text-primary" />
+              <p role="status" className="text-sm text-muted-foreground">
+                {t('checkout.placing')}
+              </p>
+            </SheetBody>
+          ) : (
+            <>
+              <SheetBody className="flex flex-col gap-4">
+                <ul className="flex flex-col text-sm">
+                  {view.lines.map(({ line, product }) => (
+                    <li key={line.ref} className="flex items-baseline justify-between gap-3 py-1.5">
+                      <span className="min-w-0 text-foreground">
+                        {product.name} × {line.qty}
+                      </span>
+                      {product.price && (
+                        <span className="shrink-0 font-semibold tabular-nums text-foreground">
+                          {formatPrice({ currency: product.price.currency, amount: Math.round(product.price.amount * line.qty * 100) / 100 }, locale)}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                {view.unavailable.length > 0 && <p className="text-xs text-muted-foreground">{t('checkout.someUnavailable', { count: view.unavailable.length })}</p>}
+                {view.subtotal && (
+                  <div className="flex items-baseline justify-between border-t border-border pt-3">
+                    <span className="font-display font-bold text-foreground">{t('checkout.estimatedTotal')}</span>
+                    <span className="font-display text-[1.375rem] font-bold tabular-nums text-foreground">{formatPrice(view.subtotal, locale)}</span>
+                  </div>
+                )}
+                <p className="text-xs leading-relaxed text-muted-foreground">{t('checkout.storePrices', { store: BRAND.store.name })}</p>
+
+                <div className="grid grid-cols-2 gap-2 text-[13px]">
+                  <div className="min-w-0 rounded-xl bg-secondary px-3 py-2.5">
+                    <div className="text-muted-foreground">{t('checkout.shipTo')}</div>
+                    <div className="line-clamp-2 font-semibold leading-snug text-foreground">{[form.line1, form.city].filter(Boolean).join(', ')}</div>
+                  </div>
+                  <div className="min-w-0 rounded-xl bg-secondary px-3 py-2.5">
+                    {BRAND.shippingDays !== undefined ? (
+                      <>
+                        <div className="text-muted-foreground">{t('checkout.arrives')}</div>
+                        <div className="line-clamp-2 font-semibold leading-snug text-foreground">
+                          {t('checkout.arrivesBy', {
+                            date: new Intl.DateTimeFormat(locale, { weekday: 'short', month: 'short', day: 'numeric' }).format(
+                              arriveByDate(new Date(), BRAND.shippingDays),
+                            ),
+                          })}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-muted-foreground">{t('checkout.payWith')}</div>
+                        <div className="line-clamp-2 font-semibold leading-snug text-foreground">{t(`checkout.method.${form.paymentMethod}`)}</div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <label className="flex min-h-11 items-start gap-3 rounded-xl bg-secondary p-3">
+                  <input
+                    id="checkout-researchUseAck"
+                    type="checkbox"
+                    checked={form.researchUseAck}
+                    onChange={(e) => update('researchUseAck', e.target.checked)}
+                    aria-invalid={invalid === 'researchUseAck' || undefined}
+                    aria-describedby={invalid === 'researchUseAck' ? 'checkout-researchUseAck-error' : undefined}
+                    className="mt-0.5 size-5 shrink-0 accent-primary"
+                  />
+                  <span className="text-sm leading-snug text-foreground">{t('checkout.researchAck')}</span>
+                </label>
+                {invalid === 'researchUseAck' && (
+                  <p id="checkout-researchUseAck-error" className="-mt-2 text-sm text-destructive">
+                    {t('checkout.errors.researchAck')}
+                  </p>
+                )}
+              </SheetBody>
+              <Footer>
+                {problem && (
+                  <p role="alert" className="flex items-start gap-2 text-sm text-destructive">
+                    <CircleAlert className="mt-0.5 size-4 shrink-0" />
+                    <span>{problemText(problem, t)}</span>
+                  </p>
+                )}
+                <Button fullWidth disabled={view.lines.length === 0} onClick={() => void submit()}>
+                  {view.subtotal ? t('checkout.placeOrderPrice', { price: formatPrice(view.subtotal, locale) }) : t('checkout.placeOrder')}
+                </Button>
+                <div className="flex flex-wrap justify-center gap-x-2">
+                  <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+                    {t('checkout.editOrder')}
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => setStep('details')}>
+                    {t('checkout.changeDetails')}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      forgetSavedCustomer()
+                      setSaved(null)
+                      setForm(emptyCheckoutForm(BRAND.id))
+                      setStep('details')
+                    }}
+                  >
+                    {t('checkout.forgetDetails')}
+                  </Button>
+                </div>
+              </Footer>
+            </>
+          ))}
 
         {step === 'details' && (
           <>
@@ -294,7 +431,11 @@ export function CheckoutSheet({
                 </p>
               )}
               <div className="flex gap-2">
-                <Button variant="secondary" disabled={sending} onClick={() => setStep('cart')}>
+                <Button
+                  variant="secondary"
+                  disabled={sending}
+                  onClick={() => (variant === 'reorder' ? (saved ? setStep('confirm') : onOpenChange(false)) : setStep('cart'))}
+                >
                   {t('checkout.back')}
                 </Button>
                 <Button fullWidth disabled={sending || view.lines.length === 0} onClick={() => void submit()}>
@@ -338,11 +479,11 @@ function Field({ id, label, hint, error, children }: { id: CheckoutField | 'line
   )
 }
 
-function Thumb({ product }: { product: ShopProduct }) {
+export function Thumb({ product, className = 'size-12 rounded-lg' }: { product: ShopProduct; className?: string }) {
   const [failed, setFailed] = useState(false)
   const src = product.thumbnailUrl ?? product.imageUrl
   return (
-    <div className="size-12 shrink-0 overflow-hidden rounded-lg bg-secondary">
+    <div className={`${className} shrink-0 overflow-hidden bg-secondary`}>
       {src && !failed && <img src={src} alt="" loading="lazy" onError={() => setFailed(true)} className="size-full object-contain" />}
     </div>
   )

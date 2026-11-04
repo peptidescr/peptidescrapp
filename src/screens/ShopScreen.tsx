@@ -12,7 +12,7 @@ import { Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTit
 import { Stepper } from '@/components/ui/stepper'
 import { EmptyState } from '../components/EmptyState'
 import { CheckoutSheet, OrderResult } from '../components/shop/CheckoutSheet'
-import { addToCart, MAX_LINE_QTY, useCart, viewCart } from '../lib/shop/cart'
+import { addToCart, MAX_LINE_QTY, useGlobalCart, viewCart } from '../lib/shop/cart'
 import { loadPlacedOrder, type PlacedOrder } from '../lib/shop/checkout'
 import { useOrderPaid } from '../lib/shop/useOrderPaid'
 import {
@@ -55,7 +55,8 @@ export function ShopScreen() {
   const [cartOpen, setCartOpen] = useState(false)
   const [orderOpen, setOrderOpen] = useState(false)
   const [lastOrder, setLastOrder] = useState<PlacedOrder | null>(() => recentOrder(loadPlacedOrder()))
-  const cart = useCart()
+  const cartSource = useGlobalCart()
+  const cart = cartSource.lines
 
   const products = useMemo(() => (catalogue.status === 'ready' ? catalogue.products : []), [catalogue])
   const categories = useMemo(() => categoriesOf(products), [products])
@@ -167,6 +168,7 @@ export function ShopScreen() {
           onOpenChange={setCartOpen}
           products={products}
           locale={locale}
+          cart={cartSource}
           order={lastOrder}
           onPlaced={setLastOrder}
         />
@@ -292,6 +294,8 @@ function ProductSheet({
     if (!product?.orderRef) return
     if (addToCart(product.orderRef, qty)) {
       toast.success(t('checkout.added', { count: qty, product: product.name }))
+      // Closing from here doesn't go through the sheet's own close handler, so the next product would open at this quantity.
+      setQty(1)
       onClose()
     } else {
       toast.error(t('checkout.cartFull'))

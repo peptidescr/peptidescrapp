@@ -9,7 +9,7 @@
  */
 import type { BrandId } from '../../brand'
 import type { Locale } from '../units'
-import type { CartLine } from './cart'
+import { readLines, type CartLine } from './cart'
 import type { ShopCurrency } from './catalogue'
 
 export type PaymentMethod = 'card' | 'whatsapp'
@@ -188,6 +188,8 @@ export interface PlacedOrder {
   paymentUrl?: string
   totals?: OrderTotals
   paid?: boolean
+  /** What was ordered (references and quantities): "Your usual" on Home offers it again. Absent on orders from before it was kept. */
+  lines?: CartLine[]
 }
 
 const ORDER_KEY = 'shop-last-order-v1'
@@ -196,6 +198,7 @@ export function loadPlacedOrder(): PlacedOrder | null {
   try {
     const raw: unknown = JSON.parse(localStorage.getItem(ORDER_KEY) ?? 'null')
     if (!isRecord(raw) || typeof raw.orderNumber !== 'string' || typeof raw.placedAt !== 'string') return null
+    const lines = readLines(raw.lines)
     return {
       orderNumber: raw.orderNumber,
       placedAt: raw.placedAt,
@@ -203,10 +206,80 @@ export function loadPlacedOrder(): PlacedOrder | null {
       paymentUrl: httpsUrl(raw.paymentUrl),
       totals: readTotals(raw.totals),
       paid: raw.paid === true,
+      ...(lines.length > 0 ? { lines } : {}),
     }
   } catch {
     return null
   }
+}
+
+// ---------------------------------------------------------------------------
+// The customer's details, kept on the phone after an order so the next one
+// (a reorder from Home) is a confirmation, not a form. Never sent anywhere
+// except with an order, and cleared on request.
+// ---------------------------------------------------------------------------
+
+export type SavedCustomer = Omit<CheckoutForm, 'researchUseAck'>
+
+const CUSTOMER_KEY = 'shop-customer-v1'
+
+const CUSTOMER_FIELDS = ['name', 'phone', 'email', 'line1', 'line2', 'city', 'region', 'postalCode'] as const
+
+/** The saved details, only if they would still pass the form's own checks for this store. */
+export function loadSavedCustomer(brand: BrandId): SavedCustomer | null {
+  try {
+    const raw: unknown = JSON.parse(localStorage.getItem(CUSTOMER_KEY) ?? 'null')
+    if (!isRecord(raw)) return null
+    const { name, phone, email, line1, line2, city, region, postalCode } = emptyCheckoutForm(brand)
+    const saved: SavedCustomer = {
+      name,
+      phone,
+      email,
+      line1,
+      line2,
+      city,
+      region,
+      postalCode,
+      paymentMethod: raw.paymentMethod === 'whatsapp' ? 'whatsapp' : 'card',
+    }
+    for (const key of CUSTOMER_FIELDS) if (typeof raw[key] === 'string') saved[key] = raw[key].slice(0, 200)
+    return firstInvalidField({ ...saved, researchUseAck: true }, brand) === null ? saved : null
+  } catch {
+    return null
+  }
+}
+
+export function saveCustomer(form: CheckoutForm): void {
+  try {
+    // The research-use confirmation is deliberately not kept: it is asked for again with every order.
+    const details: SavedCustomer = {
+      name: form.name,
+      phone: form.phone,
+      email: form.email,
+      line1: form.line1,
+      line2: form.line2,
+      city: form.city,
+      region: form.region,
+      postalCode: form.postalCode,
+      paymentMethod: form.paymentMethod,
+    }
+    localStorage.setItem(CUSTOMER_KEY, JSON.stringify(details))
+  } catch {
+    // Storage unavailable: the next order asks again.
+  }
+}
+
+export function forgetSavedCustomer(): void {
+  try {
+    localStorage.removeItem(CUSTOMER_KEY)
+  } catch {
+    // Nothing stored that could be removed.
+  }
+}
+
+/** When an order placed `now` should arrive by: the store's usual delivery time, counted in days. */
+export function arriveByDate(now: Date, shippingDays: number): Date {
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() + shippingDays)
 }
 
 export function savePlacedOrder(order: PlacedOrder | null): void {

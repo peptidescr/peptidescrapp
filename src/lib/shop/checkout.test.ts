@@ -1,7 +1,19 @@
-import { describe, expect, it } from 'vitest'
-import { viewCart } from './cart'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { readLines, viewCart } from './cart'
 import type { ShopProduct } from './catalogue'
-import { emptyCheckoutForm, firstInvalidField, placeOrder, readOrderResponse, type CheckoutForm } from './checkout'
+import {
+  arriveByDate,
+  emptyCheckoutForm,
+  firstInvalidField,
+  forgetSavedCustomer,
+  loadPlacedOrder,
+  loadSavedCustomer,
+  placeOrder,
+  readOrderResponse,
+  saveCustomer,
+  savePlacedOrder,
+  type CheckoutForm,
+} from './checkout'
 
 const products: ShopProduct[] = [
   { name: 'BPC-157 5mg', slug: 'bpc', orderRef: 'bpc', inStock: true, price: { currency: 'USD', amount: 45 } },
@@ -86,5 +98,90 @@ describe('placeOrder', () => {
     await placeOrder([{ ref: 'bpc', qty: 2 }], form, 'en', fetchFn)
     expect(sent).toMatchObject({ items: [{ ref: 'bpc', qty: 2 }], paymentMethod: 'card', language: 'en', researchUseAck: true })
     expect(JSON.stringify(sent)).not.toMatch(/price|amount|total/i)
+  })
+})
+
+// A tiny localStorage, since these tests run without a browser.
+function stubStorage(): Map<string, string> {
+  const data = new Map<string, string>()
+  vi.stubGlobal('localStorage', {
+    getItem: (k: string) => data.get(k) ?? null,
+    setItem: (k: string, v: string) => void data.set(k, v),
+    removeItem: (k: string) => void data.delete(k),
+  })
+  return data
+}
+
+describe('readLines', () => {
+  it('keeps whole quantities of 1-100 of a named product, once each', () => {
+    expect(
+      readLines([
+        { ref: 'bpc', qty: 2 },
+        { ref: 'bpc', qty: 5 },
+        { ref: 'tb', qty: 0 },
+        { ref: 'tb', qty: 101 },
+        { ref: 'ghk', qty: 1.5 },
+        { ref: '', qty: 1 },
+        { ref: 7, qty: 1 },
+        null,
+        { ref: 'ok', qty: 100 },
+      ]),
+    ).toEqual([
+      { ref: 'bpc', qty: 2 },
+      { ref: 'ok', qty: 100 },
+    ])
+    expect(readLines('nope')).toEqual([])
+  })
+})
+
+describe('the last order and the customer, kept on the phone', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  const placed = { orderNumber: 'USP-1', placedAt: '2026-10-20T15:00:00.000Z', paymentMethod: 'card' as const }
+
+  it('keeps what was ordered, and reads an order from before that was kept as having no lines', () => {
+    const data = stubStorage()
+    savePlacedOrder({ ...placed, lines: [{ ref: 'bpc', qty: 5 }, { ref: 'ghk', qty: 2 }] })
+    expect(loadPlacedOrder()?.lines).toEqual([{ ref: 'bpc', qty: 5 }, { ref: 'ghk', qty: 2 }])
+    data.set('shop-last-order-v1', JSON.stringify(placed))
+    expect(loadPlacedOrder()).toEqual({ ...placed, paid: false, paymentUrl: undefined, totals: undefined })
+    data.set('shop-last-order-v1', JSON.stringify({ ...placed, lines: [{ ref: 'x', qty: 0 }] }))
+    expect(loadPlacedOrder()?.lines).toBeUndefined()
+  })
+
+  const jane: CheckoutForm = { ...emptyCheckoutForm('upd'), name: 'Jane Doe', phone: '(405) 555-0134', email: 'j@example.com', line1: '12 Main St', city: 'Austin', region: 'TX', postalCode: '78701', researchUseAck: true }
+
+  it('remembers the details but never the research-use confirmation', () => {
+    const data = stubStorage()
+    saveCustomer(jane)
+    expect(data.get('shop-customer-v1')).not.toMatch(/researchUseAck/)
+    expect(loadSavedCustomer('upd')).toMatchObject({ name: 'Jane Doe', line1: '12 Main St', paymentMethod: 'card' })
+    expect(loadSavedCustomer('upd')).not.toHaveProperty('researchUseAck')
+  })
+
+  it('ignores details that would no longer pass the form, and forgets on request', () => {
+    const data = stubStorage()
+    saveCustomer({ ...jane, postalCode: 'abc' })
+    expect(loadSavedCustomer('upd')).toBeNull()
+    data.set('shop-customer-v1', '{not json')
+    expect(loadSavedCustomer('upd')).toBeNull()
+    saveCustomer(jane)
+    expect(loadSavedCustomer('upd')).not.toBeNull()
+    forgetSavedCustomer()
+    expect(loadSavedCustomer('upd')).toBeNull()
+  })
+
+  it('checks saved details against the store they are loaded for', () => {
+    stubStorage()
+    saveCustomer({ ...jane, phone: '4055550134' })
+    // PCR needs the number in international form, so a US-style number isn't enough there.
+    expect(loadSavedCustomer('pcr')).toBeNull()
+  })
+})
+
+describe('arriveByDate', () => {
+  it('counts calendar days from the order date, across a month end', () => {
+    expect(arriveByDate(new Date(2026, 9, 29, 18, 30), 3)).toEqual(new Date(2026, 10, 1))
+    expect(arriveByDate(new Date(2026, 9, 20), 2)).toEqual(new Date(2026, 9, 22))
   })
 })
