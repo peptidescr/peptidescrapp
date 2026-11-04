@@ -4,13 +4,11 @@ import { useTranslation } from 'react-i18next'
 import { Card } from '@/components/ui/card'
 import { HeroHeader, HeroOverlap } from '@/components/ui/hero-header'
 import { InfoRowCard } from '@/components/ui/info-row-card'
-import { SectionLabel } from '@/components/ui/section-label'
 import { BRAND } from '@/brand'
 import { BackupNudge } from '../components/BackupNudge'
 import { HomeCommerceSlots } from '../components/HomeCommerceSlots'
 import { PointsCard } from '../components/shop/LoyaltyCards'
 import { NotificationPanel } from '../components/NotificationPanel'
-import { VialAlertCard } from '../components/VialAlertCard'
 import { formatDate } from '../lib/dates'
 import { greetingKey } from '../lib/homeText'
 import { useStoreAccount } from '../lib/store/account'
@@ -18,7 +16,6 @@ import type { GetStartedStepId } from '../lib/homeData'
 import { useHomeState } from '../lib/useHomeState'
 import type { ResolvedTheme } from '../lib/theme'
 import { updateSettings } from '../lib/useSettings'
-import { vialAlertKey } from '../lib/vials'
 
 interface HomeScreenProps {
   /** The back arrow in the hero, when there is a page to go back to (Home has no app bar). */
@@ -40,11 +37,12 @@ interface HomeScreenProps {
 /**
  * Home, as the approved screen has it: a hero band with the greeting, the bell
  * and Settings, the points card straddling its edge, Your usual, the credit
- * banner, then what needs a look (vial alerts), the calculator shortcut, and
- * the first-run and backup nudges. The store's parts (points, Your usual,
- * credit) show only when the store features are on. Doses are not here: taking
- * or skipping one, catching up, what's coming, streak and recent activity all
- * live in Track > Today, and the bell lists what is due.
+ * banner, then the calculator shortcut and the first-run and backup nudges.
+ * The store's parts (points, Your usual, credit) show only when the store
+ * features are on. Neither doses nor vials are listed here: taking or skipping
+ * a dose, catching up, what's coming, the streak and the vial alerts all live
+ * in Track (Today, and each protocol's vial), and the bell lists everything
+ * that needs attention, doses and vials included, with its badge counting them.
  */
 export function HomeScreen({
   onBack,
@@ -108,15 +106,6 @@ export function HomeScreen({
 
       <div className={`flex flex-col gap-4 px-4 ${pointsCard ? 'mt-[1.375rem]' : 'mt-6'}`}>
         <HomeCommerceSlots onOpenRefer={onNavigateToRefer} />
-
-        {home.vialAlerts.length > 0 && (
-          <section className="flex flex-col gap-2">
-            <SectionLabel>{t('vialAlerts.title')}</SectionLabel>
-            {home.vialAlerts.map((alert) => (
-              <VialAlertCard key={vialAlertKey(alert)} alert={alert} onOpenProtocol={onOpenProtocol} />
-            ))}
-          </section>
-        )}
 
         <InfoRowCard
           icon={Calculator}

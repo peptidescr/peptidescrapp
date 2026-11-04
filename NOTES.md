@@ -2683,3 +2683,9 @@ due and missed doses at the bottom.
   kind), sections in order of urgency (doses first), and a "Notification settings" link. A filter whose group empties
   (a dose was just logged) falls back to All; closing resets it.
 - Checked at 390 and 320, light and dark, English and Spanish: no overflow, small targets or contrast problems.
+
+- **Vials are off Home** (November 2026): Home no longer lists vial alerts. They live in Track > Today and on each protocol's
+  vial strip, and in the bell's panel (the badge counts them). Reminders outside the app: low and empty alerts fire a system
+  notification once each time they are newly raised, while the app is open (`notifyVialAlerts`); a vial's discard-by and
+  label-expiry dates are pushed at 09:00 (3 days ahead and on the day) even when the app is closed. A closed-app "running
+  low" push does not exist: it depends on doses being logged, which the server never sees.
