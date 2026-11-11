@@ -7,18 +7,28 @@
  * Both stores price every order themselves and ignore any price sent to them,
  * so no price goes out from here: only product references and quantities.
  *
- * SAFETY. An order here is a real order in the store's system: PCR's and UPD's
- * order APIs have no test mode, and creating one notifies their staff and, for
- * UPD, starts their emails at once. So checkout is off unless the site says
- * otherwise, and the switches are deliberately narrow (checkoutSettings):
+ * SAFETY. An order here goes to the store's own order system. Neither spec
+ * documents a test mode for orders: UPD's says the moment an order is created
+ * its emails fire and its staff are notified, and PCR's sandbox partner key may
+ * or may not reach its real staff (asked, not confirmed). So checkout is off
+ * unless the site says otherwise, and the switches are deliberately narrow
+ * (checkoutSettings):
  *
  *   STORE_CHECKOUT=sandbox      the only value accepted. There is no live mode
  *                               in this code yet; adding one is a code change.
  *   PCR_PARTNER_KEY             must be the sandbox partner key (pk_sandbox_…);
  *   PCR_SIGNING_SECRET          a live key is refused.
- *   UPD_LIVE_ORDERS_OK=true     UPD's order API has no sandbox at all, so every
- *                               UPD order is a real one. Set only once the
- *                               store has agreed how test orders are handled.
+ *   UPD_LIVE_ORDERS_OK=true     UPD's order address is the same in testing as
+ *                               live, so every UPD order reaches its staff.
+ *                               Set only when test orders are expected.
+ *   CHARGX_PUBLISHABLE_KEY      UPD only: the sandbox store's key, which starts
+ *                               the card payment (startChargxPayment). Without
+ *                               it a UPD card order has no payment link.
+ *
+ * The points and credit a customer applies are sent as a discount under an
+ * assumed field name (DISCOUNT_FIELD); in sandbox they come from the staging
+ * test account, so nothing here can apply a balance a real customer doesn't
+ * have. A live mode must take them from the store's own account API instead.
  *
  * Keys live only in the site's environment (Netlify), entered by whoever holds
  * them. Nothing here logs a key, a request body or a customer's details.
@@ -32,7 +42,8 @@ import type { CatalogueBrand, FetchLike, StorePrice } from './catalogue.ts'
 
 export type CheckoutSettings =
   | { ok: true; brand: 'pcr'; partnerKey: string; signingSecret: string }
-  | { ok: true; brand: 'upd' }
+  /** `chargxKey`: the sandbox store's publishable key, which starts UPD's card payments (UPD API doc §6). */
+  | { ok: true; brand: 'upd'; chargxKey?: string }
   | { ok: false; reason: string }
 
 /** Whether this site may place orders, and the credentials to do it with. Never returns a key in `reason`. */
@@ -48,7 +59,7 @@ export function checkoutSettings(brand: CatalogueBrand, env: Record<string, stri
     return { ok: true, brand, partnerKey, signingSecret }
   }
   if (env.UPD_LIVE_ORDERS_OK !== 'true') return { ok: false, reason: 'UPD_LIVE_ORDERS_OK is not "true"' }
-  return { ok: true, brand }
+  return env.CHARGX_PUBLISHABLE_KEY ? { ok: true, brand, chargxKey: env.CHARGX_PUBLISHABLE_KEY } : { ok: true, brand }
 }
 
 // ---------------------------------------------------------------------------
@@ -71,7 +82,14 @@ export interface CheckoutRequest {
   customer: { name: string; phone: string; email: string; address: CheckoutAddress }
   paymentMethod: PaymentMethod
   language: 'en' | 'es'
+  /** Points and credit the customer chose to apply, in dollars; absent when none. */
+  discountUsd?: number
+  /** What the customer agreed to be contacted about: only boxes they actually ticked. */
+  consent: { marketing: boolean; sms: boolean; call: boolean }
 }
+
+/** The most a customer can apply to one order; a sanity bound, not a rule. */
+export const MAX_DISCOUNT_USD = 10_000
 
 export const MAX_BODY_CHARS = 16_000
 /** Both stores' limits: PCR takes 50 lines and 1–100 of each. */
@@ -160,7 +178,19 @@ export function parseCheckoutRequest(input: unknown, brand: CatalogueBrand): Par
   if (input.researchUseAck !== true) return { ok: false, field: 'researchUseAck' }
 
   const language = input.language === 'es' ? 'es' : 'en'
-  return { ok: true, request: { items, customer: { name, phone, email, address }, paymentMethod, language } }
+
+  let discountUsd: number | undefined
+  if (input.discountUsd !== undefined) {
+    const d = input.discountUsd
+    if (typeof d !== 'number' || !Number.isFinite(d) || d < 0 || d > MAX_DISCOUNT_USD) return { ok: false, field: 'discount' }
+    if (d > 0) discountUsd = Math.round(d * 100) / 100
+  }
+  const rawConsent = isRecord(input.consent) ? input.consent : {}
+  const consent = { marketing: rawConsent.marketing === true, sms: rawConsent.sms === true, call: rawConsent.call === true }
+
+  const request: CheckoutRequest = { items, customer: { name, phone, email, address }, paymentMethod, language, consent }
+  if (discountUsd !== undefined) request.discountUsd = discountUsd
+  return { ok: true, request }
 }
 
 // ---------------------------------------------------------------------------
@@ -168,7 +198,18 @@ export function parseCheckoutRequest(input: unknown, brand: CatalogueBrand): Par
 // ---------------------------------------------------------------------------
 
 const PCR_ORDERS_URL = 'https://catalog.peptidescostarica.net/api/partner/orders'
+const PCR_CUSTOMERS_URL = 'https://catalog.peptidescostarica.net/api/partner/customers'
 const UPD_ORDERS_URL = 'https://www.usapeptidedepot.com/api/orders'
+const CHARGX_PAYMENT_REQUEST_URL = 'https://api.chargx.io/v1/payment-request'
+
+/**
+ * ASSUMED field names for the points and credit applied to an order. Neither
+ * store's spec documents a discount yet (November 2026); the agreed assumption
+ * is that their order APIs will take one. Change these to the documented names
+ * when they arrive. Whatever the store does with it, its returned total is what
+ * the app shows and the customer pays.
+ */
+export const DISCOUNT_FIELD: Record<CatalogueBrand, string> = { pcr: 'discount_usd', upd: 'discountUsd' }
 
 export interface StoreRequest {
   url: string
@@ -192,6 +233,7 @@ export function buildStoreRequest(settings: CheckoutSettings & { ok: true }, req
       items: request.items.map(({ ref, qty }) => ({ product_id: ref, qty })),
       payment_method: request.paymentMethod,
       language: request.language,
+      ...(request.discountUsd ? { [DISCOUNT_FIELD.pcr]: request.discountUsd } : {}),
     })
     return {
       url: PCR_ORDERS_URL,
@@ -205,14 +247,19 @@ export function buildStoreRequest(settings: CheckoutSettings & { ok: true }, req
     }
   }
   const { line1, line2, city, region, postalCode } = customer.address
+  // The spec (§4) spells the ZIP `postalCode`; UPD's own checkout sends `postal_code`. Both go until the
+  // first sandbox order shows which their API reads.
   const body = JSON.stringify({
     fullName: customer.name,
     email: customer.email,
     phone: customer.phone,
     items: request.items.map(({ ref, qty }) => ({ slug: ref, quantity: qty })),
-    shippingAddress: { line1, ...(line2 ? { line2 } : {}), city, state: region, postalCode, country: 'US' },
+    shippingAddress: { line1, ...(line2 ? { line2 } : {}), city, state: region, postalCode, postal_code: postalCode, country: 'US' },
     complianceAck: true,
     paymentMethod: 'card',
+    smsConsent: request.consent.sms,
+    callConsent: request.consent.call,
+    ...(request.discountUsd ? { [DISCOUNT_FIELD.upd]: request.discountUsd } : {}),
   })
   return { url: UPD_ORDERS_URL, headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body }
 }
@@ -226,7 +273,8 @@ export interface OrderTotals {
 }
 
 export type StoreAnswer =
-  | { kind: 'placed'; orderNumber: string; status?: string; totals?: OrderTotals; paymentUrl?: string }
+  /** `paymentToken`: UPD's one-time token for starting the card payment; never sent to the app. */
+  | { kind: 'placed'; orderNumber: string; status?: string; totals?: OrderTotals; paymentUrl?: string; paymentToken?: string }
   /** The store said no, with a message written for the customer (PCR asks that it's shown as it is). */
   | { kind: 'refused'; message?: string }
   /** Anything else: the order may or may not exist, so the app must not simply retry. */
@@ -260,15 +308,17 @@ function customerMessage(value: unknown): string | undefined {
 }
 
 /**
- * Reads the store's answer. PCR's shape is documented; UPD's success shape is
- * documented without a payment link, and this assumes (October 2026, pending
- * UPD's developer) that one will arrive as `paymentUrl` like PCR's, on the
- * order or beside it. A total of 0 (UPD's doc example) is treated as unknown,
- * never shown as the price.
+ * Reads the store's answer. PCR's shape is documented. UPD's spec shows
+ * `{ order: {...} }`, while UPD's own website reads `{ data: { order, payment:
+ * { token } } }` (seen in its public checkout code, November 2026), so both
+ * are accepted until a sandbox order shows which is real. UPD's order carries
+ * no payment link; one is started separately (startChargxPayment). A total of
+ * 0 (UPD's doc example) is treated as unknown, never shown as the price.
  */
 export function readStoreAnswer(brand: CatalogueBrand, status: number, body: unknown): StoreAnswer {
   if (!isRecord(body)) return { kind: 'unconfirmed' }
-  const order = brand === 'upd' && isRecord(body.order) ? body.order : body
+  const root = brand === 'upd' && isRecord(body.data) ? body.data : body
+  const order = brand === 'upd' && isRecord(root.order) ? root.order : root
   const orderNumber = order.orderNumber
   const succeeded = brand === 'pcr' ? body.ok === true : status >= 200 && status < 300
 
@@ -289,17 +339,171 @@ export function readStoreAnswer(brand: CatalogueBrand, status: number, body: unk
       }
     } else if (brand === 'upd') {
       const total = money(order.grandTotal)
-      if (total) totals = { currency: 'USD', total, goods: money(order.subtotal), shipping: money(order.shippingTotal) }
+      if (total) {
+        totals = { currency: 'USD', total, goods: money(order.subtotal), shipping: money(order.shippingTotal) }
+        // UPD's website reads `discountTotal` on its price preview; kept when an order carries it too.
+        const discount = money(order.discountTotal)
+        if (discount) totals.discount = discount
+      }
     }
     if (totals) answer.totals = totals
+    if (brand === 'upd' && isRecord(root.payment) && typeof root.payment.token === 'string' && root.payment.token.length <= 500) {
+      answer.paymentToken = root.payment.token
+    }
     return answer
   }
 
-  // A clear refusal: PCR's ok:false, or a 4xx with a message (UPD's error shape isn't documented).
+  // A clear refusal: PCR's ok:false, or a 4xx with a message. UPD's spec doesn't show its error shape; its
+  // website reads a per-field `fields` object and a `message`.
   if ((brand === 'pcr' && body.ok === false) || (status >= 400 && status < 500)) {
-    return { kind: 'refused', message: customerMessage(body.error) ?? customerMessage(body.message) }
+    const fieldMessage = isRecord(body.fields) ? Object.values(body.fields).find((v) => typeof v === 'string') : undefined
+    return { kind: 'refused', message: customerMessage(body.error) ?? customerMessage(fieldMessage) ?? customerMessage(body.message) }
   }
   return { kind: 'unconfirmed' }
+}
+
+// ---------------------------------------------------------------------------
+// Starting the card payment.
+// ---------------------------------------------------------------------------
+
+/** Where the payment form is hosted: ChargX's own domain (its docs show dashboard.chargx.io/payment-form/…). */
+export function isChargxForm(value: string): boolean {
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:' && (url.hostname === 'chargx.io' || url.hostname.endsWith('.chargx.io'))
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Starts a UPD card payment, as UPD's spec says (§6: "ChargX, with the sandbox
+ * keys"): ChargX's payment request for the order's total, with the order number
+ * as `external_order_id` (ChargX's documented reference, echoed back in its
+ * webhook) and the customer's details prefilled on the form, returning to the
+ * app's own return page. The card is typed on ChargX's form, never in the app.
+ *
+ * Sandbox only for now: a reply that says it is a production request is
+ * refused. Returns the form's address, or undefined when it couldn't start;
+ * the order stands either way and is never placed again.
+ */
+export async function startChargxPayment(
+  fetchFn: FetchLike,
+  input: {
+    publishableKey: string
+    orderNumber: string
+    amount: number
+    customer: CheckoutRequest['customer']
+    /** The site's own origin, for the return page. */
+    origin: string
+    /** Dev only (vite.config.ts): a local pretend form instead of ChargX's. */
+    mockFormOrigin?: string
+  },
+): Promise<string | undefined> {
+  const back = (result: 'success' | 'cancel') =>
+    `${input.origin}/pay-return.html?order=${encodeURIComponent(input.orderNumber)}&result=${result}`
+  let checkoutUrl: unknown
+  let production: unknown
+  try {
+    const response = await fetchFn(CHARGX_PAYMENT_REQUEST_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'x-publishable-api-key': input.publishableKey },
+      body: JSON.stringify({ amount: input.amount, currency: 'usd', type: 'card', success_url: back('success'), cancel_url: back('cancel') }),
+      signal: AbortSignal.timeout(15_000),
+    })
+    const body: unknown = await response.json().catch(() => null)
+    const request = isRecord(body) && isRecord(body.payment_request) ? body.payment_request : undefined
+    checkoutUrl = request?.checkout_url
+    production = request?.isProduction
+    if (!response.ok) console.error(`orders: chargx payment request answered ${response.status}`)
+  } catch (err) {
+    console.error('orders: chargx payment request failed:', err instanceof Error ? err.name : 'error')
+    return undefined
+  }
+  if (production === true) {
+    console.error('orders: chargx answered with a production payment request while checkout is in sandbox; not used')
+    return undefined
+  }
+  if (typeof checkoutUrl !== 'string') return undefined
+  const allowed = isChargxForm(checkoutUrl) || (input.mockFormOrigin !== undefined && checkoutUrl.startsWith(`${input.mockFormOrigin}/`))
+  if (!allowed) {
+    console.error('orders: chargx payment form refused (not on chargx.io)')
+    return undefined
+  }
+  const url = new URL(checkoutUrl)
+  const { address } = input.customer
+  const prefill: Record<string, string | undefined> = {
+    external_order_id: input.orderNumber,
+    email: input.customer.email,
+    'phone-number': input.customer.phone,
+    'street-address': address.line1,
+    'unit-address': address.line2,
+    city: address.city,
+    state: address.region,
+    'zip-code': address.postalCode,
+    country: 'US',
+  }
+  for (const [key, value] of Object.entries(prefill)) if (value) url.searchParams.set(key, value)
+  return url.toString()
+}
+
+/**
+ * Peptides CR's payment link is on its own site, which refuses to be shown
+ * inside another (X-Frame-Options: SAMEORIGIN). If the link simply forwards to
+ * ChargX's form, that form can be shown inside the app instead; this asks
+ * where it forwards, without following it. Undefined when it doesn't forward
+ * to ChargX (the link then opens full-screen).
+ */
+export async function findChargxForward(fetchFn: FetchLike, paymentUrl: string): Promise<string | undefined> {
+  try {
+    const response = await fetchFn(paymentUrl, { method: 'GET', redirect: 'manual', signal: AbortSignal.timeout(4000) })
+    const location = response.status >= 300 && response.status < 400 ? response.headers.get('location') : null
+    if (!location) return undefined
+    const target = new URL(location, paymentUrl).toString()
+    return isChargxForm(target) ? target : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Files a customer who ticked the marketing box with Peptides CR's CRM
+ * (partner integration doc §2), with the consent flags set only because they
+ * agreed: the doc says those flags are the legal basis for messaging them.
+ * Best effort: the order already stands, so a failure here is only logged.
+ */
+export async function postPcrConsent(
+  fetchFn: FetchLike,
+  settings: CheckoutSettings & { ok: true; brand: 'pcr' },
+  request: CheckoutRequest,
+): Promise<void> {
+  if (!request.consent.marketing) return
+  const body = JSON.stringify({
+    contact_method: 'whatsapp',
+    contact_value: request.customer.phone.replace(/[^\d+]/g, ''),
+    name: request.customer.name,
+    email: request.customer.email,
+    language: request.language,
+    marketing_consent: true,
+    whatsapp_consent: true,
+    source: 'peptides-cr-app',
+  })
+  try {
+    const response = await fetchFn(PCR_CUSTOMERS_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'X-Partner-Key': settings.partnerKey,
+        'X-Partner-Signature': signPartnerBody(body, settings.signingSecret),
+      },
+      body,
+      signal: AbortSignal.timeout(5000),
+    })
+    if (!response.ok) console.error(`orders: pcr customer post answered ${response.status}`)
+  } catch (err) {
+    console.error('orders: pcr customer post failed:', err instanceof Error ? err.name : 'error')
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -309,7 +513,8 @@ export function readStoreAnswer(brand: CatalogueBrand, status: number, body: unk
 const STORE_TIMEOUT_MS = 20_000
 
 export type OrderResponseBody =
-  | { ok: true; orderNumber: string; status?: string; totals?: OrderTotals; paymentUrl?: string }
+  /** `paymentUrl` opens full-screen; `embedUrl`, when there is one, is ChargX's own form, shown inside the app. */
+  | { ok: true; orderNumber: string; status?: string; totals?: OrderTotals; paymentUrl?: string; embedUrl?: string }
   | { ok: false; error: 'checkout-off' | 'invalid' | 'refused' | 'unconfirmed'; field?: string; message?: string }
 
 function reply(body: OrderResponseBody, status: number): Response {
@@ -381,9 +586,27 @@ export async function handleOrderRequest(
   }
 
   if (answer.kind === 'placed') {
-    console.log(`orders: ${brand} ${answer.orderNumber} placed (${parsed.request.paymentMethod}${answer.paymentUrl ? ', payment link' : ''})`)
-    const { orderNumber, status, totals, paymentUrl } = answer
-    return reply({ ok: true, orderNumber, status, totals, paymentUrl }, 200)
+    const { orderNumber, status, totals } = answer
+    let paymentUrl = answer.paymentUrl
+    let embedUrl: string | undefined
+    if (parsed.request.paymentMethod === 'card') {
+      if (settings.brand === 'upd' && !paymentUrl && settings.chargxKey && totals?.total) {
+        paymentUrl = await startChargxPayment(fetchFn, {
+          publishableKey: settings.chargxKey,
+          orderNumber,
+          amount: totals.total,
+          customer: parsed.request.customer,
+          origin: new URL(req.url).origin,
+          mockFormOrigin: env.MOCK_PAYMENT_FORM_ORIGIN,
+        })
+        embedUrl = paymentUrl
+      } else if (paymentUrl) {
+        embedUrl = isChargxForm(paymentUrl) ? paymentUrl : await findChargxForward(fetchFn, paymentUrl)
+      }
+    }
+    if (settings.brand === 'pcr') await postPcrConsent(fetchFn, settings, parsed.request)
+    console.log(`orders: ${brand} ${orderNumber} placed (${parsed.request.paymentMethod}${paymentUrl ? ', payment link' : ''}${embedUrl ? ', in app' : ''})`)
+    return reply({ ok: true, orderNumber, status, totals, paymentUrl, embedUrl }, 200)
   }
   if (answer.kind === 'refused') return reply({ ok: false, error: 'refused', message: answer.message }, 422)
   return reply({ ok: false, error: 'unconfirmed' }, 502)

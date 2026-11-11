@@ -1,8 +1,10 @@
 /**
  * A pretend store for clicking through checkout on a local dev server
  * (vite.config.ts serves it only when STORE_CHECKOUT_MOCK=1). It answers the
- * order request the way the stores' docs say they would, without any network:
- * nothing here can reach PCR, UPD or ChargX. Never imported by a Netlify function.
+ * order request the way the stores do (UPD in the shape its own website reads),
+ * and ChargX's payment request with a pretend form on the same local server,
+ * without any network: nothing here can reach PCR, UPD or ChargX. Never
+ * imported by a Netlify function.
  *
  * Orders it "places" count as paid a few seconds later, so the app's
  * waiting-for-payment state can be seen to finish.
@@ -16,6 +18,19 @@ export const MOCK_CHECKOUT_ENV = {
   PCR_PARTNER_KEY: 'pk_sandbox_local-mock-not-a-key',
   PCR_SIGNING_SECRET: 'local-mock-not-a-secret',
   UPD_LIVE_ORDERS_OK: 'true',
+  CHARGX_PUBLISHABLE_KEY: 'local-mock-not-a-key',
+}
+
+/** A pretend ChargX payment form (served by vite.config.ts in mock mode): Pay or Cancel, then the return page. */
+export function mockPaymentFormHtml(search: URLSearchParams): string {
+  const safe = (value: string | null) => (value && /^http:\/\/(127\.0\.0\.1|localhost):\d+\//.test(value) ? value : '/')
+  const success = safe(search.get('success'))
+  const cancel = safe(search.get('cancel'))
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pretend payment</title>
+<style>body{font-family:system-ui,sans-serif;margin:0;padding:24px;background:#f6f6f6;color:#222}a{display:block;margin-top:12px;padding:14px;border-radius:12px;text-align:center;text-decoration:none;font-weight:700}
+.pay{background:#1f4233;color:#fff}.cancel{background:#fff;color:#1f4233;border:1px solid #1f4233}</style></head>
+<body><h1>Pretend payment form</h1><p>Local testing only: no card, no money. Order ${(search.get('external_order_id') ?? '').replace(/[^A-Za-z0-9-]/g, '')}</p>
+<a class="pay" href="${success}">Pay (test)</a><a class="cancel" href="${cancel}">Cancel</a></body></html>`
 }
 
 const PAID_AFTER_MS = 8000
@@ -24,7 +39,18 @@ export function mockStore(brand: CatalogueBrand): { fetchFn: FetchLike; payments
   const placedAt = new Map<string, number>()
   let next = 1000
 
-  const fetchFn: FetchLike = async (_url, init) => {
+  const fetchFn: FetchLike = async (url, init) => {
+    // ChargX's payment request: a pretend form on the same local server, which returns to the app's return page.
+    if (url.startsWith('https://api.chargx.io/')) {
+      const request = JSON.parse(init?.body ?? '{}') as { success_url?: string; cancel_url?: string }
+      const origin = new URL(request.success_url ?? 'http://127.0.0.1/').origin
+      const form = new URL('/mock-pay.html', origin)
+      form.searchParams.set('success', request.success_url ?? '')
+      form.searchParams.set('cancel', request.cancel_url ?? '')
+      return Response.json({ payment_request: { id: 'mock', checkout_url: form.toString(), isProduction: false } })
+    }
+    // Peptides CR's payment page, asked where it forwards: it doesn't, so it opens full-screen.
+    if (init?.method === 'GET') return new Response('', { status: 200 })
     const body = JSON.parse(init?.body ?? '{}') as Record<string, unknown>
     const orderNumber = `${brand === 'pcr' ? 'PTR' : 'USP'}-MOCK${++next}`
     // A customer named "Refuse" is refused, to see the store's message shown.
@@ -38,16 +64,23 @@ export function mockStore(brand: CatalogueBrand): { fetchFn: FetchLike; payments
     placedAt.set(orderNumber, Date.now())
     if (brand === 'pcr') {
       const card = body.payment_method === 'card'
+      const discount = typeof body.discount_usd === 'number' ? Math.min(body.discount_usd, 300) : 0
       return Response.json({
         ok: true,
         orderNumber,
         status: card ? 'Pending - Card' : 'Pending - WhatsApp',
-        totals: { currency: 'USD', goods: 300, discount: 0, shipping: 0, total: 300 },
+        totals: { currency: 'USD', goods: 300, discount, shipping: 0, total: Math.round((300 - discount) * 100) / 100 },
         ...(card ? { paymentUrl: `https://catalog.peptidescostarica.net/pay-card/${orderNumber}` } : {}),
       })
     }
+    // The shape UPD's own website reads; no payment link (the app starts the ChargX payment itself). The
+    // discount is applied the way the stores are assumed to (DISCOUNT_FIELD), so the totals match the app's.
+    const discount = typeof body.discountUsd === 'number' ? Math.min(body.discountUsd, 90) : 0
     return Response.json({
-      order: { orderNumber, status: 'pending', subtotal: 90, shippingTotal: 0, grandTotal: 90, paymentUrl: `https://www.usapeptidedepot.com/pay/${orderNumber}` },
+      data: {
+        order: { orderNumber, status: 'pending', subtotal: 90, discountTotal: discount, shippingTotal: 0, grandTotal: Math.round((90 - discount) * 100) / 100 },
+        payment: { token: 'mock' },
+      },
     })
   }
 

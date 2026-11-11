@@ -1,91 +1,104 @@
 /**
  * What the Home, Rewards and Refer screens draw, worked out from a StoreAccount
- * (src/lib/store/account.ts): progress along the tier track, which rewards can
- * be redeemed, the referral ladder's state, and the credit still to unlock.
- * Pure, so the arithmetic is testable apart from the screens.
+ * (src/lib/store/account.ts) and the rules (rules.ts): the tier and how far to
+ * Lab, what the points are worth, the referral ladder's state, and the credit
+ * still to unlock. Pure, so the arithmetic is testable apart from the screens.
  */
-import { segmentedProgress } from '@/components/ui/segmented-progress-track'
-import type { LadderStep, RewardInfo, StoreAccount } from './account'
+import type { StoreAccount } from './account'
+import { creditToNextMilestone, labMilestone, nextReferralMilestone, pointsForSpend, pointsValue, REFERRAL_RULES, referralCreditEarned, type ReferralRules } from './rules'
+import type { Tier } from './types'
 
-/** How far through Bench -> Lab -> Institute the balance is (each gap drawn equal), 0..1. */
-export function trackProgress(account: StoreAccount): number {
-  return segmentedProgress(account.points, account.tiers.map((t) => t.minPoints))
+/** Lab while its 12 months run, otherwise Bench. */
+export function tierOf(account: StoreAccount, now: Date = new Date()): Tier {
+  return account.labUntil && Date.parse(account.labUntil) > now.getTime() ? 'lab' : 'bench'
 }
 
-/** The ring on Home: how far to the next tier from the tier's own floor, 0..1; full at the top. */
-export function ringProgress(account: StoreAccount): number {
-  const index = account.tiers.findIndex((t) => t.id === account.tier)
-  const upper = account.tiers[index + 1]
-  if (index < 0 || !upper) return 1
-  const floor = account.tiers[index]!.minPoints
-  return Math.min(1, Math.max(0, (account.points - floor) / (upper.minPoints - floor)))
+/** Referrals that earn Lab (the model: 25). */
+export function labReferrals(rules: ReferralRules = REFERRAL_RULES): number {
+  return labMilestone(rules).referrals
 }
 
-export type RewardState = 'redeemed' | 'available' | 'locked'
-
-export function rewardState(account: StoreAccount, reward: RewardInfo): RewardState {
-  if (reward.redeemed) return 'redeemed'
-  return account.points >= reward.cost ? 'available' : 'locked'
+/** How far to Lab, 0..1 (the ring on Home, the track on Rewards). */
+export function labProgress(account: StoreAccount): number {
+  return Math.min(1, Math.max(0, account.referral.completed / labReferrals()))
 }
 
-/** Points still needed for a reward; 0 once it can be redeemed. */
-export function pointsShort(account: StoreAccount, reward: RewardInfo): number {
-  return Math.max(0, reward.cost - account.points)
+export function referralsToLab(account: StoreAccount): number {
+  return Math.max(0, labReferrals() - account.referral.completed)
+}
+
+/** What the points are worth off an order, in dollars. */
+export function pointsWorthUsd(account: StoreAccount): number {
+  return pointsValue(account.points)
+}
+
+/** Points an order of this many dollars earns (whole points per $50). */
+export function pointsEarnedFor(dollars: number): number {
+  return pointsForSpend(dollars)
 }
 
 export type StepState = 'earned' | 'next' | 'locked'
 
+/** One rung of the referral ladder: the first referral's credit, then the model's milestones. */
+export interface Rung {
+  referrals: number
+  /** Credit for the first referral, or a milestone's bonus. */
+  creditUsd?: number
+  bonusUsd?: number
+  /** The tier a milestone grants, for how long, and its perks. */
+  tier?: { months: number; discountPercent: number; freeDelivery: boolean }
+}
+
 export interface LadderRow {
-  step: LadderStep
+  rung: Rung
   state: StepState
   /** Friends still needed to reach it; 0 when earned. */
   toGo: number
-  /** How full the connector below this step is: 1 when this and the next are earned, part-way when only this is. */
+  /** How full the connector below this rung is: 1 between two earned rungs, part-way after the last earned one. */
   lineFill: number
+}
+
+export function rungs(rules: ReferralRules = REFERRAL_RULES): Rung[] {
+  return [
+    { referrals: 1, creditUsd: rules.creditPerReferral },
+    ...rules.milestones.map((m) => ({
+      referrals: m.referrals,
+      bonusUsd: m.bonusCredit,
+      tier: m.tier ? { months: m.tier.months, discountPercent: m.tier.discountPercent, freeDelivery: m.tier.freeDelivery } : undefined,
+    })),
+  ]
 }
 
 /** The ladder with each rung marked earned, next (the first not yet reached) or locked. */
 export function ladderRows(account: StoreAccount): LadderRow[] {
   const done = account.referral.completed
-  const steps = account.referral.ladder
-  const nextIndex = steps.findIndex((s) => s.referrals > done)
-  return steps.map((step, i) => {
-    const earned = step.referrals <= done
-    const following = steps[i + 1]
+  const all = rungs()
+  const nextIndex = all.findIndex((r) => r.referrals > done)
+  return all.map((rung, i) => {
+    const earned = rung.referrals <= done
+    const following = all[i + 1]
     return {
-      step,
+      rung,
       state: earned ? 'earned' : i === nextIndex ? 'next' : 'locked',
-      toGo: Math.max(0, step.referrals - done),
+      toGo: Math.max(0, rung.referrals - done),
       lineFill: !earned || !following ? 0 : following.referrals <= done ? 1 : 0.45,
     }
   })
 }
 
-/** The first rung not yet reached, or null past the last. */
-export function nextStep(account: StoreAccount): LadderStep | null {
-  return account.referral.ladder.find((s) => s.referrals > account.referral.completed) ?? null
-}
-
-/**
- * Credit that reaching the next rung would add: the credit for each friend still
- * needed plus that rung's own bonus ("2 more labs unlocks +$80").
- */
-export function creditUnlockedByNext(account: StoreAccount): number {
-  const step = nextStep(account)
-  if (!step) return 0
-  const remaining = step.referrals - account.referral.completed
-  return remaining * account.referral.creditPerReferralUsd + (step.bonusUsd ?? 0)
-}
-
-/** Total referral credit earned so far, from the latest rung that states it plus the bonuses reached. */
+/** Referral credit earned so far, from the rules ($20 each plus the bonuses reached). */
 export function creditEarnedUsd(account: StoreAccount): number {
-  const done = account.referral.completed
-  const reached = account.referral.ladder.filter((s) => s.referrals <= done)
-  const base = [...reached].reverse().find((s) => s.creditUsd !== undefined)?.creditUsd ?? done * account.referral.creditPerReferralUsd
-  return base + reached.reduce((sum, s) => sum + (s.bonusUsd ?? 0), 0)
+  return referralCreditEarned(account.referral.completed)
 }
 
-/** Points an order of this many dollars earns, rounded to whole points. */
-export function pointsEarnedFor(account: StoreAccount, dollars: number): number {
-  return Number.isFinite(dollars) && dollars > 0 ? Math.round(dollars * account.pointsPerDollar) : 0
+/** The next milestone and how many more friends it takes; null once all are reached. */
+export function nextMilestone(account: StoreAccount): { referrals: number; remaining: number; bonusUsd?: number; grantsLab: boolean } | null {
+  const next = nextReferralMilestone(account.referral.completed)
+  if (!next) return null
+  return { referrals: next.milestone.referrals, remaining: next.remaining, bonusUsd: next.milestone.bonusCredit, grantsLab: next.milestone.tier?.tier === 'lab' }
+}
+
+/** Credit that reaching the next milestone would add ("2 more labs unlock +$65"). */
+export function creditUnlockedByNext(account: StoreAccount): number {
+  return creditToNextMilestone(account.referral.completed)
 }

@@ -3,6 +3,7 @@ import { readLines, viewCart } from './cart'
 import type { ShopProduct } from './catalogue'
 import {
   arriveByDate,
+  embeddableUrl,
   emptyCheckoutForm,
   firstInvalidField,
   forgetSavedCustomer,
@@ -111,6 +112,39 @@ function stubStorage(): Map<string, string> {
   })
   return data
 }
+
+describe('the in-app payment and the balance', () => {
+  it('shows only ChargX\'s own form inside the app', () => {
+    expect(embeddableUrl('https://dashboard.chargx.io/payment-form/01X?external_order_id=USP-1')).toBe('https://dashboard.chargx.io/payment-form/01X?external_order_id=USP-1')
+    expect(embeddableUrl('http://dashboard.chargx.io/payment-form/01X')).toBeUndefined()
+    expect(embeddableUrl('https://chargx.io.evil.example/x')).toBeUndefined()
+    expect(embeddableUrl('https://catalog.peptidescostarica.net/pay-card/1')).toBeUndefined()
+    expect(readOrderResponse(200, { ok: true, orderNumber: 'USP-1', embedUrl: 'https://evil.example/x' })).toEqual({ kind: 'placed', orderNumber: 'USP-1' })
+    expect(readOrderResponse(200, { ok: true, orderNumber: 'USP-1', embedUrl: 'https://dashboard.chargx.io/payment-form/1' })).toMatchObject({ embedUrl: 'https://dashboard.chargx.io/payment-form/1' })
+  })
+
+  it('sends the balance applied and the consent ticked, and nothing for either when unused', async () => {
+    const sent: unknown[] = []
+    const fetchFn = (async (_url: string, init?: RequestInit) => {
+      sent.push(JSON.parse(String(init?.body)))
+      return Response.json({ ok: true, orderNumber: 'USP-1' })
+    }) as unknown as typeof fetch
+    const form: CheckoutForm = { ...emptyCheckoutForm('upd'), name: 'Jane', phone: '4055550134', email: 'j@example.com', line1: '1 Main', city: 'Austin', region: 'TX', postalCode: '78701', researchUseAck: true, smsConsent: true }
+    await placeOrder([{ ref: 'bpc', qty: 1 }], form, 'en', fetchFn, 12.345)
+    await placeOrder([{ ref: 'bpc', qty: 1 }], { ...form, smsConsent: false }, 'en', fetchFn)
+    expect(sent[0]).toMatchObject({ discountUsd: 12.35, consent: { marketing: false, sms: true, call: false } })
+    expect(sent[1]).not.toHaveProperty('discountUsd')
+    expect(sent[1]).toMatchObject({ consent: { marketing: false, sms: false, call: false } })
+  })
+
+  it('never remembers the consent boxes with the customer\'s details', () => {
+    const data = new Map<string, string>()
+    vi.stubGlobal('localStorage', { getItem: (k: string) => data.get(k) ?? null, setItem: (k: string, v: string) => void data.set(k, v), removeItem: (k: string) => void data.delete(k) })
+    saveCustomer({ ...emptyCheckoutForm('upd'), name: 'Jane Doe', phone: '(405) 555-0134', email: 'j@example.com', line1: '12 Main St', city: 'Austin', region: 'TX', postalCode: '78701', researchUseAck: true, marketingConsent: true, smsConsent: true, callConsent: true })
+    expect(data.get('shop-customer-v1')).not.toMatch(/Consent|researchUseAck/)
+    vi.unstubAllGlobals()
+  })
+})
 
 describe('readLines', () => {
   it('keeps whole quantities of 1-100 of a named product, once each', () => {

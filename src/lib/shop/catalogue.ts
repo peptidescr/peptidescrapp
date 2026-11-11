@@ -30,6 +30,8 @@ export interface ShopProduct {
   id?: string
   price?: ShopPrice
   regularPrice?: ShopPrice
+  /** The price in local currency for reference: Peptides CR's colones under the dollars it charges. */
+  altPrice?: ShopPrice
   imageUrl?: string
   thumbnailUrl?: string
   description?: string
@@ -109,6 +111,8 @@ export function parseShopProducts(input: unknown, brand: BrandId): ShopProduct[]
       product.price = now
       const was = price(raw.regularPrice)
       if (was && was.currency === now.currency && was.amount > now.amount) product.regularPrice = was
+      const alt = price(raw.altPrice)
+      if (alt && alt.currency !== now.currency) product.altPrice = alt
     }
     for (const key of ['description', 'descriptionEn', 'descriptionEs'] as const) {
       const text = cleanText(raw[key], MAX_DESCRIPTION)

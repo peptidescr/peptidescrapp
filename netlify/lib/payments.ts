@@ -7,11 +7,12 @@
  *   GET  /api/order-status?order=…    the app → us. { paid: boolean }, nothing else.
  *
  * The store marks its own order paid from its own webhook; this is only how
- * the app hears about it. Neither doc shows the event's payload, so the order
- * number is found by its shape (PTR-… for Peptides CR, USP-… for USA Peptide
- * Depot) wherever it sits in the event. Until a real sandbox event confirms
- * that, an event without one logs its field names (never their values) so the
- * shape can be read off the function log.
+ * the app hears about it. ChargX's docs name `data.object.external_order_id`
+ * as the merchant's reference, which the app sets on UPD's payments; failing
+ * that the order number is found by its shape (PTR-… for Peptides CR, USP-…
+ * for USA Peptide Depot) wherever it sits in the event. Until a real sandbox
+ * event confirms the shape, an event without one logs its field names (never
+ * their values) so it can be read off the function log.
  *
  * Needs CHARGX_WEBHOOK_SECRET in the site's environment: the sandbox webhook's
  * secret, sent by the store once the webhook exists.
@@ -63,10 +64,16 @@ function search(payload: unknown, brand: CatalogueBrand, preferred: boolean, dep
 }
 
 /**
- * This brand's order number in the event: from a field named like an order
- * or reference if there is one, else from any field but a product's.
+ * This brand's order number in the event: ChargX's documented reference first
+ * (`data.object.external_order_id`, which UPD's payments carry because the app
+ * sets it), then a field named like an order or reference, then any field but
+ * a product's.
  */
 export function findOrderNumber(payload: unknown, brand: CatalogueBrand): string | undefined {
+  const data = payload !== null && typeof payload === 'object' ? (payload as Record<string, unknown>).data : undefined
+  const object = data !== null && typeof data === 'object' ? (data as Record<string, unknown>).object : undefined
+  const external = object !== null && typeof object === 'object' ? (object as Record<string, unknown>).external_order_id : undefined
+  if (isOrderNumber(external, brand)) return external
   return search(payload, brand, true, 0) ?? search(payload, brand, false, 0)
 }
 

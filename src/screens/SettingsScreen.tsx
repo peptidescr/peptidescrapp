@@ -46,6 +46,7 @@ import {
   requestNotificationPermission,
   sendTestNotification,
 } from '../lib/notifications'
+import { signInTestAccount, signOutStore, TEST_SIGN_IN, useStoreAccount } from '../lib/store/account'
 import { applyTheme, resolveTheme, THEME_SWITCHING_ENABLED } from '../lib/theme'
 import type { Locale, ThemeMode } from '../lib/units'
 import { updateSettings, useSettings } from '../lib/useSettings'
@@ -56,6 +57,7 @@ export function SettingsScreen() {
   return (
     <div className="flex flex-col gap-6 px-4 pb-6 pt-2">
       <AppHeader title={t('nav.settings')} />
+      {BRAND.features.store && <StoreAccountSection />}
       <PreferencesSection />
       <NotificationsSection />
       <InstallSection />
@@ -82,6 +84,40 @@ function SectionCard({ title, children }: { title: string; children: ReactNode }
         <CardContent>{children}</CardContent>
       </Card>
     </section>
+  )
+}
+
+/**
+ * The store account (Part B): who is signed in, and signing out. Until the
+ * stores have sign-in, only staging's test account exists (src/lib/store/account.ts);
+ * elsewhere this says sign-in is coming.
+ */
+function StoreAccountSection() {
+  const { t } = useTranslation()
+  const account = useStoreAccount()
+  return (
+    <SectionCard title={t('account.title', { store: BRAND.store.name })}>
+      {account ? (
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-semibold text-foreground">{account.displayName}</p>
+            <p className="text-sm text-muted-foreground">{t('account.testAccount')}</p>
+          </div>
+          <Button variant="secondary" size="sm" onClick={signOutStore}>
+            {t('account.signOut')}
+          </Button>
+        </div>
+      ) : TEST_SIGN_IN ? (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-muted-foreground">{t('account.testBody')}</p>
+          <Button size="sm" className="self-start" onClick={signInTestAccount}>
+            {t('account.testSignIn')}
+          </Button>
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">{t('account.comingSoon', { store: BRAND.store.name })}</p>
+      )}
+    </SectionCard>
   )
 }
 

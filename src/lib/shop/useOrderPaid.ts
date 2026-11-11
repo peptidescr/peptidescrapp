@@ -15,7 +15,8 @@ export function useOrderPaid(order: PlacedOrder | null): boolean {
   const [paidOrder, setPaidOrder] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!order || order.paid || order.paymentMethod !== 'card' || !order.paymentUrl) return
+    // A card order with something to pay through: the store's link, or ChargX's form shown inside the app.
+    if (!order || order.paid || order.paymentMethod !== 'card' || !(order.paymentUrl || order.embedUrl)) return
     const deadline = Date.parse(order.placedAt) + GIVE_UP_MS
     let stopped = false
     let timer: ReturnType<typeof setTimeout> | undefined

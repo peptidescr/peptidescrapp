@@ -31,10 +31,14 @@
  *
  * Bump a brand's LEGAL_VERSION whenever its wording changes so re-acceptance
  * is enforced (Settings.legalAcceptedVersion is compared against this).
- * USA Peptide Depot is at 3 (the rebrand replaced the seller's name and
- * disclaimer wording). Peptides CR starts at 4, above anything either brand
- * has shipped, so an install that accepted a different brand's text on the
- * same origin (e.g. if a domain is ever repointed) is asked again.
+ * November 2026: both bumped (Peptides CR 4 → 5, USA Peptide Depot 3 → 6, so
+ * neither reuses a number the other brand has shipped) for
+ * the store connection: what an order sends to the store, that cards are paid
+ * on the provider's page, what the app keeps on the device, and where points
+ * and credit come from. Like the rest, it needs the client's lawyer's review
+ * (the proposal excludes legal review). The two brands' numbers stay apart, so
+ * an install that accepted a different brand's text on the same origin (e.g.
+ * if a domain is ever repointed) is asked again.
  */
 import type { Locale } from '../lib/units'
 
@@ -60,14 +64,14 @@ function buildLegal({ seller, app, sellerNotice }: LegalNames): Record<Locale, L
       disclaimerTitle: 'Aviso legal',
       disclaimerBody: `${sellerNotice['es-CR']}\n\n${app} (esta aplicación) es una herramienta personal de organización: te ayuda a llevar el registro de horarios y a calcular la matemática de una reconstitución (cuánto diluyente agregar y cuánto extraer) para decisiones que vos ya tomaste por tu cuenta. Nada en esta aplicación —incluidas las plantillas de protocolo, sus dosis de ejemplo, ni los resultados de la calculadora— constituye asesoría médica, una recomendación de uso, ni una declaración de ${seller} sobre el uso personal o humano de sus productos. Vos sos la única persona responsable de qué compuestos usás, en qué cantidad y con qué frecuencia. Consultá a un profesional de la salud calificado antes de usar cualquier compuesto.`,
       termsTitle: 'Términos de uso',
-      termsBody: `${app} no requiere cuenta ni recopila tu identidad. Tus protocolos, dosis registradas y ajustes se guardan únicamente en este dispositivo; no hay copia en un servidor a menos que instales la aplicación y actives las notificaciones, en cuyo caso este dispositivo envía a nuestro servidor una dirección de notificaciones anónima y las horas de tus próximos recordatorios —nunca el nombre de un compuesto ni una dosis— para poder avisarte incluso con la aplicación cerrada (más detalle en Ajustes → Notificaciones). Hacer respaldos periódicos (Ajustes → Respaldo) es tu responsabilidad; desinstalar la aplicación, borrar los datos del navegador o perder el dispositivo elimina esa información de forma permanente. El catálogo de compuestos y las plantillas de protocolo son contenido informativo, no dosis clínicamente validadas. Al usar esta aplicación aceptás este aviso legal y estos términos.`,
+      termsBody: `${app} no requiere cuenta. Tus protocolos, dosis registradas y ajustes se guardan únicamente en este dispositivo; no hay copia en un servidor a menos que instales la aplicación y actives las notificaciones, en cuyo caso este dispositivo envía a nuestro servidor una dirección de notificaciones anónima y las horas de tus próximos recordatorios —nunca el nombre de un compuesto ni una dosis— para poder avisarte incluso con la aplicación cerrada (más detalle en Ajustes → Notificaciones). Si comprás en la aplicación, tu nombre, teléfono, correo, dirección de entrega y los productos que elegís se envían a través de nuestro servidor a ${seller} para hacer el pedido, junto con los puntos o el crédito que apliques y los permisos de contacto que marques; desde ese momento ${seller} maneja el pedido, sus correos y tus datos según sus propias políticas. Los pagos con tarjeta se hacen en la página del proveedor de pagos, nunca se escriben en esta aplicación. La aplicación guarda tus datos y tu último pedido en este dispositivo para completar el próximo (podés olvidarlos al pagar). Si iniciás sesión con tu cuenta de ${seller}, tus puntos, crédito y referidos vienen de ${seller}; tus datos de seguimiento nunca se comparten con la tienda. Hacer respaldos periódicos (Ajustes → Respaldo) es tu responsabilidad; desinstalar la aplicación, borrar los datos del navegador o perder el dispositivo elimina esa información de forma permanente. El catálogo de compuestos y las plantillas de protocolo son contenido informativo, no dosis clínicamente validadas. Al usar esta aplicación aceptás este aviso legal y estos términos.`,
       acceptCta: 'Entiendo y acepto',
     },
     en: {
       disclaimerTitle: 'Legal disclaimer',
       disclaimerBody: `${sellerNotice.en}\n\n${app} (this app) is a personal organizing tool: it helps you keep track of schedules and do reconstitution arithmetic (how much diluent to add and how much to draw) for decisions you have already made on your own. Nothing in this app — including protocol templates, their example doses, or the calculator's results — is medical advice, a recommendation to use anything, or a statement by ${seller} about personal or human use of its products. You are solely responsible for what you choose to use, in what amount, and how often. Consult a qualified healthcare professional before using any compound.`,
       termsTitle: 'Terms of use',
-      termsBody: `${app} doesn't require an account and doesn't collect your identity. Your protocols, logged doses and settings are stored only on this device — nothing is copied to a server unless you install the app and turn on notifications, in which case this device sends our server an anonymous notification address and the times of your upcoming reminders, never a compound name or dose, so you can be reminded even with the app closed (see Settings → Notifications for detail). Backing up regularly (Settings → Backup) is your own responsibility; uninstalling the app, clearing your browser data, or losing the device deletes this information permanently. The compound catalogue and protocol templates are informational content, not clinically validated doses. By using this app you accept this disclaimer and these terms.`,
+      termsBody: `${app} doesn't require an account. Your protocols, logged doses and settings are stored only on this device — nothing is copied to a server unless you install the app and turn on notifications, in which case this device sends our server an anonymous notification address and the times of your upcoming reminders, never a compound name or dose, so you can be reminded even with the app closed (see Settings → Notifications for detail). If you shop in the app, your name, phone, email, delivery address and the products you choose are sent through our server to ${seller} to place the order, along with any points or credit you apply and the contact choices you tick; from then on ${seller} handles the order, its emails and your data under its own policies. Card payments are made on the payment provider's page and are never typed into this app. The app keeps your details and your last order on this device to fill in your next order (you can forget them at checkout). If you sign in with your ${seller} account, your points, credit and referrals come from ${seller}; your tracking data is never shared with the store. Backing up regularly (Settings → Backup) is your own responsibility; uninstalling the app, clearing your browser data, or losing the device deletes this information permanently. The compound catalogue and protocol templates are informational content, not clinically validated doses. By using this app you accept this disclaimer and these terms.`,
       acceptCta: 'I understand and agree',
     },
   }
@@ -79,7 +83,7 @@ function buildLegal({ seller, app, sellerNotice }: LegalNames): Record<Locale, L
 const LEGAL =
   import.meta.env.VITE_BRAND === 'pcr'
     ? {
-        version: 4,
+        version: 5,
         content: buildLegal({
           seller: 'Peptides Costa Rica',
           app: 'Peptides CR',
@@ -91,7 +95,7 @@ const LEGAL =
         }),
       }
     : {
-        version: 3,
+        version: 6,
         content: buildLegal({
           seller: 'USA Peptide Depot',
           app: 'UPD',

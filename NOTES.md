@@ -2658,7 +2658,7 @@ comparison is against its source and the screenshots.
 - **They draw a `StoreAccount`** (`src/lib/store/account.ts`), which nobody supplies yet: the stores have no customer
   accounts. For real customers every account-dependent piece is simply absent (Rewards and Refer say so). A SAMPLE
   account with the designs' numbers (940 points, $45 credit, 3 referrals) is there for review builds only:
-  `VITE_STORE_DEMO=true` with the store features on. It is not in the production bundle (checked).
+  `VITE_STORE_DEMO=true` with the store features on (since replaced by the staging test sign-in, below). It is not in the production bundle (checked).
 - **Known differences from the designs:** the 44px stepper buttons (the design's are 34px; 44 is the touch-target floor);
   the Rewards locked state is quieter through colour rather than 60% opacity (opacity fails text contrast); the "next
   rung" on Refer uses the app's soft amber, not the red/orange of the design; the UPD logo in the designs carries a
@@ -2689,3 +2689,68 @@ due and missed doses at the bottom.
   notification once each time they are newly raised, while the app is open (`notifyVialAlerts`); a vial's discard-by and
   label-expiry dates are pushed at 09:00 (3 days ahead and on the day) even when the app is closed. A closed-app "running
   low" push does not exist: it depends on doses being logged, which the server never sees.
+
+## Store connection, ready for sandbox testing on staging (November 2026, on `staging`)
+
+Built so the developer can place test orders on the staging sites; store-side pieces that don't exist yet are stood
+in by a staging-only test account. Decisions were the developer's (plan: rules from the Referral Model; points from
+the client's answer; Bench and Lab only; one balance applied at checkout; payment inside the app where allowed;
+Peptides CR prices in dollars with colones under; test sign-in until the stores have accounts).
+
+**What the specs and the stores' own sites showed (checked, not assumed):**
+- Both specs have a sandbox for **card payments only**. Neither documents a test mode for orders; UPD's says the
+  moment an order is created its emails fire and staff are notified. Whether PCR's sandbox partner key reaches real
+  staff is unknown (asked).
+- UPD's order reply shows no payment link, and none is needed: its spec says to take the card through ChargX with
+  the sandbox keys. UPD's own website places the order (`POST /api/orders`, reply `data.order` + `data.payment.token`)
+  then calls `/api/checkout/card` for a `paymentUrl` (read from its public checkout code). Which of the two the live
+  app should use is a question for UPD; sandbox uses the spec's direct ChargX path.
+- ChargX (docs.chargx.io): `POST /v1/payment-request` with the publishable key returns `checkout_url`; the form takes
+  `external_order_id` and billing details as query parameters, and the webhook carries
+  `data.object.external_order_id`. Webhooks are created in the dashboard only; the secret is shown once. No API for
+  taking a card on our own page, so cards are always typed on ChargX's form.
+- ChargX's form sends no anti-framing header, so it can be shown inside the app. **Peptides CR's `pay-card` page sends
+  `X-Frame-Options: SAMEORIGIN`**, set by PCR's own server, so it opens full-screen unless PCR allows our address or
+  the page forwards to ChargX's form (the server checks where it forwards).
+- **Peptides CR's documented product list (`/api/partner/products`) answers 404, with or without the sandbox key, and
+  its old WooCommerce feed now answers 403** (PCR rebuilt its site on Next.js). So PCR has no product source we may
+  use: its Shop can't take orders, and the live app's PCR catalogue sync (compound list, Reorder links) no longer
+  refreshes either; it keeps what it had and doesn't fail. Asked of PCR.
+- Remote `main` has had the clean `eslint.config.js` since PR #5 (3 November).
+
+**Built:**
+- Rules (`src/lib/store/rules.ts`): $20 per referral (friend's first order at least $100, paid and delivered), +$25 at
+  5, +$75 at 10, Lab at 25 (10% off and free delivery for 12 months), no friend discount, one reward per order;
+  points $50 = 1, worth $1. Tiers: Bench and Lab (`types.ts`). `loyaltyView.ts` works out the screens' numbers.
+- Account (`account.ts`): points, credit, Lab until a date, referrals. A **test sign-in** (`VITE_STORE_TEST_SIGNIN=true`;
+  vite.config.ts forces it off when `CONTEXT=production`, checked in builds) with a sample account whose balance lives
+  on the device so it can be spent. Settings has an account row; Rewards and Refer offer the sign-in when signed out.
+- Home's points card (referrals to Lab around the points), credit banner (next bonus), Rewards (Available to spend /
+  Tier perks), Refer (the model's ladder at 1, 5, 10, 25), Your usual's "Earns N points". The mock-ups' redeem menu,
+  Institute and "Free BAC water" are gone.
+- Checkout: "Use my points and credit" (all or part, credit first then points); sent as a discount under assumed field
+  names (`DISCOUNT_FIELD`: `discount_usd` for PCR, `discountUsd` for UPD) until the stores document theirs; the store's
+  returned total is what's shown. Consent boxes (PCR: WhatsApp offers, posted signed to its customers API only when
+  ticked; UPD: `smsConsent` / `callConsent`), never remembered.
+- UPD: both reply shapes read; both ZIP spellings sent (`postalCode`, `postal_code`) until the first sandbox order shows
+  which is read; per-field error messages; then `startChargxPayment` (total, `external_order_id`, prefilled details,
+  return page); a production payment request is refused while in sandbox; a failure leaves the order standing.
+- In-app payment: `PaymentFrame` shows ChargX's form in a tall sheet; `/pay-return.html` (generated by vite.config.ts,
+  kept out of the service worker's fallback) tells the app paid or cancelled; "Paid" still comes only from the webhook,
+  which now reads `external_order_id` first.
+- Peptides CR shows colones under dollar prices (`altPrice` from the partner list's `priceCrc`).
+- Low-vial alerts add the product to the cart when the store takes orders in the app.
+- Privacy text rewritten for orders, payment, details kept on the device and store accounts; `LEGAL_VERSION` 5 (PCR)
+  and 6 (UPD), so everyone re-accepts once. Needs the client's lawyer.
+- Local mock mode serves a pretend ChargX form and, when a store's real list fails, sample products.
+
+**Checked:** typecheck, lint, 552 tests, i18n parity (865 keys), production builds (no test account or mock code with
+`CONTEXT=production`). In a browser against the mock store: UPD at 390 (light) through test sign-in, Rewards, Refer,
+order with the balance applied, pay inside the app, "Paid"; PCR in Spanish at 320 (dark) through consent, balance,
+order, full-screen payment link; low-vial add to cart on both. No overflow, contrast problems, untranslated text or
+console errors. Tests need `VITE_BRAND=upd` when a local `.env` sets `pcr`.
+
+**To test on staging:** the staging URLs, the settings in `.env.example` scoped to branch deploys, our webhook on the
+sandbox ChargX store (UPD now; PCR's sandbox store when the client provides it), and for PCR a working product list.
+The first real sandbox order settles the UPD reply shape and ZIP spelling, and whether UPD's own webhook marks a
+sandbox-paid order paid.

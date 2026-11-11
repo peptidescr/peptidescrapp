@@ -1,9 +1,13 @@
 import { FlaskConical, ShoppingCart } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { NoticeRow } from '@/components/ui/notice-row'
 import { BRAND } from '../brand'
+import type { StoreProductRef } from '../content/compounds'
 import { useCompound } from '../lib/customCompounds'
+import { addToCart } from '../lib/shop/cart'
+import { useShopCatalogue } from '../lib/shop/catalogue'
 import { reorderProduct, shouldNudgeReorder } from '../lib/reorder'
 import { describeVialAlert } from '../lib/vialText'
 import type { VialAlert } from '../lib/vials'
@@ -37,7 +41,9 @@ export function VialAlertCard({
   const product = shouldNudgeReorder(alert) ? reorderProduct(alert.vial.compoundId, alert.vial) : null
   const slot =
     action ??
-    (product?.url ? (
+    (product && BRAND.features.store ? (
+      <AddToCartSlot product={product} />
+    ) : product?.url ? (
       <a
         href={product.url}
         target="_blank"
@@ -59,5 +65,54 @@ export function VialAlertCard({
       onClick={protocolId && onOpenProtocol ? () => onOpenProtocol(protocolId) : undefined}
       trailing={slot}
     />
+  )
+}
+
+const slotClass =
+  'flex size-11 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-primary bg-card text-[13px] font-semibold text-primary outline-none active:bg-secondary focus-visible:ring-2 focus-visible:ring-ring sm:w-auto sm:px-3'
+
+/**
+ * With the store connection on (Part B) and the store taking orders in the
+ * app, the low-vial alert puts the product straight into the Shop's cart (the
+ * proposal's "low-vial alerts also add the product to the cart"). Matched to
+ * the Shop's catalogue by the store's slug, then by name. Otherwise it is the
+ * plain link to the product on the store's site, as before.
+ */
+function AddToCartSlot({ product }: { product: StoreProductRef }) {
+  const { t } = useTranslation()
+  const catalogue = useShopCatalogue(BRAND.id)
+  const shopProduct =
+    catalogue.status === 'ready' && catalogue.checkout
+      ? (catalogue.products.find((p) => p.slug === product.slug) ?? catalogue.products.find((p) => p.name === product.label))
+      : undefined
+  if (shopProduct?.orderRef && shopProduct.inStock) {
+    const ref = shopProduct.orderRef
+    return (
+      <button
+        type="button"
+        aria-label={t('reorder.addAria', { product: shopProduct.name })}
+        className={slotClass}
+        onClick={() => {
+          if (addToCart(ref)) toast.success(t('reorder.added', { product: shopProduct.name }))
+          else toast.error(t('checkout.cartFull'))
+        }}
+      >
+        <ShoppingCart aria-hidden className="size-4" />
+        <span className="hidden sm:inline">{t('reorder.add')}</span>
+      </button>
+    )
+  }
+  if (!product.url) return null
+  return (
+    <a
+      href={product.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={t('reorder.aria', { product: product.label, appName: BRAND.appName })}
+      className={slotClass}
+    >
+      <ShoppingCart aria-hidden className="size-4" />
+      <span className="hidden sm:inline">{t('reorder.cta')}</span>
+    </a>
   )
 }

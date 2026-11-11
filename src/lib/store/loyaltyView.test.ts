@@ -1,85 +1,78 @@
 import { describe, expect, it } from 'vitest'
-import { SAMPLE_ACCOUNT, type StoreAccount } from './account'
+import { balanceUsd, SAMPLE_ACCOUNT, type StoreAccount } from './account'
 import {
   creditEarnedUsd,
   creditUnlockedByNext,
+  labProgress,
   ladderRows,
-  nextStep,
+  nextMilestone,
   pointsEarnedFor,
-  pointsShort,
-  ringProgress,
-  rewardState,
-  trackProgress,
+  pointsWorthUsd,
+  referralsToLab,
+  rungs,
+  tierOf,
 } from './loyaltyView'
 
 const account = SAMPLE_ACCOUNT
-const withPoints = (points: number): StoreAccount => ({ ...account, points })
 const withReferrals = (completed: number): StoreAccount => ({ ...account, referral: { ...account.referral, completed } })
 
-describe('tier progress', () => {
-  it('draws Bench -> Lab -> Institute as two equal halves', () => {
-    expect(trackProgress(withPoints(0))).toBe(0)
-    expect(trackProgress(withPoints(750))).toBeCloseTo(0.25)
-    expect(trackProgress(withPoints(1500))).toBeCloseTo(0.5)
-    expect(trackProgress(withPoints(5000))).toBe(1)
-    expect(trackProgress(withPoints(9000))).toBe(1)
+describe('points', () => {
+  it('earns a point per $50 and is worth $1 each', () => {
+    expect(pointsEarnedFor(272.85)).toBe(5)
+    expect(pointsEarnedFor(49.99)).toBe(0)
+    expect(pointsWorthUsd(account)).toBe(18)
   })
 
-  it('fills the ring towards the next tier, and fully at the top', () => {
-    expect(ringProgress(withPoints(940))).toBeCloseTo(940 / 1500)
-    expect(ringProgress({ ...account, tier: 'institute', points: 6000 })).toBe(1)
-    expect(ringProgress(withPoints(-5))).toBe(0)
+  it('adds points and credit into one balance', () => {
+    expect(balanceUsd(account)).toBe(18 + 60)
+    expect(balanceUsd({ ...account, points: 0, creditUsd: 12.5 })).toBe(12.5)
   })
 })
 
-describe('rewards', () => {
-  it('is redeemable when the balance covers it, locked when not, and redeemed once taken', () => {
-    const [ship, bac, d10, d25] = account.rewards
-    expect([ship, bac, d10, d25].map((r) => rewardState(account, r!))).toEqual(['available', 'available', 'available', 'locked'])
-    expect(rewardState(account, { ...ship!, redeemed: true })).toBe('redeemed')
+describe('tiers', () => {
+  it('is Bench until Lab is earned, and Lab only while its 12 months run', () => {
+    const now = new Date('2026-11-10T12:00:00Z')
+    expect(tierOf(account, now)).toBe('bench')
+    expect(tierOf({ ...account, labUntil: '2027-06-01' }, now)).toBe('lab')
+    expect(tierOf({ ...account, labUntil: '2026-10-01' }, now)).toBe('bench')
   })
 
-  it('says how many points a locked reward still needs', () => {
-    expect(pointsShort(account, account.rewards[3]!)).toBe(160)
-    expect(pointsShort(account, account.rewards[0]!)).toBe(0)
+  it('measures the way to Lab in referrals, 25 of them', () => {
+    expect(labProgress(account)).toBeCloseTo(3 / 25)
+    expect(referralsToLab(account)).toBe(22)
+    expect(labProgress(withReferrals(40))).toBe(1)
+    expect(referralsToLab(withReferrals(40))).toBe(0)
   })
 })
 
 describe('the referral ladder', () => {
+  it('has the model\'s rungs: $20 for the first, +$25 at 5, +$75 at 10, Lab at 25', () => {
+    expect(rungs()).toEqual([
+      { referrals: 1, creditUsd: 20 },
+      { referrals: 5, bonusUsd: 25, tier: undefined },
+      { referrals: 10, bonusUsd: 75, tier: undefined },
+      { referrals: 25, bonusUsd: undefined, tier: { months: 12, discountPercent: 10, freeDelivery: true } },
+    ])
+  })
+
   it('marks what is earned, the next rung, and what is locked', () => {
-    expect(ladderRows(account).map((r) => r.state)).toEqual(['earned', 'earned', 'next', 'locked', 'locked'])
-    expect(ladderRows(account).map((r) => r.toGo)).toEqual([0, 0, 2, 7, 22])
-  })
-
-  it('fills the connector fully between two earned rungs, part-way after the last earned one, and not at all beyond', () => {
-    expect(ladderRows(account).map((r) => r.lineFill)).toEqual([1, 0.45, 0, 0, 0])
-  })
-
-  it('has no next rung once every one is reached', () => {
-    expect(nextStep(withReferrals(25))).toBeNull()
+    expect(ladderRows(account).map((r) => r.state)).toEqual(['earned', 'next', 'locked', 'locked'])
+    expect(ladderRows(account).map((r) => r.toGo)).toEqual([0, 2, 7, 22])
+    expect(ladderRows(account).map((r) => r.lineFill)).toEqual([0.45, 0, 0, 0])
     expect(ladderRows(withReferrals(25)).every((r) => r.state === 'earned')).toBe(true)
-    expect(creditUnlockedByNext(withReferrals(25))).toBe(0)
   })
 
-  it('works out the credit that reaching the next rung unlocks', () => {
-    // Two more friends at $15 each, plus the 5-friend bonus of $50.
-    expect(creditUnlockedByNext(account)).toBe(80)
+  it('adds up credit earned as the model\'s payouts table does', () => {
+    expect(creditEarnedUsd(account)).toBe(60)
+    expect(creditEarnedUsd(withReferrals(5))).toBe(125)
+    expect(creditEarnedUsd(withReferrals(10))).toBe(300)
+    expect(creditEarnedUsd(withReferrals(25))).toBe(600)
   })
 
-  it('adds up the credit earned: the latest stated credit, plus bonuses reached', () => {
-    expect(creditEarnedUsd(account)).toBe(45)
-    expect(creditEarnedUsd(withReferrals(5))).toBe(45 + 50)
-    expect(creditEarnedUsd(withReferrals(10))).toBe(45 + 50 + 100)
-    // Between rungs it falls back to the per-friend credit.
-    expect(creditEarnedUsd(withReferrals(0))).toBe(0)
-  })
-})
-
-describe('points an order earns', () => {
-  it('rounds to whole points and ignores nothing-orders', () => {
-    expect(pointsEarnedFor(account, 272.85)).toBe(273)
-    expect(pointsEarnedFor({ ...account, pointsPerDollar: 1.5 }, 100)).toBe(150)
-    expect(pointsEarnedFor(account, 0)).toBe(0)
-    expect(pointsEarnedFor(account, Number.NaN)).toBe(0)
+  it('says what the next milestone is and what reaching it adds', () => {
+    expect(nextMilestone(account)).toEqual({ referrals: 5, remaining: 2, bonusUsd: 25, grantsLab: false })
+    expect(creditUnlockedByNext(account)).toBe(65)
+    expect(nextMilestone(withReferrals(12))).toEqual({ referrals: 25, remaining: 13, bonusUsd: undefined, grantsLab: true })
+    expect(nextMilestone(withReferrals(25))).toBeNull()
   })
 })

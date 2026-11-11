@@ -242,6 +242,7 @@ function PriceLine({ product, locale }: { product: ShopProduct; locale: Locale }
           {formatPrice(product.regularPrice, locale)}
         </span>
       )}
+      {product.altPrice && <span className="basis-full text-xs tabular-nums text-muted-foreground">{formatPrice(product.altPrice, locale)}</span>}
     </p>
   )
 }

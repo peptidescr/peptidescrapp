@@ -39,9 +39,8 @@ export function YourUsual() {
   const products = catalogue.status === 'ready' ? catalogue.products : []
   const view = viewCart(cart.lines, products)
   const showCard = ready && usual !== null && view.lines.length > 0
-  // "Free BAC water + earns 273 pts": only with an account (points are the store's), and only for dollar prices.
-  const earned = account && view.subtotal?.currency === 'USD' ? pointsEarnedFor(account, view.subtotal.amount) : 0
-  const freeBacWater = account?.tiers.find((x) => x.id === account.tier)?.perks.includes('freeBacWater') ?? false
+  // "Earns 5 points": only with an account (points are the store's), only for dollar prices, a point per $50.
+  const earned = account && view.subtotal?.currency === 'USD' ? pointsEarnedFor(view.subtotal.amount) : 0
 
   return (
     <>
@@ -87,11 +86,7 @@ export function YourUsual() {
               <p className="mt-2 flex items-center gap-2 rounded-xl bg-positive-lt px-3 py-2.5 text-[13px] font-medium text-positive">
                 <Gift aria-hidden className="size-4 shrink-0" />
                 <span>
-                  <Trans
-                    i18nKey={freeBacWater ? 'usual.freeBac' : 'usual.earns'}
-                    values={{ points: earned.toLocaleString(locale) }}
-                    components={{ b: <b /> }}
-                  />
+                  <Trans i18nKey="usual.earns" count={earned} values={{ count: earned }} components={{ b: <b /> }} />
                 </span>
               </p>
             )}

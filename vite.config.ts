@@ -8,7 +8,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 import { getBrand, type BrandConfig } from './src/brand/brands.ts'
 import { handleCatalogueRequest, toCatalogueBrand, type CatalogueResponse } from './netlify/lib/catalogue.ts'
 import { handleOrderRequest } from './netlify/lib/checkout.ts'
-import { MOCK_CHECKOUT_ENV, mockStore } from './netlify/lib/mockStore.ts'
+import { MOCK_CHECKOUT_ENV, mockPaymentFormHtml, mockStore } from './netlify/lib/mockStore.ts'
 import { handleStatusRequest } from './netlify/lib/payments.ts'
 import { escapeHtml, ogLocale, robotsTxt, SHARE_IMAGE, sitemapXml, structuredData } from './src/brand/seo.ts'
 
@@ -57,12 +57,35 @@ function sharedPublicFiles(): Plugin {
  * the Netlify function wraps (netlify/functions/catalogue.ts), so the store
  * sync can be exercised locally against the real store.
  */
+/** Local mock mode only: the saved sample product list, every product orderable, with made-up prices. */
+function mockCatalogue(brand: 'pcr' | 'upd'): CatalogueResponse {
+  const file = fileURLToPath(new URL(`./src/lib/fixtures/store-products-${brand}.json`, import.meta.url))
+  const raw = JSON.parse(readFileSync(file, 'utf8')) as { name: string; slug: string; inStock: boolean; category?: string }[]
+  const products = raw.slice(0, 24).map((p, i) => {
+    const usd = 40 + (i % 8) * 15
+    return {
+      ...p,
+      inStock: true,
+      orderRef: p.slug,
+      price: { currency: 'USD' as const, amount: usd },
+      ...(brand === 'pcr' ? { altPrice: { currency: 'CRC' as const, amount: usd * 505 } } : {}),
+    }
+  })
+  return { version: 1, brand, fetchedAt: new Date().toISOString(), products, checkout: true } as CatalogueResponse
+}
+
 function catalogueApi(brand: BrandConfig): Plugin {
   const mock = process.env.STORE_CHECKOUT_MOCK === '1'
   const catalogueBrand = toCatalogueBrand(brand.id)
   const serve = ({ middlewares }: { middlewares: Connect.Server }) => {
     middlewares.use('/api/catalogue', (_req, res) => {
       void handleCatalogueRequest(catalogueBrand, fetch).then(async (response) => {
+        if (mock && !response.ok) {
+          // The store's real list is unavailable (Peptides CR's, November 2026): sample products from the test
+          // fixtures with made-up prices, so the Shop can still be clicked through locally.
+          res.setHeader('Content-Type', 'application/json')
+          return res.end(JSON.stringify(mockCatalogue(catalogueBrand)))
+        }
         res.statusCode = response.status
         response.headers.forEach((value, key) => res.setHeader(key, value))
         if (!mock || !response.ok) return res.end(Buffer.from(await response.arrayBuffer()))
@@ -91,9 +114,15 @@ function catalogueApi(brand: BrandConfig): Plugin {
       res.end(Buffer.from(await response.arrayBuffer()))
     }
     middlewares.use('/api/orders', (req, res) => {
+      // The pretend payment form is served from this same local server.
+      const env = { ...MOCK_CHECKOUT_ENV, MOCK_PAYMENT_FORM_ORIGIN: `http://${req.headers.host}` }
       void toRequest(req)
-        .then((request) => handleOrderRequest(request, catalogueBrand, MOCK_CHECKOUT_ENV, store.fetchFn))
+        .then((request) => handleOrderRequest(request, catalogueBrand, env, store.fetchFn))
         .then((response) => send(res, response))
+    })
+    middlewares.use('/mock-pay.html', (req, res) => {
+      res.setHeader('Content-Type', 'text/html; charset=utf-8')
+      res.end(mockPaymentFormHtml(new URL(req.originalUrl ?? req.url ?? '/', 'http://localhost').searchParams))
     })
     middlewares.use('/api/order-status', (req, res) => {
       void toRequest(req)
@@ -153,6 +182,34 @@ function brandHtml(brand: BrandConfig, indexable: boolean): Plugin {
 }
 
 /**
+ * pay-return.html: where ChargX sends the customer after paying or cancelling.
+ * Inside the app's payment sheet it tells the app the result and the sheet
+ * closes; opened full-screen it goes back to the app. A tiny static page, not
+ * the app itself, so the app never boots inside its own payment frame.
+ */
+function payReturnPage(brand: BrandConfig): Plugin {
+  const es = brand.defaultLocale === 'es-CR'
+  const html = `<!doctype html><html lang="${es ? 'es' : 'en'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${escapeHtml(brand.appName)}</title>
+<style>body{font-family:system-ui,sans-serif;margin:0;padding:32px 20px;text-align:center;background:${brand.themeColors.light};color:#17231d}a{color:inherit;font-weight:700}</style></head>
+<body><p>${es ? 'Volviendo a la app…' : 'Returning to the app…'}</p><p><a href="/">${es ? 'Volver a la app' : 'Back to the app'}</a></p>
+<script>(function(){var p=new URLSearchParams(location.search);var msg={type:'peptidescr-pay-return',result:p.get('result')==='success'?'success':'cancel',order:(p.get('order')||'').replace(/[^A-Za-z0-9-]/g,'')};
+if(window.parent&&window.parent!==window){window.parent.postMessage(msg,location.origin)}else{location.replace('/?payment='+msg.result)}})()</script></body></html>`
+  return {
+    name: 'pay-return-page',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (req.url?.split('?')[0] !== '/pay-return.html') return next()
+        res.setHeader('Content-Type', 'text/html; charset=utf-8')
+        res.end(html)
+      })
+    },
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'pay-return.html', source: html })
+    },
+  }
+}
+
+/**
  * robots.txt and sitemap.xml, generated from the brand (see seo.ts) rather
  * than kept as files, because each brand has its own address. Served by the
  * dev server too, so they can be checked locally.
@@ -184,11 +241,15 @@ function seoFiles(brand: BrandConfig, indexable: boolean): Plugin {
 export default defineConfig(({ mode }) => {
   const brand = getBrand(resolveBrandId(mode))
   const indexable = isIndexable()
+  // The staging test account (src/lib/store/account.ts): only when asked for, and never in a live-site build,
+  // whatever the environment says.
+  const testSignIn = loadEnv(mode, process.cwd(), '').VITE_STORE_TEST_SIGNIN === 'true' && process.env.CONTEXT !== 'production'
 
   return {
     publicDir: `public/${brand.id}`,
     define: {
       'import.meta.env.VITE_BRAND': JSON.stringify(brand.id),
+      'import.meta.env.VITE_STORE_TEST_SIGNIN': JSON.stringify(testSignIn ? 'true' : 'false'),
     },
     resolve: {
       alias: {
@@ -203,6 +264,7 @@ export default defineConfig(({ mode }) => {
       catalogueApi(brand),
       brandHtml(brand, indexable),
       seoFiles(brand, indexable),
+      payReturnPage(brand),
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['brand/*.svg', 'brand/*.png'],
@@ -236,7 +298,8 @@ export default defineConfig(({ mode }) => {
           globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
           navigateFallback: '/index.html',
           // The push API endpoints must never be answered with the app shell.
-          navigateFallbackDenylist: [/^\/api\//],
+          // The payment return page is its own static file, never the app (see payReturnPage).
+          navigateFallbackDenylist: [/^\/api\//, /^\/pay-return\.html/, /^\/mock-pay\.html/],
           importScripts: ['/sw-notifications.js'],
         },
         devOptions: {

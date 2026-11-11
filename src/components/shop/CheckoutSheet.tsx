@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Segmented } from '@/components/ui/segmented'
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Stepper } from '@/components/ui/stepper'
+import { Switch } from '@/components/ui/switch'
 import { MAX_LINE_QTY, viewCart, type CartSource } from '../../lib/shop/cart'
 import { formatPrice, type ShopProduct } from '../../lib/shop/catalogue'
 import {
@@ -26,7 +27,9 @@ import {
   type PlacedOrder,
 } from '../../lib/shop/checkout'
 import { useOrderPaid } from '../../lib/shop/useOrderPaid'
+import { balanceUsd, spendBalance, useStoreAccount } from '../../lib/store/account'
 import type { Locale } from '../../lib/units'
+import { PaymentFrame } from './PaymentFrame'
 
 type Step = 'cart' | 'confirm' | 'details' | 'result'
 
@@ -70,12 +73,19 @@ export function CheckoutSheet({
   const view = viewCart(cart.lines, products)
   const [saved, setSaved] = useState(() => loadSavedCustomer(BRAND.id))
   const [step, setStep] = useState<Step>(variant === 'reorder' ? (saved ? 'confirm' : 'details') : 'cart')
-  const [form, setForm] = useState<CheckoutForm>(() => ({ ...(saved ?? emptyCheckoutForm(BRAND.id)), researchUseAck: false }))
+  const [form, setForm] = useState<CheckoutForm>(() => ({ ...emptyCheckoutForm(BRAND.id), ...(saved ?? {}), researchUseAck: false }))
   const [showErrors, setShowErrors] = useState(false)
   const [sending, setSending] = useState(false)
   const [problem, setProblem] = useState<Problem | null>(null)
   const [unconfirmed, setUnconfirmed] = useState(false)
   const sendingRef = useRef(false)
+  // Points and credit: off until the customer turns them on, then the most this order can take unless they lower it.
+  const account = useStoreAccount()
+  const [useBalance, setUseBalance] = useState(false)
+  const [balanceAmount, setBalanceAmount] = useState<string | null>(null)
+  const maxBalance = account && view.subtotal?.currency === 'USD' ? Math.min(balanceUsd(account), view.subtotal.amount) : 0
+  const parsedAmount = balanceAmount === null ? maxBalance : Number(balanceAmount.replace(',', '.'))
+  const applied = useBalance && maxBalance > 0 && Number.isFinite(parsedAmount) ? Math.round(Math.min(Math.max(parsedAmount, 0), maxBalance) * 100) / 100 : 0
 
   const invalid = showErrors ? firstInvalidField(form, BRAND.id) : null
   const update = <K extends keyof CheckoutForm>(key: K, value: CheckoutForm[K]) => {
@@ -95,7 +105,7 @@ export function CheckoutSheet({
     setSending(true)
     setProblem(null)
     const lines = view.lines.map(({ line }) => line)
-    const result = await placeOrder(lines, form, locale)
+    const result = await placeOrder(lines, form, locale, fetch, applied)
     sendingRef.current = false
     setSending(false)
     if (result.kind === 'placed') {
@@ -104,9 +114,11 @@ export function CheckoutSheet({
         placedAt: new Date().toISOString(),
         paymentMethod: form.paymentMethod,
         paymentUrl: result.paymentUrl,
+        ...(result.embedUrl ? { embedUrl: result.embedUrl } : {}),
         totals: result.totals,
         lines,
       }
+      if (applied > 0) spendBalance(applied)
       savePlacedOrder(placed)
       saveCustomer(form)
       setSaved(loadSavedCustomer(BRAND.id))
@@ -242,13 +254,29 @@ export function CheckoutSheet({
                   ))}
                 </ul>
                 {view.unavailable.length > 0 && <p className="text-xs text-muted-foreground">{t('checkout.someUnavailable', { count: view.unavailable.length })}</p>}
+                {applied > 0 && view.subtotal && (
+                  <div className="flex items-baseline justify-between gap-3 text-sm text-positive">
+                    <span>{t('checkout.balanceApplied')}</span>
+                    <span className="font-semibold tabular-nums">−{formatPrice({ currency: view.subtotal.currency, amount: applied }, locale)}</span>
+                  </div>
+                )}
                 {view.subtotal && (
                   <div className="flex items-baseline justify-between border-t border-border pt-3">
                     <span className="font-display font-bold text-foreground">{t('checkout.estimatedTotal')}</span>
-                    <span className="font-display text-[1.375rem] font-bold tabular-nums text-foreground">{formatPrice(view.subtotal, locale)}</span>
+                    <span className="font-display text-[1.375rem] font-bold tabular-nums text-foreground">{formatPrice(estimate(view.subtotal, applied), locale)}</span>
                   </div>
                 )}
                 <p className="text-xs leading-relaxed text-muted-foreground">{t('checkout.storePrices', { store: BRAND.store.name })}</p>
+                {maxBalance > 0 && (
+                  <BalanceRow
+                    on={useBalance}
+                    onToggle={setUseBalance}
+                    amount={balanceAmount ?? String(maxBalance)}
+                    onAmount={setBalanceAmount}
+                    max={maxBalance}
+                    locale={locale}
+                  />
+                )}
 
                 <div className="grid grid-cols-2 gap-2 text-[13px]">
                   <div className="min-w-0 rounded-xl bg-secondary px-3 py-2.5">
@@ -293,6 +321,7 @@ export function CheckoutSheet({
                     {t('checkout.errors.researchAck')}
                   </p>
                 )}
+                <ConsentBoxes form={form} update={update} />
               </SheetBody>
               <Footer>
                 {problem && (
@@ -302,7 +331,7 @@ export function CheckoutSheet({
                   </p>
                 )}
                 <Button fullWidth disabled={view.lines.length === 0} onClick={() => void submit()}>
-                  {view.subtotal ? t('checkout.placeOrderPrice', { price: formatPrice(view.subtotal, locale) }) : t('checkout.placeOrder')}
+                  {view.subtotal ? t('checkout.placeOrderPrice', { price: formatPrice(estimate(view.subtotal, applied), locale) }) : t('checkout.placeOrder')}
                 </Button>
                 <div className="flex flex-wrap justify-center gap-x-2">
                   <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
@@ -422,6 +451,17 @@ export function CheckoutSheet({
                   {t('checkout.errors.researchAck')}
                 </p>
               )}
+              <ConsentBoxes form={form} update={update} />
+              {maxBalance > 0 && (
+                <BalanceRow
+                  on={useBalance}
+                  onToggle={setUseBalance}
+                  amount={balanceAmount ?? String(maxBalance)}
+                  onAmount={setBalanceAmount}
+                  max={maxBalance}
+                  locale={locale}
+                />
+              )}
             </SheetBody>
             <Footer>
               {problem && (
@@ -450,6 +490,89 @@ export function CheckoutSheet({
         {step === 'result' && (unconfirmed ? <Unconfirmed /> : order ? <OrderResult order={order} locale={locale} onDone={() => onOpenChange(false)} /> : null)}
       </SheetContent>
     </Sheet>
+  )
+}
+
+/** The shelf-price estimate after the points and credit applied; the store's own total is what's charged. */
+function estimate(subtotal: { currency: OrderTotals['currency']; amount: number }, applied: number) {
+  return { currency: subtotal.currency, amount: Math.max(0, Math.round((subtotal.amount - applied) * 100) / 100) }
+}
+
+/**
+ * "Use my points and credit": off until turned on, then the whole usable
+ * balance (up to the order's estimate), which the customer can lower.
+ */
+function BalanceRow({
+  on,
+  onToggle,
+  amount,
+  onAmount,
+  max,
+  locale,
+}: {
+  on: boolean
+  onToggle: (on: boolean) => void
+  amount: string
+  onAmount: (value: string) => void
+  max: number
+  locale: Locale
+}) {
+  const { t } = useTranslation()
+  return (
+    <div className="flex flex-col gap-2 rounded-xl border border-border/60 bg-card p-3">
+      <div className="flex items-center justify-between gap-3">
+        <label htmlFor="checkout-balance-switch" className="min-w-0 text-sm leading-snug text-foreground">
+          <span className="block font-semibold">{t('checkout.useBalance')}</span>
+          <span className="block text-xs text-muted-foreground">{t('checkout.balanceAvailable', { amount: formatPrice({ currency: 'USD', amount: max }, locale) })}</span>
+        </label>
+        <Switch id="checkout-balance-switch" checked={on} onCheckedChange={onToggle} />
+      </div>
+      {on && (
+        <label className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span className="shrink-0">{t('checkout.balanceAmount')}</span>
+          <Input
+            inputMode="decimal"
+            value={amount}
+            onChange={(e) => onAmount(e.target.value.replace(/[^\d.,]/g, '').slice(0, 9))}
+            aria-label={t('checkout.balanceAmount')}
+            className="h-11 min-h-11 text-right tabular-nums"
+          />
+        </label>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The contact permissions each store asks for, unticked unless the customer
+ * ticks them and never remembered: Peptides CR's doc makes them the legal
+ * basis for messaging (one box: news and offers by WhatsApp); UPD's order takes
+ * texts and calls separately.
+ */
+function ConsentBoxes({ form, update }: { form: CheckoutForm; update: <K extends keyof CheckoutForm>(key: K, value: CheckoutForm[K]) => void }) {
+  const { t } = useTranslation()
+  const boxes: { key: 'marketingConsent' | 'smsConsent' | 'callConsent'; label: string }[] =
+    BRAND.id === 'pcr'
+      ? [{ key: 'marketingConsent', label: t('checkout.consentWhatsapp', { store: BRAND.store.name }) }]
+      : [
+          { key: 'smsConsent', label: t('checkout.consentSms', { store: BRAND.store.name }) },
+          { key: 'callConsent', label: t('checkout.consentCall', { store: BRAND.store.name }) },
+        ]
+  return (
+    <fieldset className="flex flex-col gap-1">
+      <legend className="sr-only">{t('checkout.consentLegend')}</legend>
+      {boxes.map((box) => (
+        <label key={box.key} className="flex min-h-11 items-start gap-3 py-1.5">
+          <input
+            type="checkbox"
+            checked={form[box.key]}
+            onChange={(e) => update(box.key, e.target.checked)}
+            className="mt-0.5 size-5 shrink-0 accent-primary"
+          />
+          <span className="text-[13px] leading-snug text-muted-foreground">{box.label}</span>
+        </label>
+      ))}
+    </fieldset>
   )
 }
 
@@ -518,7 +641,12 @@ export function OrderResult({ order, locale, onDone }: { order: PlacedOrder; loc
   const { t } = useTranslation()
   const paid = useOrderPaid(order)
   const card = order.paymentMethod === 'card'
-  const needsPayment = card && order.paymentUrl !== undefined && !paid
+  // The in-app payment form, and what it came back with (paid, or cancelled).
+  const [paying, setPaying] = useState(false)
+  const [returned, setReturned] = useState<'success' | 'cancel' | null>(null)
+  // A payment can be made from the store's link or ChargX's form shown inside the app (either one is enough).
+  const hasPaymentLink = order.paymentUrl !== undefined || order.embedUrl !== undefined
+  const needsPayment = card && hasPaymentLink && !paid
   const arrives =
     BRAND.shippingDays !== undefined
       ? new Intl.DateTimeFormat(locale, { weekday: 'short', month: 'short', day: 'numeric' }).format(arriveByDate(new Date(order.placedAt), BRAND.shippingDays))
@@ -542,28 +670,47 @@ export function OrderResult({ order, locale, onDone }: { order: PlacedOrder; loc
             ? t('checkout.whatsappNext')
             : paid
               ? t('checkout.paid', { store: BRAND.store.name })
-              : order.paymentUrl
+              : hasPaymentLink
                 ? t('checkout.payNext')
                 : t('checkout.noPaymentLink', { store: BRAND.store.name })}
         </p>
         {needsPayment && (
           <p className="flex items-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="size-3.5 animate-spin" />
-            {t('checkout.waitingForPayment')}
+            {returned === 'success' ? t('checkout.confirmingPayment') : t('checkout.waitingForPayment')}
           </p>
         )}
+        {needsPayment && returned === 'cancel' && <p className="text-sm text-muted-foreground">{t('checkout.paymentCancelled')}</p>}
       </SheetBody>
       <Footer>
-        {needsPayment && (
-          <a href={order.paymentUrl} target="_blank" rel="noopener noreferrer" className={buttonVariants({ fullWidth: true })}>
-            <ExternalLink />
-            {t('checkout.payNow')}
-          </a>
-        )}
+        {needsPayment &&
+          (order.embedUrl ? (
+            <Button fullWidth onClick={() => setPaying(true)}>
+              {t('checkout.payNow')}
+            </Button>
+          ) : (
+            <a href={order.paymentUrl} target="_blank" rel="noopener noreferrer" className={buttonVariants({ fullWidth: true })}>
+              <ExternalLink />
+              {t('checkout.payNow')}
+            </a>
+          ))}
         <Button fullWidth variant={needsPayment ? 'ghost' : 'primary'} onClick={onDone}>
           {t('checkout.done')}
         </Button>
       </Footer>
+      {order.embedUrl && (
+        <PaymentFrame
+          open={paying}
+          url={order.embedUrl}
+          fallbackUrl={order.paymentUrl ?? order.embedUrl}
+          orderNumber={order.orderNumber}
+          onOpenChange={setPaying}
+          onReturn={(result) => {
+            setPaying(false)
+            setReturned(result)
+          }}
+        />
+      )}
     </>
   )
 }

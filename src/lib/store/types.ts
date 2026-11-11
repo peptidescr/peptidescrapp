@@ -21,7 +21,8 @@
 /** Money in whole minor units (cents), so there is never a float to round. */
 export type Cents = number
 
-export type Tier = 'bench' | 'lab' | 'institute'
+/** Bench is everyone; Lab is earned at 25 referrals (rules.ts, from the Referral Model). */
+export type Tier = 'bench' | 'lab'
 
 export interface StoreProfile {
   id: string

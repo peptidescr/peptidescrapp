@@ -4,10 +4,12 @@ import type { FetchLike } from './catalogue.ts'
 import {
   buildStoreRequest,
   checkoutSettings,
+  findChargxForward,
   handleOrderRequest,
   isAllowedPaymentUrl,
   parseCheckoutRequest,
   readStoreAnswer,
+  startChargxPayment,
 } from './checkout.ts'
 
 // Made-up values; no real key appears anywhere in the repo.
@@ -43,6 +45,147 @@ const updInput = (over: Record<string, unknown> = {}) => ({
   ...over,
 })
 
+/** A fake network that answers by address; records every call. Nothing reaches a real one. */
+function routes(map: Record<string, (init?: Parameters<FetchLike>[1]) => Response>) {
+  const calls: { url: string; method?: string; body?: string; headers?: Record<string, string> }[] = []
+  const fetchFn: FetchLike = async (url, init) => {
+    calls.push({ url, method: init?.method, body: init?.body, headers: init?.headers })
+    const key = Object.keys(map).find((prefix) => url.startsWith(prefix))
+    if (!key) throw new Error(`unexpected request to ${url}`)
+    return map[key]!(init)
+  }
+  return { fetchFn, calls }
+}
+
+const CHARGX = 'https://api.chargx.io/v1/payment-request'
+const FORM = 'https://dashboard.chargx.io/payment-form/01TEST'
+
+describe('UPD orders and their card payment', () => {
+  it('reads the reply UPD\'s own website reads, and the spec\'s, keeping the payment token on the server', () => {
+    const real = readStoreAnswer('upd', 201, { data: { order: { orderNumber: 'USP-77', status: 'pending', grandTotal: 92.5, subtotal: 90, shippingTotal: 2.5 }, payment: { token: 'tok-1' } } })
+    expect(real).toEqual({ kind: 'placed', orderNumber: 'USP-77', status: 'pending', totals: { currency: 'USD', total: 92.5, goods: 90, shipping: 2.5 }, paymentToken: 'tok-1' })
+    expect(readStoreAnswer('upd', 200, { order: { orderNumber: 'USP-78', grandTotal: 10 } })).toMatchObject({ kind: 'placed', orderNumber: 'USP-78' })
+  })
+
+  it('shows the first per-field message of a refusal', () => {
+    expect(readStoreAnswer('upd', 422, { fields: { email: 'Enter a valid email.' }, message: 'Check the form.' })).toEqual({ kind: 'refused', message: 'Enter a valid email.' })
+    expect(readStoreAnswer('upd', 400, { message: 'Out of stock.' })).toEqual({ kind: 'refused', message: 'Out of stock.' })
+  })
+
+  const customer = { name: 'Jane Doe', phone: '(405) 555-0134', email: 'jane@example.com', address: { line1: '12 Main St', city: 'Austin', region: 'TX', postalCode: '78701' } }
+
+  it('starts a ChargX payment for the total, with the order as external_order_id and the customer prefilled', async () => {
+    const net = routes({ [CHARGX]: () => Response.json({ payment_request: { id: 'pr_1', checkout_url: FORM, isProduction: false } }) })
+    const url = await startChargxPayment(net.fetchFn, { publishableKey: 'pk-test-not-real', orderNumber: 'USP-77', amount: 92.5, customer, origin: 'https://app.example.com' })
+    const form = new URL(url!)
+    expect(form.origin + form.pathname).toBe(FORM)
+    expect(Object.fromEntries(form.searchParams)).toEqual({
+      external_order_id: 'USP-77',
+      email: 'jane@example.com',
+      'phone-number': '(405) 555-0134',
+      'street-address': '12 Main St',
+      city: 'Austin',
+      state: 'TX',
+      'zip-code': '78701',
+      country: 'US',
+    })
+    const sent = JSON.parse(net.calls[0]!.body!)
+    expect(sent).toEqual({
+      amount: 92.5,
+      currency: 'usd',
+      type: 'card',
+      success_url: 'https://app.example.com/pay-return.html?order=USP-77&result=success',
+      cancel_url: 'https://app.example.com/pay-return.html?order=USP-77&result=cancel',
+    })
+    expect(net.calls[0]!.headers?.['x-publishable-api-key']).toBe('pk-test-not-real')
+  })
+
+  it('refuses a production payment while in sandbox, a form off chargx.io, and a failed request', async () => {
+    const start = (reply: () => Response) =>
+      startChargxPayment(routes({ [CHARGX]: reply }).fetchFn, { publishableKey: 'k', orderNumber: 'USP-1', amount: 5, customer, origin: 'https://app.example.com' })
+    expect(await start(() => Response.json({ payment_request: { checkout_url: FORM, isProduction: true } }))).toBeUndefined()
+    expect(await start(() => Response.json({ payment_request: { checkout_url: 'https://evil.example/pay' } }))).toBeUndefined()
+    expect(await start(() => new Response('nope', { status: 500 }))).toBeUndefined()
+    expect(await startChargxPayment(async () => { throw new Error('offline') }, { publishableKey: 'k', orderNumber: 'USP-1', amount: 5, customer, origin: 'https://app.example.com' })).toBeUndefined()
+  })
+
+  const SITE = 'https://app.example.com'
+  const post = (body: unknown) =>
+    new Request(`${SITE}/api/orders`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: SITE }, body: JSON.stringify(body) })
+  const UPD_PAY_ENV = { ...UPD_ENV, CHARGX_PUBLISHABLE_KEY: 'pk-test-not-real' }
+
+  it('places the order, then the payment, and hands the app ChargX\'s form to show inside it', async () => {
+    const net = routes({
+      'https://www.usapeptidedepot.com/api/orders': () => Response.json({ data: { order: { orderNumber: 'USP-9', grandTotal: 50 }, payment: { token: 't' } } }, { status: 201 }),
+      [CHARGX]: () => Response.json({ payment_request: { checkout_url: FORM, isProduction: false } }),
+    })
+    const res = await handleOrderRequest(post(updInput()), 'upd', UPD_PAY_ENV, net.fetchFn)
+    const body = (await res.json()) as { orderNumber: string; paymentUrl: string; embedUrl: string }
+    expect(res.status).toBe(200)
+    expect(body.orderNumber).toBe('USP-9')
+    expect(body.embedUrl).toBe(body.paymentUrl)
+    expect(new URL(body.paymentUrl).searchParams.get('external_order_id')).toBe('USP-9')
+    expect(JSON.stringify(body)).not.toContain('"t"')
+    expect(net.calls.map((c) => c.url)).toEqual(['https://www.usapeptidedepot.com/api/orders', CHARGX])
+  })
+
+  it('keeps the order when the payment can\'t start, and never places it again', async () => {
+    const net = routes({
+      'https://www.usapeptidedepot.com/api/orders': () => Response.json({ data: { order: { orderNumber: 'USP-10', grandTotal: 50 } } }),
+      [CHARGX]: () => new Response('down', { status: 503 }),
+    })
+    const res = await handleOrderRequest(post(updInput()), 'upd', UPD_PAY_ENV, net.fetchFn)
+    expect(await res.json()).toEqual({ ok: true, orderNumber: 'USP-10', totals: { currency: 'USD', total: 50 } })
+    expect(net.calls.filter((c) => c.url.includes('/api/orders'))).toHaveLength(1)
+  })
+
+  it('starts no payment without the ChargX key or a known total', async () => {
+    const link = async (res: Response) => ((await res.json()) as { paymentUrl?: string }).paymentUrl
+    const noKey = routes({ 'https://www.usapeptidedepot.com/api/orders': () => Response.json({ data: { order: { orderNumber: 'USP-11', grandTotal: 50 } } }) })
+    expect(await link(await handleOrderRequest(post(updInput()), 'upd', UPD_ENV, noKey.fetchFn))).toBeUndefined()
+    const zero = routes({ 'https://www.usapeptidedepot.com/api/orders': () => Response.json({ order: { orderNumber: 'USP-12', grandTotal: 0 } }) })
+    expect(await link(await handleOrderRequest(post(updInput()), 'upd', UPD_PAY_ENV, zero.fetchFn))).toBeUndefined()
+    expect(zero.calls).toHaveLength(1)
+  })
+})
+
+describe('Peptides CR payment page and consent', () => {
+  it('finds where the payment page forwards, only when it is ChargX\'s form', async () => {
+    const to = (location: string) => routes({ 'https://catalog.peptidescostarica.net/': () => new Response(null, { status: 302, headers: { location } }) }).fetchFn
+    expect(await findChargxForward(to(FORM), 'https://catalog.peptidescostarica.net/pay-card/1')).toBe(FORM)
+    expect(await findChargxForward(to('https://elsewhere.example/x'), 'https://catalog.peptidescostarica.net/pay-card/1')).toBeUndefined()
+    const page = routes({ 'https://catalog.peptidescostarica.net/': () => new Response('<html>', { status: 200 }) })
+    expect(await findChargxForward(page.fetchFn, 'https://catalog.peptidescostarica.net/pay-card/1')).toBeUndefined()
+    expect(page.calls[0]?.method).toBe('GET')
+  })
+
+  const SITE = 'https://app.example.com'
+  const post = (body: unknown) =>
+    new Request(`${SITE}/api/orders`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: SITE }, body: JSON.stringify(body) })
+  const order = () => Response.json({ ok: true, orderNumber: 'PTR-5', status: 'Pending - WhatsApp' })
+
+  it('files the customer with the CRM, signed, only when they ticked the box', async () => {
+    const ticked = routes({ 'https://catalog.peptidescostarica.net/api/partner/orders': order, 'https://catalog.peptidescostarica.net/api/partner/customers': () => Response.json({ ok: true }) })
+    await handleOrderRequest(post(pcrInput({ paymentMethod: 'whatsapp', consent: { marketing: true } })), 'pcr', PCR_ENV, ticked.fetchFn)
+    const posted = ticked.calls.find((c) => c.url.endsWith('/customers'))!
+    expect(JSON.parse(posted.body!)).toEqual({
+      contact_method: 'whatsapp',
+      contact_value: '+50688887777',
+      name: 'María Rodríguez',
+      email: 'maria@example.com',
+      language: 'es',
+      marketing_consent: true,
+      whatsapp_consent: true,
+      source: 'peptides-cr-app',
+    })
+    expect(posted.headers?.['X-Partner-Signature']).toBe(createHmac('sha256', 'test-secret-not-real').update(posted.body!).digest('hex'))
+
+    const unticked = routes({ 'https://catalog.peptidescostarica.net/api/partner/orders': order })
+    await handleOrderRequest(post(pcrInput({ paymentMethod: 'whatsapp' })), 'pcr', PCR_ENV, unticked.fetchFn)
+    expect(unticked.calls.some((c) => c.url.endsWith('/customers'))).toBe(false)
+  })
+})
+
 describe('checkoutSettings', () => {
   it('is off unless STORE_CHECKOUT is exactly "sandbox"', () => {
     expect(checkoutSettings('pcr', {}).ok).toBe(false)
@@ -56,7 +199,7 @@ describe('checkoutSettings', () => {
     expect(JSON.stringify(live)).not.toContain('pk_live_test')
   })
 
-  it('needs UPD_LIVE_ORDERS_OK for UPD, whose order API has no sandbox', () => {
+  it('needs UPD_LIVE_ORDERS_OK for UPD, whose spec says every order alerts its staff and shows no test flag', () => {
     expect(checkoutSettings('upd', { STORE_CHECKOUT: 'sandbox' }).ok).toBe(false)
     expect(checkoutSettings('upd', UPD_ENV).ok).toBe(true)
   })
@@ -133,11 +276,34 @@ describe('buildStoreRequest', () => {
       email: 'jane@example.com',
       phone: '(405) 555-0134',
       items: [{ slug: 'bpc-157-5mg', quantity: 2 }],
-      shippingAddress: { line1: '12 Main St', city: 'Austin', state: 'TX', postalCode: '78701', country: 'US' },
+      // The spec's spelling and UPD's website's, both, until a sandbox order shows which their API reads.
+      shippingAddress: { line1: '12 Main St', city: 'Austin', state: 'TX', postalCode: '78701', postal_code: '78701', country: 'US' },
       complianceAck: true,
       paymentMethod: 'card',
+      smsConsent: false,
+      callConsent: false,
     })
     expect(Object.keys(req.headers)).toEqual(['Content-Type', 'Accept'])
+  })
+
+  it('sends the applied balance under the assumed field name, and consent only when ticked', () => {
+    const upd = checkoutSettings('upd', UPD_ENV)
+    const pcr = checkoutSettings('pcr', PCR_ENV)
+    const u = parseCheckoutRequest(updInput({ discountUsd: 12.345, consent: { sms: true, call: 'yes' } }), 'upd')
+    const p = parseCheckoutRequest(pcrInput({ discountUsd: 20 }), 'pcr')
+    if (!upd.ok || !pcr.ok || !u.ok || !p.ok) throw new Error('setup')
+    expect(JSON.parse(buildStoreRequest(upd, u.request).body)).toMatchObject({ discountUsd: 12.35, smsConsent: true, callConsent: false })
+    expect(JSON.parse(buildStoreRequest(pcr, p.request).body)).toMatchObject({ discount_usd: 20 })
+    // No balance applied: no discount field at all.
+    const none = parseCheckoutRequest(updInput(), 'upd')
+    if (!none.ok) throw new Error('setup')
+    expect(JSON.parse(buildStoreRequest(upd, none.request).body)).not.toHaveProperty('discountUsd')
+  })
+
+  it('refuses a discount that is negative, not a number, or absurd', () => {
+    expect(parseCheckoutRequest(updInput({ discountUsd: -1 }), 'upd')).toEqual({ ok: false, field: 'discount' })
+    expect(parseCheckoutRequest(updInput({ discountUsd: '5' }), 'upd')).toEqual({ ok: false, field: 'discount' })
+    expect(parseCheckoutRequest(updInput({ discountUsd: 1e9 }), 'upd')).toEqual({ ok: false, field: 'discount' })
   })
 })
 
@@ -224,7 +390,9 @@ describe('handleOrderRequest', () => {
       status: 'Pending - Card',
       paymentUrl: 'https://catalog.peptidescostarica.net/pay-card/1',
     })
-    expect(store.calls).toHaveLength(1)
+    // The order, then a look at where the payment page forwards (it doesn't here, so no in-app form).
+    expect(store.calls).toHaveLength(2)
+    expect(store.calls[1]?.url).toBe('https://catalog.peptidescostarica.net/pay-card/1')
   })
 
   it('sends nothing to the store when checkout is off, the key is live, or the request is bad', async () => {

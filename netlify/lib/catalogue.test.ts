@@ -245,6 +245,7 @@ describe('Peptides CR partner products', () => {
       stock: 4,
       price: { currency: 'USD', amount: 150 },
       regularPrice: { currency: 'USD', amount: 180 },
+      altPrice: { currency: 'CRC', amount: 75750 },
       imageUrl: 'https://example.com/sermorelin.png',
       thumbnailUrl: 'https://example.com/sermorelin.png',
       descriptionEn: 'English text',

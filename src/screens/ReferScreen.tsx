@@ -7,16 +7,17 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { EmptyState } from '../components/EmptyState'
 import { formatPrice } from '../lib/shop/catalogue'
-import type { LadderStep, StoreAccount } from '../lib/store/account'
-import { useStoreAccount } from '../lib/store/account'
-import { creditEarnedUsd, creditUnlockedByNext, ladderRows, nextStep, type StepState } from '../lib/store/loyaltyView'
+import { signInTestAccount, TEST_SIGN_IN, useStoreAccount, type StoreAccount } from '../lib/store/account'
+import { REFERRAL_RULES } from '../lib/store/rules'
+import { creditEarnedUsd, creditUnlockedByNext, ladderRows, nextMilestone, type Rung, type StepState } from '../lib/store/loyaltyView'
 import type { Locale } from '../lib/units'
 
 /**
- * Refer & earn (Part B): the credit earned, the ladder of bonuses, the invite
- * link and who has joined. Reached from Home's credit banner; it belongs to the
- * Rewards tab. Like Rewards, it draws a StoreAccount that only a review build's
- * sample account provides until the stores have customer accounts.
+ * Refer & earn (Part B), under the Referral Model's rules: $20 credit per
+ * friend whose first order of at least $100 is paid and delivered, +$25 at 5,
+ * +$75 at 10, the Lab tier at 25; no discount for the friend; one reward per
+ * order (an affiliate link wins). Reached from Home's credit banner and from
+ * Rewards; it belongs to the Rewards tab.
  */
 export function ReferScreen({ onUseCredit }: { onUseCredit: () => void }) {
   const { t } = useTranslation()
@@ -25,7 +26,11 @@ export function ReferScreen({ onUseCredit }: { onUseCredit: () => void }) {
     return (
       <div className="px-4 pb-6">
         <h1 className="mb-4 font-display text-[1.375rem] font-bold leading-tight text-foreground">{t('refer.title')}</h1>
-        <EmptyState title={t('rewards.signedOutTitle')} body={t('rewards.signedOutBody')} />
+        <EmptyState
+          title={t('rewards.signedOutTitle')}
+          body={t(TEST_SIGN_IN ? 'rewards.signedOutTestBody' : 'rewards.signedOutBody')}
+          action={TEST_SIGN_IN ? <Button onClick={signInTestAccount}>{t('account.testSignIn')}</Button> : undefined}
+        />
       </div>
     )
   }
@@ -51,16 +56,15 @@ function ReferView({ account, onUseCredit }: { account: StoreAccount; onUseCredi
   const locale = i18n.language as Locale
   const usd = (amount: number) => formatPrice({ currency: 'USD', amount }, locale)
   const { referral } = account
-  const unlocks = nextStep(account) ? creditUnlockedByNext(account) : 0
-  const remaining = nextStep(account) ? nextStep(account)!.referrals - referral.completed : 0
+  const next = nextMilestone(account)
+  const unlocks = next ? creditUnlockedByNext(account) : 0
+  const remaining = next?.remaining ?? 0
   const [copied, setCopied] = useState(false)
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const url = `https://${referral.link}`
-  const shareText =
-    referral.friendOffUsd > 0
-      ? t('refer.shareText', { store: BRAND.store.name, friend: usd(referral.friendOffUsd), link: url })
-      : t('refer.shareTextNoOffer', { store: BRAND.store.name, link: url })
+  // The model gives the friend nothing extra, so the invite makes no offer.
+  const shareText = t('refer.shareText', { store: BRAND.store.name, link: url })
   const shareButton = cn(buttonVariants({ size: 'sm' }), 'h-12 min-h-12 rounded-xl text-sm font-semibold')
 
   async function copy() {
@@ -75,13 +79,10 @@ function ReferView({ account, onUseCredit }: { account: StoreAccount; onUseCredi
     copiedTimer.current = setTimeout(() => setCopied(false), 2000)
   }
 
-  const stepSub = (step: LadderStep): string => {
-    const tierName = step.tier ? t(`loyalty.tierName.${step.tier.id}`) : ''
-    if (step.bonusUsd !== undefined && step.tier) {
-      return t(step.tier.months ? 'refer.step.bonusTierYear' : 'refer.step.bonusTier', { amount: usd(step.bonusUsd), tier: tierName })
-    }
-    if (step.bonusUsd !== undefined) return t('refer.step.bonus', { amount: usd(step.bonusUsd) })
-    return t('refer.step.credit', { amount: usd(step.creditUsd ?? 0) })
+  const stepSub = (rung: Rung): string => {
+    if (rung.tier) return t('refer.step.lab', { percent: rung.tier.discountPercent, count: rung.tier.months })
+    if (rung.bonusUsd !== undefined) return t('refer.step.bonus', { amount: usd(rung.bonusUsd) })
+    return t('refer.step.credit', { amount: usd(rung.creditUsd ?? 0) })
   }
   const date = (iso: string) => new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }).format(new Date(`${iso}T12:00:00`))
 
@@ -120,12 +121,10 @@ function ReferView({ account, onUseCredit }: { account: StoreAccount; onUseCredi
       <section className="mx-4 mt-[1.375rem]">
         <h2 className="text-[17px] font-bold text-foreground">{t('refer.ladderTitle')}</h2>
         <p className="mt-1 text-[13.5px] text-muted-foreground">
-          {referral.friendOffUsd > 0
-            ? t('refer.ladderBody', { friend: usd(referral.friendOffUsd), credit: usd(referral.creditPerReferralUsd) })
-            : t('refer.ladderBodyNoOffer', { credit: usd(referral.creditPerReferralUsd) })}
+          {t('refer.ladderBody', { credit: usd(REFERRAL_RULES.creditPerReferral), minimum: usd(REFERRAL_RULES.minimumFirstOrder) })}
         </p>
         <ol aria-label={t('refer.ladder')} className="mt-4 flex flex-col">
-          {ladderRows(account).map(({ step, state, toGo, lineFill }, index, rows) => (
+          {ladderRows(account).map(({ rung: step, state, toGo, lineFill }, index, rows) => (
             <li key={step.referrals} className="flex min-h-[4.125rem] gap-3.5">
               <div className="flex w-[1.875rem] shrink-0 flex-col items-center">
                 <span
@@ -156,6 +155,7 @@ function ReferView({ account, onUseCredit }: { account: StoreAccount; onUseCredi
             </li>
           ))}
         </ol>
+        <p className="-mt-1 mb-3 text-xs leading-snug text-muted-foreground">{t('refer.affiliateNote')}</p>
       </section>
 
       <section className="mx-4 mt-1.5 rounded-[1.25rem] border border-border/60 bg-card p-4">

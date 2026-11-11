@@ -46,6 +46,8 @@ export interface StoreProduct {
   price?: StorePrice
   /** What it sold for before a sale; only present when it's higher than `price`. */
   regularPrice?: StorePrice
+  /** The same price in the local currency, for reference (Peptides CR's colones beside the dollars it charges). */
+  altPrice?: StorePrice
   /** The store's own image links, loaded from there and never copied (both stores ask for that). */
   imageUrl?: string
   thumbnailUrl?: string
@@ -78,7 +80,7 @@ export interface CatalogueResponse {
 
 export type FetchLike = (
   url: string,
-  init?: { method?: string; signal?: AbortSignal; headers?: Record<string, string>; body?: string },
+  init?: { method?: string; signal?: AbortSignal; headers?: Record<string, string>; body?: string; redirect?: 'follow' | 'manual' },
 ) => Promise<Response>
 
 const PCR_PRODUCTS_URL = 'https://peptidescostarica.net/wp-json/wc/store/v1/products'
@@ -267,6 +269,9 @@ export function fromPcrPartnerProduct(raw: unknown): StoreProduct | null {
   const category = text(raw.category)
   if (category) product.category = category
   setPrices(product, 'USD', amount(raw.priceUsd), amount(raw.originalPriceUsd))
+  // Colones too, shown under the dollar price (the charge is in dollars).
+  const crc = amount(raw.priceCrc)
+  if (product.price && crc !== undefined) product.altPrice = { currency: 'CRC', amount: crc }
   const imageUrl = httpsUrl(raw.imageUrl)
   if (imageUrl) {
     product.imageUrl = imageUrl

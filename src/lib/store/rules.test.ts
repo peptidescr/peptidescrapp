@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { nextReferralMilestone, pointsForSpend, pointsValue, referralCreditEarned, tierForSpend } from './rules'
+import { creditToNextMilestone, labMilestone, nextReferralMilestone, pointsForSpend, pointsValue, referralCreditEarned } from './rules'
 
 describe('points', () => {
   it('earns one point per $50, whole points only', () => {
@@ -18,11 +18,8 @@ describe('points', () => {
 })
 
 describe('tiers', () => {
-  it('follows a year of spend', () => {
-    expect(tierForSpend(0)).toBe('bench')
-    expect(tierForSpend(2499)).toBe('bench')
-    expect(tierForSpend(2500)).toBe('lab')
-    expect(tierForSpend(7500)).toBe('institute')
+  it('grants Lab at 25 referrals: 10% off and free delivery for 12 months', () => {
+    expect(labMilestone()).toEqual({ referrals: 25, tier: { tier: 'lab', months: 12, discountPercent: 10, freeDelivery: true } })
   })
 })
 
@@ -39,5 +36,13 @@ describe('referrals', () => {
     expect(nextReferralMilestone(3)).toEqual({ milestone: { referrals: 5, bonusCredit: 25 }, remaining: 2 })
     expect(nextReferralMilestone(10)?.milestone.referrals).toBe(25)
     expect(nextReferralMilestone(25)).toBeNull()
+  })
+
+  it('works out the credit reaching the next milestone adds', () => {
+    // 2 more friends at $20, plus the 5-referral bonus of $25.
+    expect(creditToNextMilestone(3)).toBe(65)
+    // 15 more friends at $20 to reach Lab, which adds no credit of its own.
+    expect(creditToNextMilestone(10)).toBe(300)
+    expect(creditToNextMilestone(25)).toBe(0)
   })
 })

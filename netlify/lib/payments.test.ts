@@ -41,6 +41,15 @@ describe('findOrderNumber', () => {
   })
 })
 
+describe('findOrderNumber: ChargX\'s documented reference', () => {
+  it('takes data.object.external_order_id first, before anything else that looks like an order', () => {
+    const event = { type: 'payment.succeeded', data: { object: { description: 'Order USP-1', external_order_id: 'USP-2', order_id: 'ord_abc' } } }
+    expect(findOrderNumber(event, 'upd')).toBe('USP-2')
+    // Not this brand's: falls back to the search.
+    expect(findOrderNumber({ data: { object: { external_order_id: 'PTR-3', memo: 'USP-4' } } }, 'upd')).toBe('USP-4')
+  })
+})
+
 describe('handleWebhookRequest', () => {
   it('records a verified payment.succeeded as paid', async () => {
     const store = memoryStore()

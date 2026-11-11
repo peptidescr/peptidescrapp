@@ -26,6 +26,10 @@ export interface CheckoutForm {
   postalCode: string
   paymentMethod: PaymentMethod
   researchUseAck: boolean
+  /** PCR: news and offers by WhatsApp. UPD: texts, and calls. Unticked unless the customer ticks them; never remembered. */
+  marketingConsent: boolean
+  smsConsent: boolean
+  callConsent: boolean
 }
 
 export type CheckoutField = 'name' | 'phone' | 'email' | 'line1' | 'city' | 'region' | 'postalCode' | 'paymentMethod' | 'researchUseAck'
@@ -43,6 +47,9 @@ export function emptyCheckoutForm(brand: BrandId): CheckoutForm {
     postalCode: '',
     paymentMethod: 'card',
     researchUseAck: false,
+    marketingConsent: false,
+    smsConsent: false,
+    callConsent: false,
   }
 }
 
@@ -82,7 +89,8 @@ export interface OrderTotals {
 }
 
 export type OrderResult =
-  | { kind: 'placed'; orderNumber: string; status?: string; totals?: OrderTotals; paymentUrl?: string }
+  /** `embedUrl`: ChargX's own payment form, shown inside the app; otherwise `paymentUrl` opens full-screen. */
+  | { kind: 'placed'; orderNumber: string; status?: string; totals?: OrderTotals; paymentUrl?: string; embedUrl?: string }
   | { kind: 'invalid'; field?: string }
   /** The store said no; its message is for the customer, shown as it is. */
   | { kind: 'refused'; message?: string }
@@ -111,6 +119,22 @@ function httpsUrl(value: unknown): string | undefined {
   }
 }
 
+/**
+ * A payment form the app may show inside itself: ChargX's own (https, on
+ * chargx.io), or on a local dev server the pretend form from the mock store.
+ */
+export function embeddableUrl(value: unknown): string | undefined {
+  if (typeof value !== 'string' || value.length > 2000) return undefined
+  try {
+    const url = new URL(value)
+    if (url.protocol === 'https:' && (url.hostname === 'chargx.io' || url.hostname.endsWith('.chargx.io'))) return value
+    if (import.meta.env.DEV && url.protocol === 'http:' && url.pathname === '/mock-pay.html') return value
+    return undefined
+  } catch {
+    return undefined
+  }
+}
+
 /** Reads /api/orders' answer (see OrderResponseBody in netlify/lib/checkout.ts). */
 export function readOrderResponse(status: number, body: unknown): OrderResult {
   if (isRecord(body) && body.ok === true && typeof body.orderNumber === 'string') {
@@ -120,6 +144,8 @@ export function readOrderResponse(status: number, body: unknown): OrderResult {
     if (totals) result.totals = totals
     const paymentUrl = httpsUrl(body.paymentUrl)
     if (paymentUrl) result.paymentUrl = paymentUrl
+    const embedUrl = embeddableUrl(body.embedUrl)
+    if (embedUrl) result.embedUrl = embedUrl
     return result
   }
   const error = isRecord(body) ? body.error : undefined
@@ -136,6 +162,8 @@ export async function placeOrder(
   form: CheckoutForm,
   locale: Locale,
   fetchFn: typeof fetch = fetch,
+  /** Points and credit applied to this order, in dollars. */
+  discountUsd = 0,
 ): Promise<OrderResult> {
   const body = {
     items: cart.map(({ ref, qty }) => ({ ref, qty })),
@@ -154,6 +182,8 @@ export async function placeOrder(
     paymentMethod: form.paymentMethod,
     language: locale === 'es-CR' ? 'es' : 'en',
     researchUseAck: form.researchUseAck,
+    consent: { marketing: form.marketingConsent, sms: form.smsConsent, call: form.callConsent },
+    ...(discountUsd > 0 ? { discountUsd: Math.round(discountUsd * 100) / 100 } : {}),
   }
   let response: Response
   try {
@@ -190,6 +220,8 @@ export interface PlacedOrder {
   paid?: boolean
   /** What was ordered (references and quantities): "Your usual" on Home offers it again. Absent on orders from before it was kept. */
   lines?: CartLine[]
+  /** ChargX's form for this order, shown inside the app. */
+  embedUrl?: string
 }
 
 const ORDER_KEY = 'shop-last-order-v1'
@@ -204,6 +236,7 @@ export function loadPlacedOrder(): PlacedOrder | null {
       placedAt: raw.placedAt,
       paymentMethod: raw.paymentMethod === 'whatsapp' ? 'whatsapp' : 'card',
       paymentUrl: httpsUrl(raw.paymentUrl),
+      ...(embeddableUrl(raw.embedUrl) ? { embedUrl: embeddableUrl(raw.embedUrl) } : {}),
       totals: readTotals(raw.totals),
       paid: raw.paid === true,
       ...(lines.length > 0 ? { lines } : {}),
@@ -219,7 +252,8 @@ export function loadPlacedOrder(): PlacedOrder | null {
 // except with an order, and cleared on request.
 // ---------------------------------------------------------------------------
 
-export type SavedCustomer = Omit<CheckoutForm, 'researchUseAck'>
+/** The confirmation and the consent boxes are never kept: they are asked again with every order. */
+export type SavedCustomer = Omit<CheckoutForm, 'researchUseAck' | 'marketingConsent' | 'smsConsent' | 'callConsent'>
 
 const CUSTOMER_KEY = 'shop-customer-v1'
 
@@ -243,7 +277,8 @@ export function loadSavedCustomer(brand: BrandId): SavedCustomer | null {
       paymentMethod: raw.paymentMethod === 'whatsapp' ? 'whatsapp' : 'card',
     }
     for (const key of CUSTOMER_FIELDS) if (typeof raw[key] === 'string') saved[key] = raw[key].slice(0, 200)
-    return firstInvalidField({ ...saved, researchUseAck: true }, brand) === null ? saved : null
+    const asForm: CheckoutForm = { ...saved, researchUseAck: true, marketingConsent: false, smsConsent: false, callConsent: false }
+    return firstInvalidField(asForm, brand) === null ? saved : null
   } catch {
     return null
   }

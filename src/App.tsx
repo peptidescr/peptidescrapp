@@ -388,7 +388,12 @@ function App() {
             </ToolsScreen>
           )}
           {page.tab === 'shop' && <ShopScreen />}
-          {page.tab === 'rewards' && (page.view === 'refer' ? <ReferScreen onUseCredit={() => navigate(HOME)} /> : <RewardsScreen />)}
+          {page.tab === 'rewards' &&
+            (page.view === 'refer' ? (
+              <ReferScreen onUseCredit={() => navigate(HOME)} />
+            ) : (
+              <RewardsScreen onOpenRefer={() => navigate({ tab: 'rewards', view: 'refer' })} />
+            ))}
           {page.tab === 'settings' && <SettingsScreen />}
         </motion.div>
       </AnimatePresence>
