@@ -862,7 +862,13 @@
     "invited": "{{name}} fue invitado",
     "firstShipped": "{{date}} · primer pedido entregado",
     "waiting": "{{date}} · esperando el primer pedido",
-    "pending": "Pendiente"
+    "pending": "Pendiente",
+    "test": {
+      "title": "Herramientas de prueba (solo staging)",
+      "body": "Simulá que el primer pedido de un amigo se pagó y se entregó, para probar el crédito, los bonos y Lab.",
+      "add_one": "+{{count}} amigo",
+      "add_other": "+{{count}} amigos"
+    }
   },
   "account": {
     "title": "Cuenta de {{store}}",
@@ -1022,6 +1028,8 @@
     "paymentCancelled": "Pago cancelado. Podés pagar cuando quieras desde acá.",
     "securePayment": "Pago seguro",
     "securePaymentNote": "La tarjeta se escribe en la página del proveedor de pagos, nunca en la app.",
-    "openPaymentInBrowser": "¿Problemas para pagar acá? Abrí la página de pago en tu navegador"
+    "openPaymentInBrowser": "¿Problemas para pagar acá? Abrí la página de pago en tu navegador",
+    "pointsEarned_one": "Ganaste {{count}} punto con este pedido.",
+    "pointsEarned_other": "Ganaste {{count}} puntos con este pedido."
   }
 }

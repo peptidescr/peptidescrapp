@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { EmptyState } from '../components/EmptyState'
 import { formatPrice } from '../lib/shop/catalogue'
-import { signInTestAccount, TEST_SIGN_IN, useStoreAccount, type StoreAccount } from '../lib/store/account'
+import { signInTestAccount, simulateReferrals, TEST_SIGN_IN, useStoreAccount, type StoreAccount } from '../lib/store/account'
 import { REFERRAL_RULES } from '../lib/store/rules'
 import { creditEarnedUsd, creditUnlockedByNext, ladderRows, nextMilestone, type Rung, type StepState } from '../lib/store/loyaltyView'
 import type { Locale } from '../lib/units'
@@ -207,6 +207,30 @@ function ReferView({ account, onUseCredit }: { account: StoreAccount; onUseCredi
           ))}
         </ul>
       </section>
+
+      {TEST_SIGN_IN && <ReferralTestTools />}
     </div>
+  )
+}
+
+/**
+ * Staging only (the test account): a friend can't be referred for real yet, so this pretends one's first order was
+ * paid and delivered, to try the ladder, the bonuses and Lab. Absent from a live-site build (TEST_SIGN_IN is off).
+ */
+function ReferralTestTools() {
+  const { t } = useTranslation()
+  return (
+    <section className="mx-4 mt-4 rounded-[1.25rem] border-2 border-dashed border-border p-4">
+      <p className="text-[13px] font-bold uppercase tracking-[0.1em] text-muted-foreground">{t('refer.test.title')}</p>
+      <p className="mt-1 text-[13.5px] text-muted-foreground">{t('refer.test.body')}</p>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <Button variant="secondary" onClick={() => simulateReferrals(1)}>
+          {t('refer.test.add', { count: 1 })}
+        </Button>
+        <Button variant="secondary" onClick={() => simulateReferrals(5)}>
+          {t('refer.test.add', { count: 5 })}
+        </Button>
+      </div>
+    </section>
   )
 }

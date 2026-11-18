@@ -26,8 +26,9 @@ import {
   type OrderTotals,
   type PlacedOrder,
 } from '../../lib/shop/checkout'
-import { useOrderPaid } from '../../lib/shop/useOrderPaid'
+import { paidUsd, useOrderPaid } from '../../lib/shop/useOrderPaid'
 import { balanceUsd, spendBalance, useStoreAccount } from '../../lib/store/account'
+import { pointsForSpend } from '../../lib/store/rules'
 import type { Locale } from '../../lib/units'
 import { PaymentFrame } from './PaymentFrame'
 
@@ -640,6 +641,9 @@ function TotalsList({ totals, locale }: { totals: OrderTotals; locale: Locale })
 export function OrderResult({ order, locale, onDone }: { order: PlacedOrder; locale: Locale; onDone: () => void }) {
   const { t } = useTranslation()
   const paid = useOrderPaid(order)
+  const account = useStoreAccount()
+  // What the paid order earned the signed-in account (useOrderPaid adds it to the balance).
+  const pointsEarned = paid && account ? pointsForSpend(paidUsd(order) ?? 0) : 0
   const card = order.paymentMethod === 'card'
   // The in-app payment form, and what it came back with (paid, or cancelled).
   const [paying, setPaying] = useState(false)
@@ -674,6 +678,9 @@ export function OrderResult({ order, locale, onDone }: { order: PlacedOrder; loc
                 ? t('checkout.payNext')
                 : t('checkout.noPaymentLink', { store: BRAND.store.name })}
         </p>
+        {pointsEarned > 0 && (
+          <p className="rounded-xl bg-positive-lt px-3.5 py-2.5 text-sm font-semibold text-positive">{t('checkout.pointsEarned', { count: pointsEarned })}</p>
+        )}
         {needsPayment && (
           <p className="flex items-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="size-3.5 animate-spin" />

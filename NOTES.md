@@ -2754,3 +2754,20 @@ console errors. Tests need `VITE_BRAND=upd` when a local `.env` sets `pcr`.
 sandbox ChargX store (UPD now; PCR's sandbox store when the client provides it), and for PCR a working product list.
 The first real sandbox order settles the UPD reply shape and ZIP spelling, and whether UPD's own webhook marks a
 sandbox-paid order paid.
+
+**Staging is a branch deploy (18 November 2026).** A separate Netlify project building `staging` (`updstaging`) is
+that project's production, so Netlify builds it with `CONTEXT=production` and the test sign-in is switched off there
+("coming soon"). Staging is a **branch deploy of `staging` on each live project** (`staging--<project>.netlify.app`,
+`CONTEXT=branch-deploy`), with the store settings set for the Branch deploys context only. No code checks which
+build it is beyond the existing `CONTEXT` rule. Netlify Blobs (`order-payments`, `push-schedules`) are per project,
+so staging shares them with the live site; harmless for testing.
+
+**Rewards from a purchase, on the test account.** When `useOrderPaid` first hears an order is paid, the test account
+earns `pointsForSpend` of the amount paid (the store's total, after any balance applied: our reading of "$50 spent"),
+once per order number (`earnForPaidOrder`; the numbers are kept with the account). "Order placed" shows "You earned N
+points". Refer has staging-only test tools (+1 / +5 friends: `simulateReferrals` → `withReferrals`, $20 each, the 5
+and 10 bonuses, Lab for 12 months at 25). The test account now keeps referrals, activity and the Lab date on the
+device (`store-test-account-v2`); signing out and in resets it to the sample. Lab's 10% off and free delivery are
+not applied at checkout: the store does that; the app only shows the tier. Checked in a browser against the mock
+store (390 light, 320 dark): sign in → order → pay in the app → Paid + 1 point → reload doesn't count it twice →
+Rewards 19 points → +5 friends $185 credit → 25 friends Lab until 18/11/2027 on Home and Rewards.

@@ -6,6 +6,7 @@ import { Segmented } from '@/components/ui/segmented'
 import { SegmentedProgressTrack } from '@/components/ui/segmented-progress-track'
 import { cn } from '@/lib/utils'
 import { EmptyState } from '../components/EmptyState'
+import { parseISO } from 'date-fns'
 import { formatDate } from '../lib/dates'
 import { formatPrice } from '../lib/shop/catalogue'
 import { balanceUsd, signInTestAccount, TEST_SIGN_IN, useStoreAccount, type StoreAccount } from '../lib/store/account'
@@ -82,7 +83,7 @@ function RewardsView({ account, onOpenRefer }: { account: StoreAccount; onOpenRe
 
         <p className="mt-3.5 rounded-xl bg-on-primary-tile px-3 py-2.5 text-sm">
           {tier === 'lab' ? (
-            <Trans i18nKey="loyalty.labUntil" values={{ date: formatDate(new Date(account.labUntil!)) }} components={{ b: <b /> }} />
+            <Trans i18nKey="loyalty.labUntil" values={{ date: formatDate(parseISO(account.labUntil!)) }} components={{ b: <b /> }} />
           ) : (
             <Trans i18nKey="rewards.toLab" count={toGo} values={{ count: toGo }} components={{ b: <b /> }} />
           )}

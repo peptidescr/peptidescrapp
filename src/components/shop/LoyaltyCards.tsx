@@ -5,6 +5,7 @@ import { ProgressRing } from '@/components/ui/progress-ring'
 import type { StoreAccount } from '../../lib/store/account'
 import { labProgress, labReferrals, nextMilestone, referralsToLab, tierOf } from '../../lib/store/loyaltyView'
 import { formatPrice } from '../../lib/shop/catalogue'
+import { parseISO } from 'date-fns'
 import { formatDate } from '../../lib/dates'
 import type { Locale } from '../../lib/units'
 
@@ -42,7 +43,7 @@ export function PointsCard({ account, onOpen }: { account: StoreAccount; onOpen:
         </span>
         <span className="text-[15px] font-semibold leading-snug text-foreground">
           {tier === 'lab' ? (
-            <Trans i18nKey="loyalty.labUntil" values={{ date: formatDate(new Date(account.labUntil!)) }} components={{ b: <b /> }} />
+            <Trans i18nKey="loyalty.labUntil" values={{ date: formatDate(parseISO(account.labUntil!)) }} components={{ b: <b /> }} />
           ) : (
             <Trans i18nKey="loyalty.toLab" count={toGo} values={{ count: toGo }} components={{ b: <b /> }} />
           )}

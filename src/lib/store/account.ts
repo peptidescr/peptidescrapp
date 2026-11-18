@@ -14,9 +14,10 @@
  *
  * Money is in dollars (both stores charge in USD).
  */
+import { addMonths } from 'date-fns'
 import { useSyncExternalStore } from 'react'
 import { BRAND } from '@/brand'
-import { pointsValue, REFERRAL_RULES } from './rules'
+import { pointsForSpend, pointsValue, REFERRAL_RULES, type ReferralRules } from './rules'
 
 export interface ReferralActivity {
   name: string
@@ -64,45 +65,149 @@ export const SAMPLE_ACCOUNT: StoreAccount = {
 /** Whether this build offers the test sign-in (staging only; see the header). */
 export const TEST_SIGN_IN = import.meta.env.VITE_STORE_TEST_SIGNIN === 'true'
 
-const STORAGE_KEY = 'store-test-account-v1'
+// v2 keeps the whole test account (referrals, activity, Lab date) and the orders that already earned points.
+const STORAGE_KEY = 'store-test-account-v2'
+/** Enough to recognise a repeat "paid" for recent orders; older ones can't come back. */
+const MAX_EARNED_ORDERS = 50
+const MAX_ACTIVITY = 30
+
+const round2 = (n: number) => Math.round(n * 100) / 100
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function load(): StoreAccount | null {
+function readActivity(value: unknown): ReferralActivity[] {
+  if (!Array.isArray(value)) return SAMPLE_ACCOUNT.referral.activity
+  return value
+    .filter(isRecord)
+    .filter((a) => typeof a.name === 'string' && typeof a.at === 'string' && (a.status === 'earned' || a.status === 'pending'))
+    .slice(0, MAX_ACTIVITY)
+    .map((a) => ({
+      name: a.name as string,
+      at: a.at as string,
+      status: a.status as ReferralActivity['status'],
+      ...(typeof a.amountUsd === 'number' ? { amountUsd: a.amountUsd } : {}),
+    }))
+}
+
+interface Saved {
+  account: StoreAccount
+  /** Order numbers that already earned points, so a repeated "paid" never pays twice. */
+  earnedOrders: string[]
+}
+
+function load(): Saved | null {
   if (!TEST_SIGN_IN) return null
   try {
     const raw: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null')
     if (!isRecord(raw) || typeof raw.points !== 'number' || typeof raw.creditUsd !== 'number') return null
-    return { ...SAMPLE_ACCOUNT, points: Math.max(0, Math.floor(raw.points)), creditUsd: Math.max(0, Math.round(raw.creditUsd * 100) / 100) }
+    const completed = typeof raw.completed === 'number' ? Math.max(0, Math.floor(raw.completed)) : SAMPLE_ACCOUNT.referral.completed
+    return {
+      account: {
+        ...SAMPLE_ACCOUNT,
+        points: Math.max(0, Math.floor(raw.points)),
+        creditUsd: Math.max(0, round2(raw.creditUsd)),
+        ...(typeof raw.labUntil === 'string' ? { labUntil: raw.labUntil } : {}),
+        referral: { ...SAMPLE_ACCOUNT.referral, completed, activity: readActivity(raw.activity) },
+      },
+      earnedOrders: Array.isArray(raw.earnedOrders) ? raw.earnedOrders.filter((n): n is string => typeof n === 'string').slice(-MAX_EARNED_ORDERS) : [],
+    }
   } catch {
     return null
   }
 }
 
-let account: StoreAccount | null | undefined
+let saved: Saved | null | undefined
 const listeners = new Set<() => void>()
 
-function current(): StoreAccount | null {
-  if (account === undefined) account = load()
-  return account
+function currentSaved(): Saved | null {
+  if (saved === undefined) saved = load()
+  return saved
 }
 
-function set(next: StoreAccount | null): void {
-  account = next
+function current(): StoreAccount | null {
+  return currentSaved()?.account ?? null
+}
+
+function set(next: StoreAccount | null, earnedOrders: string[] = currentSaved()?.earnedOrders ?? []): void {
+  saved = next ? { account: next, earnedOrders: earnedOrders.slice(-MAX_EARNED_ORDERS) } : null
   try {
-    if (next) localStorage.setItem(STORAGE_KEY, JSON.stringify({ points: next.points, creditUsd: next.creditUsd }))
-    else localStorage.removeItem(STORAGE_KEY)
+    if (saved) {
+      const { account: a } = saved
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          points: a.points,
+          creditUsd: a.creditUsd,
+          completed: a.referral.completed,
+          activity: a.referral.activity,
+          labUntil: a.labUntil,
+          earnedOrders: saved.earnedOrders,
+        }),
+      )
+    } else localStorage.removeItem(STORAGE_KEY)
   } catch {
     // Storage unavailable: the test account lasts this visit.
   }
   for (const listener of listeners) listener()
 }
 
-/** Signs in to the test account (staging only). */
+/** Signs in to the test account (staging only). Signing out and in again starts over from the sample. */
 export function signInTestAccount(): void {
-  if (TEST_SIGN_IN) set({ ...SAMPLE_ACCOUNT })
+  if (TEST_SIGN_IN) set({ ...SAMPLE_ACCOUNT }, [])
+}
+
+/** The account after a paid order of this many dollars: whole points per $50 (rules.ts). */
+export function withOrderPoints(a: StoreAccount, paidUsd: number): StoreAccount {
+  return { ...a, points: a.points + pointsForSpend(paidUsd) }
+}
+
+/**
+ * The account after `count` more friends' first orders were paid and delivered, under the Referral Model: the
+ * per-referral credit each, a milestone's bonus credit when reached, and Lab for its months from `today` at 25.
+ */
+export function withReferrals(a: StoreAccount, count: number, today: Date, rules: ReferralRules = REFERRAL_RULES): StoreAccount {
+  let next = a
+  for (let i = 0; i < Math.max(0, Math.floor(count)); i++) {
+    const n = next.referral.completed + 1
+    const reached = rules.milestones.filter((m) => m.referrals === n)
+    const amountUsd = rules.creditPerReferral + reached.reduce((sum, m) => sum + (m.bonusCredit ?? 0), 0)
+    const tier = reached.find((m) => m.tier)?.tier
+    next = {
+      ...next,
+      creditUsd: round2(next.creditUsd + amountUsd),
+      ...(tier ? { labUntil: addMonths(today, tier.months).toISOString().slice(0, 10) } : {}),
+      referral: {
+        ...next.referral,
+        completed: n,
+        activity: [{ name: `Test friend ${n}`, at: today.toISOString().slice(0, 10), status: 'earned' as const, amountUsd }, ...next.referral.activity].slice(
+          0,
+          MAX_ACTIVITY,
+        ),
+      },
+    }
+  }
+  return next
+}
+
+/**
+ * The test account earns points for an order the store reports paid, once per order number. Returns the points
+ * added (0 when signed out, already counted, or not in dollars). A real store does this on its side.
+ */
+export function earnForPaidOrder(orderNumber: string, paidUsd: number | undefined): number {
+  const now = currentSaved()
+  if (!now || paidUsd === undefined || now.earnedOrders.includes(orderNumber)) return 0
+  const points = pointsForSpend(paidUsd)
+  set(withOrderPoints(now.account, paidUsd), [...now.earnedOrders, orderNumber])
+  return points
+}
+
+/** Staging only: pretend `count` friends' first orders were paid and delivered, to try the referral ladder. */
+export function simulateReferrals(count: number): void {
+  const now = current()
+  if (!TEST_SIGN_IN || !now) return
+  set(withReferrals(now, count, new Date()))
 }
 
 export function signOutStore(): void {

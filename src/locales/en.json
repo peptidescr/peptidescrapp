@@ -862,7 +862,13 @@
     "invited": "{{name}} invited",
     "firstShipped": "{{date}} · first order delivered",
     "waiting": "{{date}} · waiting for first order",
-    "pending": "Pending"
+    "pending": "Pending",
+    "test": {
+      "title": "Test tools (staging only)",
+      "body": "Pretend a friend’s first order was paid and delivered, to try the credit, bonuses and Lab.",
+      "add_one": "+{{count}} friend",
+      "add_other": "+{{count}} friends"
+    }
   },
   "account": {
     "title": "{{store}} account",
@@ -1022,6 +1028,8 @@
     "paymentCancelled": "Payment cancelled. You can pay any time from here.",
     "securePayment": "Secure payment",
     "securePaymentNote": "Your card is typed on the payment provider’s page, never in the app.",
-    "openPaymentInBrowser": "Trouble paying here? Open the payment page in your browser"
+    "openPaymentInBrowser": "Trouble paying here? Open the payment page in your browser",
+    "pointsEarned_one": "You earned {{count}} point with this order.",
+    "pointsEarned_other": "You earned {{count}} points with this order."
   }
 }
