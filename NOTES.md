@@ -2771,3 +2771,13 @@ device (`store-test-account-v2`); signing out and in resets it to the sample. La
 not applied at checkout: the store does that; the app only shows the tier. Checked in a browser against the mock
 store (390 light, 320 dark): sign in → order → pay in the app → Paid + 1 point → reload doesn't count it twice →
 Rewards 19 points → +5 friends $185 credit → 25 friends Lab until 18/11/2027 on Home and Rewards.
+
+**Late payments show as Paid (18 November 2026).** On staging, an order placed before a long detour and paid later
+stayed on "waiting for payment" although the webhook had recorded it (`/api/order-status` answered `{"paid":true}`):
+`useOrderPaid` stopped asking 30 minutes after the order was placed. Now (developer's choice) it still polls every 5 s
+for those 30 minutes, and also asks once each time the app opens or comes back, for an unpaid card order up to 7
+days old: `paidCheck` decides, `checkLastOrderPaid` runs from App, and `markPaid` saves "paid" only onto the order
+still kept on the phone (never a newer one) and earns the test account its points once. Checked against the mock
+store: an order backdated 2 hours, paid in its own tab, shows Paid and +1 point on reopening Home. Also learned on
+staging: WiPay (ChargX's card step) refused to load behind a VPN (it answered with its home page, which can't be
+framed); turning the VPN off fixed it. Nothing in our request was involved.

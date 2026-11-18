@@ -27,6 +27,7 @@ import {
 import { db, ensureCompoundsSeeded, ensureSettingsRow } from './lib/db'
 import { migrateLegacySyringeData } from './lib/migrations'
 import { useCustomCompoundsLoaded } from './lib/customCompounds'
+import { checkLastOrderPaid } from './lib/shop/useOrderPaid'
 import { startStoreCatalogueRefresh, syncStoreCatalogue, useStoreCompoundsLoaded } from './lib/storeCatalogue'
 import { DEFAULT_LOCALE, toSupportedLocale } from './i18n'
 import { scheduleUpcomingReminders, startReminderLoop } from './lib/notifications'
@@ -239,6 +240,18 @@ function App() {
   useEffect(() => {
     if (!appOpen) return
     return startReminderLoop()
+  }, [appOpen])
+
+  // A card order paid late, or in another tab, shows as Paid (and earns its points) the next time the app opens or
+  // comes back, wherever the order appears; see src/lib/shop/useOrderPaid.ts.
+  useEffect(() => {
+    if (!appOpen || !STORE_ENABLED) return
+    void checkLastOrderPaid()
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void checkLastOrderPaid()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
   }, [appOpen])
 
   // toSupportedLocale: a settings row (or an imported backup) can carry a
