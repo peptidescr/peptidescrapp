@@ -2781,3 +2781,59 @@ still kept on the phone (never a newer one) and earns the test account its point
 store: an order backdated 2 hours, paid in its own tab, shows Paid and +1 point on reopening Home. Also learned on
 staging: WiPay (ChargX's card step) refused to load behind a VPN (it answered with its home page, which can't be
 framed); turning the VPN off fixed it. Nothing in our request was involved.
+
+## UPD sign-in, promo code and the points proposal (18 November 2026, on `staging`)
+
+UPD's lead developer answered our questions (18 November): use their Supabase sign-in (project address and public
+key given to the developer); he'll build `GET /api/customer/rewards` and the `redeem` object on `POST /api/orders` with
+our names and shapes; referral codes today belong only to affiliates and sales agents (customer referral credit is
+part of what he's building; the friend keeps whatever the code gives); order statuses are pending, paid, processing,
+shipped, delivered, completed, cancelled, refunded ("delivered" means delivered); no test copy, test customers once
+the endpoint exists; **live card payments go through `/api/checkout/card`** like the website; send `promoCode`,
+`shippingProtection` and attribution like the website. The developer chose to build the three items below.
+
+**Sign in with a UPD account** (`src/lib/store/session.ts`, `src/components/shop/StoreSignIn.tsx`):
+- Supabase's official client (`@supabase/supabase-js` 2.118.0, pinned exactly; its new dependencies come from
+  Supabase's own repositories and none runs an install script), loaded only on sign-in or when a session is kept on
+  the phone. Email and password; "Forgot password?" and "Create an account" open UPD's `/my-account`.
+- Settings: `VITE_UPD_SUPABASE_URL` and `VITE_UPD_SUPABASE_ANON_KEY` (build time; Netlify, Branch deploys context;
+  never committed). Without both, the build has no real sign-in.
+- Settings shows the customer (name or email) and signs out on this phone only. Rewards and Refer, signed in, say
+  rewards are coming until UPD serves them; signed out, they offer "Sign in" and, on staging, the test account.
+  One account at a time: signing in with UPD signs the test account out.
+- Checkout fills the email from the account, says "Ordering as …", and sends the customer's access token; our
+  `/api/orders` passes it to UPD as `Authorization: Bearer` (token-shaped only, UPD only, never logged), so the
+  order is linked to the account as the website's are.
+
+**Order extras (UPD):** `promoCode` (a box in checkout, UPD only; 2–40 letters, digits, `-`, `_`; UPD checks it and
+its refusal message is shown), `shippingProtection: false` (the app doesn't offer it; UPD shows it only when its admin
+sets a price), and `firstTouch` / `lastTouch` = `{ source: 'app', medium: 'app', landing: '/app', at }` in the
+website's attribution shape. UPD's admin has no "app" channel yet: suggest one to their developer. The mock store
+refuses the code `BAD` and takes $9 off any other.
+
+**Rules switched to the marketing proposal** (`rules.ts`): 1 point per $1; 100 points = $3 (3¢ each); points spendable
+once there are 250; fixed rewards (free delivery 300, Reconstitution Solution vial 400: **placeholder prices**, shown
+but not yet choosable at checkout); tiers on the last 12 months' spend: Bench, Lab at $1,500 or 25 referrals (5% off
++ free delivery; a referral Lab lasts 12 months from the 25th), Institute at $5,000 (10% off, free delivery, 1.5×
+points, early restock access). Tier discounts stack on the store's volume discounts, which the store applies. The
+referral credit is still the Referral Model's ($20, +$25 at 5, +$75 at 10). The test account now also keeps its
+12-month spend (sample: 900 points, $900, so one order of $600 reaches Lab) under `store-test-account-v3`; an old
+v2 balance starts over. It earns on payment (the developer's call: "credit on payment for now"); UPD will earn on
+"delivered". Home's ring fills towards the next tier (spend, or referrals for Lab, whichever is further);
+Rewards shows the Bench → Lab → Institute track, the fixed rewards and three tier cards.
+
+**Also fixed:** the checkout's checkbox rows could be squeezed shorter than their text in the scrolling sheet on
+narrow phones (`min-h-11` replaced the flex minimum); they no longer shrink.
+
+**Checked:** typecheck, lint, 584 tests (`VITE_BRAND=upd`). In a browser against the mock store, with a made-up
+Supabase address (the form never submitted; no request reached it): 390 light and 320 dark through the signed-out
+Rewards, the sign-in sheet, the test account's new numbers on Rewards, Tier perks and Home, a malformed promo code,
+`BAD` refused with the store's message, a good code taking $9 off; and with a made-up session on the device: "rewards
+are coming", Settings' account row, the email filled in, "Ordering as …", and the order reaching the server signed in.
+No overflow, contrast problems or unexpected console errors. **Not yet checked: a real sign-in**, which needs UPD's
+address and key in the settings.
+
+**Live payments, not built yet:** live mode will call UPD's `/api/checkout/card` with `{ orderNumber, token: the
+order reply's data.payment.token, method: 'card' }` and use its `data.paymentUrl` (read from UPD's checkout code).
+Staging keeps the ChargX sandbox path: UPD's endpoint charges real cards. To ask UPD then: whether that link may be
+shown inside the app, and how the app learns a live order was paid.

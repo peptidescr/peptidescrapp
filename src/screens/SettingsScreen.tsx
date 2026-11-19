@@ -46,7 +46,9 @@ import {
   requestNotificationPermission,
   sendTestNotification,
 } from '../lib/notifications'
-import { signInTestAccount, signOutStore, TEST_SIGN_IN, useStoreAccount } from '../lib/store/account'
+import { signOutStore, TEST_SIGN_IN, useStoreAccount } from '../lib/store/account'
+import { signOutStoreCustomer, STORE_SIGN_IN, useStoreCustomer } from '../lib/store/session'
+import { SignInButtons } from '../components/shop/StoreSignIn'
 import { applyTheme, resolveTheme, THEME_SWITCHING_ENABLED } from '../lib/theme'
 import type { Locale, ThemeMode } from '../lib/units'
 import { updateSettings, useSettings } from '../lib/useSettings'
@@ -88,16 +90,28 @@ function SectionCard({ title, children }: { title: string; children: ReactNode }
 }
 
 /**
- * The store account (Part B): who is signed in, and signing out. Until the
- * stores have sign-in, only staging's test account exists (src/lib/store/account.ts);
- * elsewhere this says sign-in is coming.
+ * The store account (Part B): who is signed in, and signing out. UPD signs in
+ * with its own customer accounts once the build has its Supabase settings
+ * (src/lib/store/session.ts); staging also offers the test account
+ * (src/lib/store/account.ts); elsewhere this says sign-in is coming.
  */
 function StoreAccountSection() {
   const { t } = useTranslation()
   const account = useStoreAccount()
+  const customer = useStoreCustomer()
   return (
     <SectionCard title={t('account.title', { store: BRAND.store.name })}>
-      {account ? (
+      {customer ? (
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate font-semibold text-foreground">{customer.name ?? customer.email}</p>
+            <p className="truncate text-sm text-muted-foreground">{customer.name ? customer.email : t('account.signedIn')}</p>
+          </div>
+          <Button variant="secondary" size="sm" className="shrink-0" onClick={() => void signOutStoreCustomer()}>
+            {t('account.signOut')}
+          </Button>
+        </div>
+      ) : account ? (
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="font-semibold text-foreground">{account.displayName}</p>
@@ -107,12 +121,10 @@ function StoreAccountSection() {
             {t('account.signOut')}
           </Button>
         </div>
-      ) : TEST_SIGN_IN ? (
+      ) : STORE_SIGN_IN || TEST_SIGN_IN ? (
         <div className="flex flex-col gap-3">
-          <p className="text-sm text-muted-foreground">{t('account.testBody')}</p>
-          <Button size="sm" className="self-start" onClick={signInTestAccount}>
-            {t('account.testSignIn')}
-          </Button>
+          <p className="text-sm text-muted-foreground">{t(STORE_SIGN_IN ? 'account.signInBody' : 'account.testBody', { store: BRAND.store.name })}</p>
+          <SignInButtons className="flex flex-wrap gap-2" />
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">{t('account.comingSoon', { store: BRAND.store.name })}</p>

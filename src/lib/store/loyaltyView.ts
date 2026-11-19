@@ -1,40 +1,108 @@
 /**
  * What the Home, Rewards and Refer screens draw, worked out from a StoreAccount
  * (src/lib/store/account.ts) and the rules (rules.ts): the tier and how far to
- * Lab, what the points are worth, the referral ladder's state, and the credit
- * still to unlock. Pure, so the arithmetic is testable apart from the screens.
+ * the next one, what the points are worth, the fixed rewards within reach, the
+ * referral ladder's state, and the credit still to unlock. Pure, so the
+ * arithmetic is testable apart from the screens.
  */
 import type { StoreAccount } from './account'
-import { creditToNextMilestone, labMilestone, nextReferralMilestone, pointsForSpend, pointsValue, REFERRAL_RULES, referralCreditEarned, type ReferralRules } from './rules'
+import {
+  canRedeem,
+  creditToNextMilestone,
+  FIXED_REWARDS,
+  LOYALTY_RULES,
+  nextReferralMilestone,
+  pointsForSpend,
+  pointsValue,
+  REFERRAL_RULES,
+  referralCreditEarned,
+  TIER_RULES,
+  TIERS,
+  tierForSpend,
+  type FixedReward,
+  type ReferralRules,
+} from './rules'
 import type { Tier } from './types'
 
-/** Lab while its 12 months run, otherwise Bench. */
+/** Whether a Lab earned by referrals is still running. */
+export function labByReferrals(account: StoreAccount, now: Date = new Date()): boolean {
+  return account.labUntil !== undefined && Date.parse(account.labUntil) > now.getTime()
+}
+
+/** The tier: Institute at $5,000 of spend in 12 months; Lab at $1,500, or while a referral Lab runs; else Bench. */
 export function tierOf(account: StoreAccount, now: Date = new Date()): Tier {
-  return account.labUntil && Date.parse(account.labUntil) > now.getTime() ? 'lab' : 'bench'
+  const bySpend = tierForSpend(account.spend12moUsd)
+  return bySpend === 'bench' && labByReferrals(account, now) ? 'lab' : bySpend
 }
 
-/** Referrals that earn Lab (the model: 25). */
-export function labReferrals(rules: ReferralRules = REFERRAL_RULES): number {
-  return labMilestone(rules).referrals
+/** The tier above this one; null at the top. */
+export function tierAbove(tier: Tier): Tier | null {
+  return TIERS[TIERS.indexOf(tier) + 1] ?? null
 }
 
-/** How far to Lab, 0..1 (the ring on Home, the track on Rewards). */
-export function labProgress(account: StoreAccount): number {
-  return Math.min(1, Math.max(0, account.referral.completed / labReferrals()))
+export interface NextTier {
+  tier: Tier
+  /** Spend still needed in the 12 months, in dollars. */
+  spendToGo: number
+  /** Referrals still needed, when referrals can reach it too (Lab). */
+  referralsToGo?: number
 }
 
-export function referralsToLab(account: StoreAccount): number {
-  return Math.max(0, labReferrals() - account.referral.completed)
+/** The next tier and what's left to reach it; null at Institute. */
+export function nextTier(account: StoreAccount, now: Date = new Date()): NextTier | null {
+  const above = tierAbove(tierOf(account, now))
+  if (!above) return null
+  const rule = TIER_RULES[above]
+  const spendToGo = Math.max(0, Math.round((rule.spendUsd - account.spend12moUsd) * 100) / 100)
+  return rule.referrals !== undefined ? { tier: above, spendToGo, referralsToGo: Math.max(0, rule.referrals - account.referral.completed) } : { tier: above, spendToGo }
 }
 
-/** What the points are worth off an order, in dollars. */
+/** How far to the next tier, 0..1 (the ring on Home): spend, or referrals for Lab, whichever is further along. */
+export function nextTierProgress(account: StoreAccount, now: Date = new Date()): number {
+  const tier = tierOf(account, now)
+  const above = tierAbove(tier)
+  if (!above) return 1
+  const from = TIER_RULES[tier].spendUsd
+  const rule = TIER_RULES[above]
+  const bySpend = (account.spend12moUsd - from) / (rule.spendUsd - from)
+  const byReferrals = rule.referrals ? account.referral.completed / rule.referrals : 0
+  return Math.min(1, Math.max(0, bySpend, byReferrals))
+}
+
+/** A tier's perks in one line: "5% off every order + free delivery", "… + 1.5× points"; Bench: its points. */
+export function perksLine(tier: Tier, t: (key: string, options?: Record<string, unknown>) => string): string {
+  const rule = TIER_RULES[tier]
+  const parts = [
+    rule.discountPercent > 0 ? t('loyalty.perk.discount', { percent: rule.discountPercent }) : null,
+    rule.freeDelivery ? t('loyalty.perk.freeDelivery') : null,
+    rule.pointsMultiplier !== 1 ? t('loyalty.perk.multiplier', { times: rule.pointsMultiplier }) : null,
+  ].filter((p): p is string => p !== null)
+  return parts.length > 0 ? parts.join(' + ') : t('loyalty.perk.points')
+}
+
+/** The spend thresholds of every tier, lowest first (the Bench -> Lab -> Institute track). */
+export function tierThresholds(): number[] {
+  return TIERS.map((t) => TIER_RULES[t].spendUsd)
+}
+
+/** What the points are worth, in dollars (3¢ each). */
 export function pointsWorthUsd(account: StoreAccount): number {
   return pointsValue(account.points)
 }
 
-/** Points an order of this many dollars earns (whole points per $50). */
-export function pointsEarnedFor(dollars: number): number {
-  return pointsForSpend(dollars)
+/** Points still needed before any can be spent (250); 0 once there. */
+export function pointsToRedeem(account: StoreAccount): number {
+  return canRedeem(account.points) ? 0 : LOYALTY_RULES.minimumRedeem - account.points
+}
+
+/** Points an order of this many dollars earns this account (1 per $1, 1.5× at Institute). */
+export function pointsEarnedFor(dollars: number, account?: StoreAccount, now: Date = new Date()): number {
+  return pointsForSpend(dollars, account ? TIER_RULES[tierOf(account, now)].pointsMultiplier : 1)
+}
+
+/** Each fixed reward, and how many more points it takes (0 when the balance covers it). */
+export function fixedRewards(account: StoreAccount): { reward: FixedReward; pointsShort: number }[] {
+  return FIXED_REWARDS.map((reward) => ({ reward, pointsShort: Math.max(0, reward.points - account.points) }))
 }
 
 export type StepState = 'earned' | 'next' | 'locked'

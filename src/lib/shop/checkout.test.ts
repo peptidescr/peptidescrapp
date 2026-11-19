@@ -3,6 +3,7 @@ import { readLines, viewCart } from './cart'
 import type { ShopProduct } from './catalogue'
 import {
   arriveByDate,
+  cleanPromoCode,
   embeddableUrl,
   emptyCheckoutForm,
   firstInvalidField,
@@ -100,6 +101,30 @@ describe('placeOrder', () => {
     expect(sent).toMatchObject({ items: [{ ref: 'bpc', qty: 2 }], paymentMethod: 'card', language: 'en', researchUseAck: true })
     expect(JSON.stringify(sent)).not.toMatch(/price|amount|total/i)
   })
+
+  it('sends a promo code, and the store sign-in as a Bearer token, only when there is one', async () => {
+    const calls: { body: Record<string, unknown>; headers: Record<string, string> }[] = []
+    const fetchFn = (async (_url: string, init?: RequestInit) => {
+      calls.push({ body: JSON.parse(String(init?.body)), headers: init?.headers as Record<string, string> })
+      return Response.json({ ok: true, orderNumber: 'USP-1' })
+    }) as unknown as typeof fetch
+    const form: CheckoutForm = { ...emptyCheckoutForm('upd'), name: 'Jane', phone: '4055550134', email: 'j@example.com', line1: '1 Main', city: 'Austin', region: 'TX', postalCode: '78701', researchUseAck: true }
+    await placeOrder([{ ref: 'bpc', qty: 1 }], form, 'en', fetchFn, { promoCode: 'SAVE10', accessToken: 'tok.en.value' })
+    await placeOrder([{ ref: 'bpc', qty: 1 }], form, 'en', fetchFn, { promoCode: '', accessToken: null })
+    expect(calls[0]!.body.promoCode).toBe('SAVE10')
+    expect(calls[0]!.headers.Authorization).toBe('Bearer tok.en.value')
+    expect(calls[1]!.body).not.toHaveProperty('promoCode')
+    expect(calls[1]!.headers).not.toHaveProperty('Authorization')
+  })
+
+  it('checks a promo code before sending it', () => {
+    expect(cleanPromoCode('  SAVE-10 ')).toBe('SAVE-10')
+    expect(cleanPromoCode('')).toBe('')
+    expect(cleanPromoCode('   ')).toBe('')
+    expect(cleanPromoCode('no spaces')).toBeNull()
+    expect(cleanPromoCode('x')).toBeNull()
+    expect(cleanPromoCode('<script>')).toBeNull()
+  })
 })
 
 // A tiny localStorage, since these tests run without a browser.
@@ -130,7 +155,7 @@ describe('the in-app payment and the balance', () => {
       return Response.json({ ok: true, orderNumber: 'USP-1' })
     }) as unknown as typeof fetch
     const form: CheckoutForm = { ...emptyCheckoutForm('upd'), name: 'Jane', phone: '4055550134', email: 'j@example.com', line1: '1 Main', city: 'Austin', region: 'TX', postalCode: '78701', researchUseAck: true, smsConsent: true }
-    await placeOrder([{ ref: 'bpc', qty: 1 }], form, 'en', fetchFn, 12.345)
+    await placeOrder([{ ref: 'bpc', qty: 1 }], form, 'en', fetchFn, { discountUsd: 12.345 })
     await placeOrder([{ ref: 'bpc', qty: 1 }], { ...form, smsConsent: false }, 'en', fetchFn)
     expect(sent[0]).toMatchObject({ discountUsd: 12.35, consent: { marketing: false, sms: true, call: false } })
     expect(sent[1]).not.toHaveProperty('discountUsd')

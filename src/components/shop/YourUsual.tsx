@@ -39,8 +39,8 @@ export function YourUsual() {
   const products = catalogue.status === 'ready' ? catalogue.products : []
   const view = viewCart(cart.lines, products)
   const showCard = ready && usual !== null && view.lines.length > 0
-  // "Earns 5 points": only with an account (points are the store's), only for dollar prices, a point per $50.
-  const earned = account && view.subtotal?.currency === 'USD' ? pointsEarnedFor(view.subtotal.amount) : 0
+  // "Earns 272 points": only with an account (points are the store's), only for dollar prices, a point per $1.
+  const earned = account && view.subtotal?.currency === 'USD' ? pointsEarnedFor(view.subtotal.amount, account) : 0
 
   return (
     <>

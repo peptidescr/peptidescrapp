@@ -157,13 +157,31 @@ export function readOrderResponse(status: number, body: unknown): OrderResult {
   return { kind: 'unconfirmed' }
 }
 
+/** A promo code as the store takes it: 2–40 letters, digits, dashes or underscores. */
+export const PROMO_CODE = /^[A-Za-z0-9_-]{2,40}$/
+
+/** The code to send, trimmed; '' when the box is empty; null when it can't be a code. */
+export function cleanPromoCode(value: string): string | null {
+  const code = value.trim()
+  if (!code) return ''
+  return PROMO_CODE.test(code) ? code : null
+}
+
+export interface OrderExtras {
+  /** Points and credit applied to this order, in dollars. */
+  discountUsd?: number
+  /** A promo code the customer typed (UPD), already checked with cleanPromoCode. */
+  promoCode?: string
+  /** The signed-in store customer's token, so the store links the order to their account (UPD). */
+  accessToken?: string | null
+}
+
 export async function placeOrder(
   cart: readonly CartLine[],
   form: CheckoutForm,
   locale: Locale,
   fetchFn: typeof fetch = fetch,
-  /** Points and credit applied to this order, in dollars. */
-  discountUsd = 0,
+  { discountUsd = 0, promoCode, accessToken }: OrderExtras = {},
 ): Promise<OrderResult> {
   const body = {
     items: cart.map(({ ref, qty }) => ({ ref, qty })),
@@ -184,12 +202,17 @@ export async function placeOrder(
     researchUseAck: form.researchUseAck,
     consent: { marketing: form.marketingConsent, sms: form.smsConsent, call: form.callConsent },
     ...(discountUsd > 0 ? { discountUsd: Math.round(discountUsd * 100) / 100 } : {}),
+    ...(promoCode ? { promoCode } : {}),
   }
   let response: Response
   try {
     response = await fetchFn('/api/orders', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
       body: JSON.stringify(body),
     })
   } catch {

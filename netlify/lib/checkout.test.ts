@@ -4,6 +4,7 @@ import type { FetchLike } from './catalogue.ts'
 import {
   buildStoreRequest,
   checkoutSettings,
+  customerToken,
   findChargxForward,
   handleOrderRequest,
   isAllowedPaymentUrl,
@@ -127,6 +128,21 @@ describe('UPD orders and their card payment', () => {
     expect(new URL(body.paymentUrl).searchParams.get('external_order_id')).toBe('USP-9')
     expect(JSON.stringify(body)).not.toContain('"t"')
     expect(net.calls.map((c) => c.url)).toEqual(['https://www.usapeptidedepot.com/api/orders', CHARGX])
+  })
+
+  it('forwards the app\'s Bearer token to UPD\'s order API only, and never to ChargX', async () => {
+    const net = routes({
+      'https://www.usapeptidedepot.com/api/orders': () => Response.json({ data: { order: { orderNumber: 'USP-13', grandTotal: 50 } } }),
+      [CHARGX]: () => Response.json({ payment_request: { checkout_url: FORM, isProduction: false } }),
+    })
+    const req = new Request(`${SITE}/api/orders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: SITE, Authorization: 'Bearer aaa.bbb.ccc' },
+      body: JSON.stringify(updInput()),
+    })
+    await handleOrderRequest(req, 'upd', UPD_PAY_ENV, net.fetchFn)
+    expect(net.calls[0]!.headers?.Authorization).toBe('Bearer aaa.bbb.ccc')
+    expect(JSON.stringify(net.calls[1]!.headers ?? {})).not.toContain('aaa.bbb.ccc')
   })
 
   it('keeps the order when the payment can\'t start, and never places it again', async () => {
@@ -269,7 +285,8 @@ describe('buildStoreRequest', () => {
     const settings = checkoutSettings('upd', UPD_ENV)
     const parsed = parseCheckoutRequest(updInput(), 'upd')
     if (!settings.ok || !parsed.ok) throw new Error('setup')
-    const req = buildStoreRequest(settings, parsed.request)
+    const req = buildStoreRequest(settings, parsed.request, undefined, new Date('2026-11-18T15:00:00Z'))
+    const touch = { source: 'app', medium: 'app', landing: '/app', at: '2026-11-18T15:00:00.000Z' }
     expect(req.url).toBe('https://www.usapeptidedepot.com/api/orders')
     expect(JSON.parse(req.body)).toEqual({
       fullName: 'Jane Doe',
@@ -282,8 +299,38 @@ describe('buildStoreRequest', () => {
       paymentMethod: 'card',
       smsConsent: false,
       callConsent: false,
+      // What UPD's website sends too: shipping protection (not offered in the app) and where the order came from.
+      shippingProtection: false,
+      firstTouch: touch,
+      lastTouch: touch,
     })
     expect(Object.keys(req.headers)).toEqual(['Content-Type', 'Accept'])
+  })
+
+  it('passes a UPD promo code and the signed-in customer\'s token on to UPD', () => {
+    const settings = checkoutSettings('upd', UPD_ENV)
+    const parsed = parseCheckoutRequest(updInput({ promoCode: 'SAVE10' }), 'upd')
+    if (!settings.ok || !parsed.ok) throw new Error('setup')
+    const req = buildStoreRequest(settings, parsed.request, 'aaa.bbb.ccc')
+    expect(JSON.parse(req.body)).toMatchObject({ promoCode: 'SAVE10' })
+    expect(req.headers.Authorization).toBe('Bearer aaa.bbb.ccc')
+  })
+
+  it('refuses a promo code that isn\'t one, and any promo code for PCR', () => {
+    expect(parseCheckoutRequest(updInput({ promoCode: 'two words' }), 'upd')).toEqual({ ok: false, field: 'promoCode' })
+    expect(parseCheckoutRequest(updInput({ promoCode: 42 }), 'upd')).toEqual({ ok: false, field: 'promoCode' })
+    expect(parseCheckoutRequest(pcrInput({ promoCode: 'SAVE10' }), 'pcr')).toEqual({ ok: false, field: 'promoCode' })
+    const empty = parseCheckoutRequest(updInput({ promoCode: '' }), 'upd')
+    expect(empty.ok && empty.request.promoCode).toBeUndefined()
+  })
+
+  it('reads only a token-shaped Bearer header', () => {
+    expect(customerToken('Bearer aaa.bbb.ccc')).toBe('aaa.bbb.ccc')
+    expect(customerToken('Bearer aaa.bbb')).toBeUndefined()
+    expect(customerToken('Basic dXNlcjpwYXNz')).toBeUndefined()
+    expect(customerToken('Bearer a.b.c\r\nX-Evil: 1')).toBeUndefined()
+    expect(customerToken(`Bearer ${'a'.repeat(5000)}.b.c`)).toBeUndefined()
+    expect(customerToken(null)).toBeUndefined()
   })
 
   it('sends the applied balance under the assumed field name, and consent only when ticked', () => {

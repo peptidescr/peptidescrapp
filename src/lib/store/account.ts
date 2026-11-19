@@ -5,8 +5,9 @@
  * Everything else (what points are worth, the referral ladder, how far to Lab)
  * is worked out from the rules in rules.ts (src/lib/store/loyaltyView.ts).
  *
- * Nobody supplies a real account yet: neither store's API has sign-in, points
- * or referrals (November 2026). Until one does, a **test account** stands in,
+ * UPD customers can now sign in with their own account (src/lib/store/session.ts),
+ * but no store serves points, credit or referrals yet (November 2026: UPD is
+ * building GET /api/customer/rewards). Until one does, a **test account** stands in,
  * on staging only: VITE_STORE_TEST_SIGNIN=true, which vite.config.ts forces off
  * for a live-site build whatever the environment says. Its balance lives on
  * this device, so spending it at checkout can be tried end to end; the real
@@ -17,7 +18,8 @@
 import { addMonths } from 'date-fns'
 import { useSyncExternalStore } from 'react'
 import { BRAND } from '@/brand'
-import { pointsForSpend, pointsValue, REFERRAL_RULES, type ReferralRules } from './rules'
+import { tierOf } from './loyaltyView'
+import { canRedeem, pointsForSpend, pointsToCover, redeemableValue, REFERRAL_RULES, TIER_RULES, type ReferralRules } from './rules'
 
 export interface ReferralActivity {
   name: string
@@ -31,11 +33,13 @@ export interface ReferralActivity {
 export interface StoreAccount {
   /** What Home greets them by. */
   displayName?: string
-  /** Whole points; each is worth $1 off (rules.ts). */
+  /** Whole points; each is worth 3¢ off, spendable from 250 (rules.ts). */
   points: number
+  /** What was spent over the last 12 months, in dollars: sets the tier (Lab $1,500, Institute $5,000). */
+  spend12moUsd: number
   /** Referral credit ready to use, in dollars. */
   creditUsd: number
-  /** Lab tier until this ISO date (12 months from the 25th referral); absent means Bench. */
+  /** Lab tier until this ISO date (12 months from the 25th referral), whatever the spend. */
   labUntil?: string
   referral: {
     link: string
@@ -45,10 +49,11 @@ export interface StoreAccount {
   }
 }
 
-/** The test account: three referrals made, $900 of past orders. */
+/** The test account: three referrals made, $900 of orders this year ($600 short of Lab). */
 export const SAMPLE_ACCOUNT: StoreAccount = {
   displayName: 'Dr. Morgan',
-  points: 18,
+  points: 900,
+  spend12moUsd: 900,
   creditUsd: 3 * REFERRAL_RULES.creditPerReferral,
   referral: {
     link: `${BRAND.id}.link/MORGAN20`,
@@ -65,8 +70,8 @@ export const SAMPLE_ACCOUNT: StoreAccount = {
 /** Whether this build offers the test sign-in (staging only; see the header). */
 export const TEST_SIGN_IN = import.meta.env.VITE_STORE_TEST_SIGNIN === 'true'
 
-// v2 keeps the whole test account (referrals, activity, Lab date) and the orders that already earned points.
-const STORAGE_KEY = 'store-test-account-v2'
+// v3: the marketing proposal's points (1 per $1) and the 12-month spend; a v2 balance (1 per $50) starts over.
+const STORAGE_KEY = 'store-test-account-v3'
 /** Enough to recognise a repeat "paid" for recent orders; older ones can't come back. */
 const MAX_EARNED_ORDERS = 50
 const MAX_ACTIVITY = 30
@@ -107,6 +112,7 @@ function load(): Saved | null {
       account: {
         ...SAMPLE_ACCOUNT,
         points: Math.max(0, Math.floor(raw.points)),
+        spend12moUsd: typeof raw.spend12moUsd === 'number' ? Math.max(0, round2(raw.spend12moUsd)) : SAMPLE_ACCOUNT.spend12moUsd,
         creditUsd: Math.max(0, round2(raw.creditUsd)),
         ...(typeof raw.labUntil === 'string' ? { labUntil: raw.labUntil } : {}),
         referral: { ...SAMPLE_ACCOUNT.referral, completed, activity: readActivity(raw.activity) },
@@ -139,6 +145,7 @@ function set(next: StoreAccount | null, earnedOrders: string[] = currentSaved()?
         STORAGE_KEY,
         JSON.stringify({
           points: a.points,
+          spend12moUsd: a.spend12moUsd,
           creditUsd: a.creditUsd,
           completed: a.referral.completed,
           activity: a.referral.activity,
@@ -158,9 +165,15 @@ export function signInTestAccount(): void {
   if (TEST_SIGN_IN) set({ ...SAMPLE_ACCOUNT }, [])
 }
 
-/** The account after a paid order of this many dollars: whole points per $50 (rules.ts). */
-export function withOrderPoints(a: StoreAccount, paidUsd: number): StoreAccount {
-  return { ...a, points: a.points + pointsForSpend(paidUsd) }
+/** Points a paid order of this many dollars earns this account: 1 per $1, 1.5× at Institute (rules.ts). */
+export function orderPointsFor(a: StoreAccount, paidUsd: number, now: Date = new Date()): number {
+  return pointsForSpend(paidUsd, TIER_RULES[tierOf(a, now)].pointsMultiplier)
+}
+
+/** The account after a paid order of this many dollars: its points, and the spend counted towards the tier. */
+export function withOrderPoints(a: StoreAccount, paidUsd: number, now: Date = new Date()): StoreAccount {
+  if (!Number.isFinite(paidUsd) || paidUsd <= 0) return a
+  return { ...a, points: a.points + orderPointsFor(a, paidUsd, now), spend12moUsd: round2(a.spend12moUsd + paidUsd) }
 }
 
 /**
@@ -198,7 +211,7 @@ export function withReferrals(a: StoreAccount, count: number, today: Date, rules
 export function earnForPaidOrder(orderNumber: string, paidUsd: number | undefined): number {
   const now = currentSaved()
   if (!now || paidUsd === undefined || now.earnedOrders.includes(orderNumber)) return 0
-  const points = pointsForSpend(paidUsd)
+  const points = orderPointsFor(now.account, paidUsd)
   set(withOrderPoints(now.account, paidUsd), [...now.earnedOrders, orderNumber])
   return points
 }
@@ -215,22 +228,26 @@ export function signOutStore(): void {
 }
 
 /**
- * Takes an amount the customer applied to an order out of the balance: credit
- * first, then points (whole dollars). Only the test account moves its own
- * numbers; a real store does this on its side when the order is placed.
+ * The account after an amount applied to an order comes out of the balance:
+ * credit first, then points (3¢ each, only from 250). Only the test account
+ * moves its own numbers; a real store does this on its side.
  */
-export function spendBalance(amountUsd: number): void {
-  const now = current()
-  if (!now || !(amountUsd > 0)) return
-  const fromCredit = Math.min(now.creditUsd, amountUsd)
-  const rest = Math.round((amountUsd - fromCredit) * 100) / 100
-  const pointsUsed = Math.min(now.points, Math.ceil(rest))
-  set({ ...now, creditUsd: Math.round((now.creditUsd - fromCredit) * 100) / 100, points: now.points - pointsUsed })
+export function withBalanceSpent(a: StoreAccount, amountUsd: number): StoreAccount {
+  if (!(amountUsd > 0)) return a
+  const fromCredit = Math.min(a.creditUsd, amountUsd)
+  const rest = round2(amountUsd - fromCredit)
+  const pointsUsed = canRedeem(a.points) ? Math.min(a.points, pointsToCover(rest)) : 0
+  return { ...a, creditUsd: round2(a.creditUsd - fromCredit), points: a.points - pointsUsed }
 }
 
-/** The most that can be applied to an order: the whole balance, in dollars. */
+export function spendBalance(amountUsd: number): void {
+  const now = current()
+  if (now) set(withBalanceSpent(now, amountUsd))
+}
+
+/** The most that can be applied to an order: the credit, plus the points' value once there are 250. */
 export function balanceUsd(a: StoreAccount): number {
-  return Math.round((a.creditUsd + pointsValue(a.points)) * 100) / 100
+  return round2(a.creditUsd + redeemableValue(a.points))
 }
 
 /** The signed-in customer's account; null when signed out (and for everyone until the stores have accounts). */

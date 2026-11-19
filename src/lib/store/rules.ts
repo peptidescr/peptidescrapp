@@ -5,23 +5,45 @@
  *
  * The stores keep the actual balances (accounts, points, credit, referrals live
  * with each store's orders; the app only shows them). These rules are for
- * explaining and previewing ("this order earns 5 points", "2 more to the next
- * bonus"), never for deciding what anyone is owed.
+ * explaining and previewing ("this order earns 90 points", "$600 more to Lab"),
+ * never for deciding what anyone is owed.
  *
- * Sources (November 2026), agreed with the developer as the source of truth:
- * - Referrals and tiers: the head of growth's Referral Model, section 4
- *   "Proposed program rules" and section 5 "Payouts by milestone".
- * - Points (the model has none): the client's answer, "$50 spent = 1 point,
- *   and 1 point = $1".
- * There are two tiers: Bench (everyone) and Lab (earned by referring).
+ * Sources (November 2026):
+ * - Points and tiers: the marketing lead's points proposal, chosen by the
+ *   developer on 2026-11-18: 1 point per $1, 100 points = $3 off (3¢ each),
+ *   spent from 250, never cash; Bench / Lab / Institute on the last 12 months'
+ *   spend, or Lab by 25 referrals.
+ * - Referral credit: the head of growth's Referral Model, sections 4 and 5
+ *   ($20 per friend, +$25 at 5, +$75 at 10, Lab for 12 months at 25).
+ * - Fixed rewards' point prices are PLACEHOLDERS (the developer's choice) until
+ *   the store sets them.
+ * The tier discounts stack on the store's own volume discounts, which the store
+ * applies itself.
  */
 import type { Tier } from './types'
 
 export interface LoyaltyRules {
-  /** Dollars spent per point earned. */
-  dollarsPerPoint: number
+  /** Points earned per dollar spent (before a tier's multiplier). */
+  pointsPerDollar: number
   /** What one point is worth off an order, in dollars. */
-  dollarsPerPointRedeemed: number
+  pointValueUsd: number
+  /** Points can be spent once the balance reaches this many. */
+  minimumRedeem: number
+}
+
+export interface TierRule {
+  tier: Tier
+  /** Spend over the last 12 months that reaches it, in dollars; 0 for Bench. */
+  spendUsd: number
+  /** Completed referrals that also reach it (Lab only). */
+  referrals?: number
+  /** Extra off every order, on top of the store's volume discounts. */
+  discountPercent: number
+  freeDelivery: boolean
+  /** Points earned per dollar are multiplied by this. */
+  pointsMultiplier: number
+  /** Early access to restocks. */
+  earlyAccess: boolean
 }
 
 export interface ReferralMilestone {
@@ -29,7 +51,7 @@ export interface ReferralMilestone {
   referrals: number
   /** One-time extra credit, in dollars. */
   bonusCredit?: number
-  /** A tier granted for a while, and its perks as the model states them. */
+  /** A tier granted for a while, and its perks (from TIER_RULES). */
   tier?: { tier: Tier; months: number; discountPercent: number; freeDelivery: boolean }
 }
 
@@ -45,10 +67,38 @@ export interface ReferralRules {
   affiliateWins: true
 }
 
-export const LOYALTY_RULES: LoyaltyRules = {
-  dollarsPerPoint: 50,
-  dollarsPerPointRedeemed: 1,
+export type FixedRewardId = 'free_delivery' | 'reconstitution_solution'
+
+export interface FixedReward {
+  /** The id the store's `redeem.rewards` takes. */
+  id: FixedRewardId
+  /** Points it costs. PLACEHOLDER until the store sets it. */
+  points: number
 }
+
+export const LOYALTY_RULES: LoyaltyRules = {
+  pointsPerDollar: 1,
+  pointValueUsd: 0.03,
+  minimumRedeem: 250,
+}
+
+/** How far back the spend that sets the tier is counted. */
+export const TIER_WINDOW_MONTHS = 12
+
+export const TIER_RULES: Record<Tier, TierRule> = {
+  bench: { tier: 'bench', spendUsd: 0, discountPercent: 0, freeDelivery: false, pointsMultiplier: 1, earlyAccess: false },
+  lab: { tier: 'lab', spendUsd: 1500, referrals: 25, discountPercent: 5, freeDelivery: true, pointsMultiplier: 1, earlyAccess: false },
+  institute: { tier: 'institute', spendUsd: 5000, discountPercent: 10, freeDelivery: true, pointsMultiplier: 1.5, earlyAccess: true },
+}
+
+/** Lowest to highest. */
+export const TIERS: readonly Tier[] = ['bench', 'lab', 'institute']
+
+/** PLACEHOLDER point prices (2026-11-18), easy to change here when the store sets them. */
+export const FIXED_REWARDS: readonly FixedReward[] = [
+  { id: 'free_delivery', points: 300 },
+  { id: 'reconstitution_solution', points: 400 },
+]
 
 export const REFERRAL_RULES: ReferralRules = {
   creditPerReferral: 20,
@@ -57,28 +107,57 @@ export const REFERRAL_RULES: ReferralRules = {
   milestones: [
     { referrals: 5, bonusCredit: 25 },
     { referrals: 10, bonusCredit: 75 },
-    { referrals: 25, tier: { tier: 'lab', months: 12, discountPercent: 10, freeDelivery: true } },
+    {
+      referrals: 25,
+      tier: { tier: 'lab', months: 12, discountPercent: TIER_RULES.lab.discountPercent, freeDelivery: TIER_RULES.lab.freeDelivery },
+    },
   ],
   affiliateWins: true,
 }
 
-/** The milestone that grants the Lab tier (25 referrals: 10% off and free delivery for 12 months). */
+const round2 = (n: number) => Math.round(n * 100) / 100
+
+/** The milestone that grants the Lab tier (25 referrals: Lab's perks for 12 months). */
 export function labMilestone(rules: ReferralRules = REFERRAL_RULES): ReferralMilestone & { tier: NonNullable<ReferralMilestone['tier']> } {
   const milestone = rules.milestones.find((m) => m.tier?.tier === 'lab')
   if (!milestone?.tier) throw new Error('referral rules have no Lab milestone')
   return milestone as ReferralMilestone & { tier: NonNullable<ReferralMilestone['tier']> }
 }
 
-/** Points an order of this many dollars earns: whole points only, so $99 earns 1. */
-export function pointsForSpend(dollars: number, rules: LoyaltyRules = LOYALTY_RULES): number {
+/** Points an order of this many dollars earns: whole points only, times the tier's multiplier (Institute 1.5×). */
+export function pointsForSpend(dollars: number, multiplier = 1, rules: LoyaltyRules = LOYALTY_RULES): number {
   if (!Number.isFinite(dollars) || dollars <= 0) return 0
-  return Math.floor(dollars / rules.dollarsPerPoint)
+  // The small nudge keeps $90 × 1.5 at 135 whatever the float rounding.
+  return Math.floor(dollars * rules.pointsPerDollar * multiplier + 1e-9)
 }
 
-/** What a balance of points is worth off an order, in dollars. */
+/** What a balance of points is worth, in dollars (3¢ each), whether or not it can be spent yet. */
 export function pointsValue(points: number, rules: LoyaltyRules = LOYALTY_RULES): number {
   if (!Number.isFinite(points) || points <= 0) return 0
-  return Math.floor(points) * rules.dollarsPerPointRedeemed
+  return round2(Math.floor(points) * rules.pointValueUsd)
+}
+
+/** Whether a balance of points can be spent (250 or more). */
+export function canRedeem(points: number, rules: LoyaltyRules = LOYALTY_RULES): boolean {
+  return Number.isFinite(points) && points >= rules.minimumRedeem
+}
+
+/** What the points can take off an order now: their value from 250 points, nothing below. */
+export function redeemableValue(points: number, rules: LoyaltyRules = LOYALTY_RULES): number {
+  return canRedeem(points, rules) ? pointsValue(points, rules) : 0
+}
+
+/** The fewest whole points that cover this many dollars. */
+export function pointsToCover(dollars: number, rules: LoyaltyRules = LOYALTY_RULES): number {
+  if (!Number.isFinite(dollars) || dollars <= 0) return 0
+  return Math.ceil(round2(dollars) / rules.pointValueUsd - 1e-9)
+}
+
+/** The tier the last 12 months' spend reaches, without referrals. */
+export function tierForSpend(spendUsd: number): Tier {
+  if (spendUsd >= TIER_RULES.institute.spendUsd) return 'institute'
+  if (spendUsd >= TIER_RULES.lab.spendUsd) return 'lab'
+  return 'bench'
 }
 
 /** The next milestone after this many completed referrals, and how many more it takes; null past the last. */

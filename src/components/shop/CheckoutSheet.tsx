@@ -1,4 +1,4 @@
-import { Check, CircleAlert, ExternalLink, Loader2, MessageCircle, Trash2 } from 'lucide-react'
+import { Check, CircleAlert, ExternalLink, Loader2, MessageCircle, Trash2, UserRound } from 'lucide-react'
 import { useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BRAND } from '@/brand'
@@ -13,6 +13,7 @@ import { MAX_LINE_QTY, viewCart, type CartSource } from '../../lib/shop/cart'
 import { formatPrice, type ShopProduct } from '../../lib/shop/catalogue'
 import {
   arriveByDate,
+  cleanPromoCode,
   emptyCheckoutForm,
   firstInvalidField,
   forgetSavedCustomer,
@@ -28,7 +29,8 @@ import {
 } from '../../lib/shop/checkout'
 import { paidUsd, useOrderPaid } from '../../lib/shop/useOrderPaid'
 import { balanceUsd, spendBalance, useStoreAccount } from '../../lib/store/account'
-import { pointsForSpend } from '../../lib/store/rules'
+import { pointsEarnedFor } from '../../lib/store/loyaltyView'
+import { storeAccessToken, useStoreCustomer } from '../../lib/store/session'
 import type { Locale } from '../../lib/units'
 import { PaymentFrame } from './PaymentFrame'
 
@@ -74,7 +76,15 @@ export function CheckoutSheet({
   const view = viewCart(cart.lines, products)
   const [saved, setSaved] = useState(() => loadSavedCustomer(BRAND.id))
   const [step, setStep] = useState<Step>(variant === 'reorder' ? (saved ? 'confirm' : 'details') : 'cart')
-  const [form, setForm] = useState<CheckoutForm>(() => ({ ...emptyCheckoutForm(BRAND.id), ...(saved ?? {}), researchUseAck: false }))
+  // Signed in with the store account: the order goes with it, and its email starts the form.
+  const customer = useStoreCustomer()
+  const [form, setForm] = useState<CheckoutForm>(() => {
+    const start = { ...emptyCheckoutForm(BRAND.id), ...(saved ?? {}), researchUseAck: false }
+    return start.email || !customer ? start : { ...start, email: customer.email }
+  })
+  // A promo code (UPD): never remembered, checked by the store when the order is placed.
+  const [promo, setPromo] = useState('')
+  const [promoError, setPromoError] = useState(false)
   const [showErrors, setShowErrors] = useState(false)
   const [sending, setSending] = useState(false)
   const [problem, setProblem] = useState<Problem | null>(null)
@@ -102,11 +112,18 @@ export function CheckoutSheet({
       document.getElementById(`checkout-${bad}`)?.focus()
       return
     }
+    const promoCode = PROMO_ENABLED ? cleanPromoCode(promo) : ''
+    if (promoCode === null) {
+      setPromoError(true)
+      document.getElementById('checkout-promo')?.focus()
+      return
+    }
     sendingRef.current = true
     setSending(true)
     setProblem(null)
     const lines = view.lines.map(({ line }) => line)
-    const result = await placeOrder(lines, form, locale, fetch, applied)
+    const accessToken = await storeAccessToken()
+    const result = await placeOrder(lines, form, locale, fetch, { discountUsd: applied, promoCode, accessToken })
     sendingRef.current = false
     setSending(false)
     if (result.kind === 'placed') {
@@ -120,6 +137,7 @@ export function CheckoutSheet({
         lines,
       }
       if (applied > 0) spendBalance(applied)
+      setPromo('')
       savePlacedOrder(placed)
       saveCustomer(form)
       setSaved(loadSavedCustomer(BRAND.id))
@@ -268,6 +286,18 @@ export function CheckoutSheet({
                   </div>
                 )}
                 <p className="text-xs leading-relaxed text-muted-foreground">{t('checkout.storePrices', { store: BRAND.store.name })}</p>
+                {customer && <SignedInNote email={customer.email} />}
+                {PROMO_ENABLED && (
+                  <PromoField
+                    value={promo}
+                    error={promoError}
+                    onChange={(value) => {
+                      setPromo(value)
+                      setPromoError(false)
+                      setProblem(null)
+                    }}
+                  />
+                )}
                 {maxBalance > 0 && (
                   <BalanceRow
                     on={useBalance}
@@ -305,7 +335,7 @@ export function CheckoutSheet({
                   </div>
                 </div>
 
-                <label className="flex min-h-11 items-start gap-3 rounded-xl bg-secondary p-3">
+                <label className="flex min-h-11 shrink-0 items-start gap-3 rounded-xl bg-secondary p-3">
                   <input
                     id="checkout-researchUseAck"
                     type="checkbox"
@@ -361,6 +391,7 @@ export function CheckoutSheet({
         {step === 'details' && (
           <>
             <SheetBody className="flex flex-col gap-4">
+              {customer && <SignedInNote email={customer.email} />}
               <Field id="name" label={t('checkout.name')} error={invalid === 'name' ? t('checkout.errors.name') : undefined}>
                 <Input id="checkout-name" autoComplete="name" value={form.name} maxLength={100} onChange={(e) => update('name', e.target.value)} />
               </Field>
@@ -435,7 +466,7 @@ export function CheckoutSheet({
                 {form.paymentMethod === 'card' ? t('checkout.cardNote', { store: BRAND.store.name }) : t('checkout.whatsappNote')}
               </p>
 
-              <label className="flex min-h-11 items-start gap-3 rounded-xl bg-secondary p-3">
+              <label className="flex min-h-11 shrink-0 items-start gap-3 rounded-xl bg-secondary p-3">
                 <input
                   id="checkout-researchUseAck"
                   type="checkbox"
@@ -453,6 +484,17 @@ export function CheckoutSheet({
                 </p>
               )}
               <ConsentBoxes form={form} update={update} />
+              {PROMO_ENABLED && (
+                <PromoField
+                  value={promo}
+                  error={promoError}
+                  onChange={(value) => {
+                    setPromo(value)
+                    setPromoError(false)
+                    setProblem(null)
+                  }}
+                />
+              )}
               {maxBalance > 0 && (
                 <BalanceRow
                   on={useBalance}
@@ -544,6 +586,52 @@ function BalanceRow({
   )
 }
 
+/** The promo code box: only UPD's order takes one (its website has the same box). */
+const PROMO_ENABLED = BRAND.id === 'upd'
+
+function PromoField({ value, error, onChange }: { value: string; error: boolean; onChange: (value: string) => void }) {
+  const { t } = useTranslation()
+  return (
+    <div className="flex flex-col gap-2">
+      <label htmlFor="checkout-promo" className="font-display text-sm font-semibold text-foreground">
+        {t('checkout.promo')}
+      </label>
+      <Input
+        id="checkout-promo"
+        autoComplete="off"
+        autoCapitalize="characters"
+        spellCheck={false}
+        value={value}
+        maxLength={40}
+        placeholder={t('checkout.promoPlaceholder')}
+        aria-invalid={error || undefined}
+        aria-describedby={error ? 'checkout-promo-error' : 'checkout-promo-hint'}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      {error ? (
+        <p id="checkout-promo-error" className="text-sm text-destructive">
+          {t('checkout.errors.promo')}
+        </p>
+      ) : (
+        <p id="checkout-promo-hint" className="text-xs text-muted-foreground">
+          {t('checkout.promoHint', { store: BRAND.store.name })}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/** "Ordering as jane@…: it shows in your USA Peptide Depot account." */
+function SignedInNote({ email }: { email: string }) {
+  const { t } = useTranslation()
+  return (
+    <p className="flex items-start gap-2 rounded-xl bg-tint px-3 py-2.5 text-[13px] leading-snug text-foreground">
+      <UserRound aria-hidden className="mt-0.5 size-4 shrink-0 text-primary" />
+      <span className="min-w-0 break-words">{t('checkout.signedInAs', { email, store: BRAND.store.name })}</span>
+    </p>
+  )
+}
+
 /**
  * The contact permissions each store asks for, unticked unless the customer
  * ticks them and never remembered: Peptides CR's doc makes them the legal
@@ -563,7 +651,7 @@ function ConsentBoxes({ form, update }: { form: CheckoutForm; update: <K extends
     <fieldset className="flex flex-col gap-1">
       <legend className="sr-only">{t('checkout.consentLegend')}</legend>
       {boxes.map((box) => (
-        <label key={box.key} className="flex min-h-11 items-start gap-3 py-1.5">
+        <label key={box.key} className="flex min-h-11 shrink-0 items-start gap-3 py-1.5">
           <input
             type="checkbox"
             checked={form[box.key]}
@@ -643,7 +731,7 @@ export function OrderResult({ order, locale, onDone }: { order: PlacedOrder; loc
   const paid = useOrderPaid(order)
   const account = useStoreAccount()
   // What the paid order earned the signed-in account (useOrderPaid adds it to the balance).
-  const pointsEarned = paid && account ? pointsForSpend(paidUsd(order) ?? 0) : 0
+  const pointsEarned = paid && account ? pointsEarnedFor(paidUsd(order) ?? 0, account) : 0
   const card = order.paymentMethod === 'card'
   // The in-app payment form, and what it came back with (paid, or cancelled).
   const [paying, setPaying] = useState(false)

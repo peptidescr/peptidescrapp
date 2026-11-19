@@ -3,45 +3,79 @@ import { balanceUsd, SAMPLE_ACCOUNT, type StoreAccount } from './account'
 import {
   creditEarnedUsd,
   creditUnlockedByNext,
-  labProgress,
+  fixedRewards,
   ladderRows,
   nextMilestone,
+  nextTier,
+  nextTierProgress,
+  perksLine,
   pointsEarnedFor,
+  pointsToRedeem,
   pointsWorthUsd,
-  referralsToLab,
   rungs,
   tierOf,
 } from './loyaltyView'
 
 const account = SAMPLE_ACCOUNT
+const now = new Date('2026-11-18T12:00:00Z')
 const withReferrals = (completed: number): StoreAccount => ({ ...account, referral: { ...account.referral, completed } })
+const spending = (spend12moUsd: number): StoreAccount => ({ ...account, spend12moUsd })
 
 describe('points', () => {
-  it('earns a point per $50 and is worth $1 each', () => {
-    expect(pointsEarnedFor(272.85)).toBe(5)
-    expect(pointsEarnedFor(49.99)).toBe(0)
-    expect(pointsWorthUsd(account)).toBe(18)
+  it('earns a point per $1, 1.5× at Institute', () => {
+    expect(pointsEarnedFor(272.85)).toBe(272)
+    expect(pointsEarnedFor(100, account, now)).toBe(100)
+    expect(pointsEarnedFor(100, spending(5000), now)).toBe(150)
   })
 
-  it('adds points and credit into one balance', () => {
-    expect(balanceUsd(account)).toBe(18 + 60)
-    expect(balanceUsd({ ...account, points: 0, creditUsd: 12.5 })).toBe(12.5)
+  it('is worth 3¢ each, spendable from 250', () => {
+    expect(pointsWorthUsd(account)).toBe(27)
+    expect(pointsToRedeem(account)).toBe(0)
+    expect(pointsToRedeem({ ...account, points: 200 })).toBe(50)
+  })
+
+  it('adds credit and spendable points into one balance', () => {
+    expect(balanceUsd(account)).toBe(27 + 60)
+    // Below 250 points, only the credit can be spent.
+    expect(balanceUsd({ ...account, points: 249, creditUsd: 12.5 })).toBe(12.5)
+  })
+
+  it('says how far each fixed reward is', () => {
+    expect(fixedRewards({ ...account, points: 350 }).map((r) => r.pointsShort)).toEqual([0, 50])
   })
 })
 
 describe('tiers', () => {
-  it('is Bench until Lab is earned, and Lab only while its 12 months run', () => {
-    const now = new Date('2026-11-10T12:00:00Z')
+  it('follows the 12-month spend: Bench, Lab at $1,500, Institute at $5,000', () => {
     expect(tierOf(account, now)).toBe('bench')
-    expect(tierOf({ ...account, labUntil: '2027-06-01' }, now)).toBe('lab')
-    expect(tierOf({ ...account, labUntil: '2026-10-01' }, now)).toBe('bench')
+    expect(tierOf(spending(1500), now)).toBe('lab')
+    expect(tierOf(spending(5000), now)).toBe('institute')
   })
 
-  it('measures the way to Lab in referrals, 25 of them', () => {
-    expect(labProgress(account)).toBeCloseTo(3 / 25)
-    expect(referralsToLab(account)).toBe(22)
-    expect(labProgress(withReferrals(40))).toBe(1)
-    expect(referralsToLab(withReferrals(40))).toBe(0)
+  it('gives Lab while a referral Lab runs, and never lowers a spend tier', () => {
+    expect(tierOf({ ...account, labUntil: '2027-06-01' }, now)).toBe('lab')
+    expect(tierOf({ ...account, labUntil: '2026-10-01' }, now)).toBe('bench')
+    expect(tierOf({ ...spending(6000), labUntil: '2027-06-01' }, now)).toBe('institute')
+  })
+
+  it('says what the next tier takes: spend or referrals for Lab, spend for Institute', () => {
+    expect(nextTier(account, now)).toEqual({ tier: 'lab', spendToGo: 600, referralsToGo: 22 })
+    expect(nextTier(spending(2000), now)).toEqual({ tier: 'institute', spendToGo: 3000 })
+    expect(nextTier(spending(5000), now)).toBeNull()
+  })
+
+  it('fills the ring by whichever is further along', () => {
+    expect(nextTierProgress(account, now)).toBeCloseTo(900 / 1500)
+    expect(nextTierProgress({ ...spending(0), referral: { ...account.referral, completed: 20 } }, now)).toBeCloseTo(20 / 25)
+    // From Lab, the way to Institute starts at Lab's $1,500.
+    expect(nextTierProgress(spending(3250), now)).toBeCloseTo(0.5)
+    expect(nextTierProgress(spending(9000), now)).toBe(1)
+  })
+
+  it('writes a tier\'s perks on one line', () => {
+    const t = (key: string, o?: Record<string, unknown>) => `${key}${o ? JSON.stringify(o) : ''}`
+    expect(perksLine('bench', t)).toBe('loyalty.perk.points')
+    expect(perksLine('institute', t)).toBe('loyalty.perk.discount{"percent":10} + loyalty.perk.freeDelivery + loyalty.perk.multiplier{"times":1.5}')
   })
 })
 
@@ -51,7 +85,7 @@ describe('the referral ladder', () => {
       { referrals: 1, creditUsd: 20 },
       { referrals: 5, bonusUsd: 25, tier: undefined },
       { referrals: 10, bonusUsd: 75, tier: undefined },
-      { referrals: 25, bonusUsd: undefined, tier: { months: 12, discountPercent: 10, freeDelivery: true } },
+      { referrals: 25, bonusUsd: undefined, tier: { months: 12, discountPercent: 5, freeDelivery: true } },
     ])
   })
 

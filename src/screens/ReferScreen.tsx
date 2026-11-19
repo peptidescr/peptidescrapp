@@ -5,9 +5,9 @@ import { BRAND } from '@/brand'
 import { buttonVariants } from '@/components/ui/button-variants'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { EmptyState } from '../components/EmptyState'
+import { StoreSignedOut } from '../components/shop/StoreSignIn'
 import { formatPrice } from '../lib/shop/catalogue'
-import { signInTestAccount, simulateReferrals, TEST_SIGN_IN, useStoreAccount, type StoreAccount } from '../lib/store/account'
+import { simulateReferrals, TEST_SIGN_IN, useStoreAccount, type StoreAccount } from '../lib/store/account'
 import { REFERRAL_RULES } from '../lib/store/rules'
 import { creditEarnedUsd, creditUnlockedByNext, ladderRows, nextMilestone, type Rung, type StepState } from '../lib/store/loyaltyView'
 import type { Locale } from '../lib/units'
@@ -15,7 +15,8 @@ import type { Locale } from '../lib/units'
 /**
  * Refer & earn (Part B), under the Referral Model's rules: $20 credit per
  * friend whose first order of at least $100 is paid and delivered, +$25 at 5,
- * +$75 at 10, the Lab tier at 25; no discount for the friend; one reward per
+ * +$75 at 10, the Lab tier (5% off and free delivery) for 12 months at 25; the
+ * friend gets whatever the code already gives on the store; one reward per
  * order (an affiliate link wins). Reached from Home's credit banner and from
  * Rewards; it belongs to the Rewards tab.
  */
@@ -26,11 +27,7 @@ export function ReferScreen({ onUseCredit }: { onUseCredit: () => void }) {
     return (
       <div className="px-4 pb-6">
         <h1 className="mb-4 font-display text-[1.375rem] font-bold leading-tight text-foreground">{t('refer.title')}</h1>
-        <EmptyState
-          title={t('rewards.signedOutTitle')}
-          body={t(TEST_SIGN_IN ? 'rewards.signedOutTestBody' : 'rewards.signedOutBody')}
-          action={TEST_SIGN_IN ? <Button onClick={signInTestAccount}>{t('account.testSignIn')}</Button> : undefined}
-        />
+        <StoreSignedOut />
       </div>
     )
   }

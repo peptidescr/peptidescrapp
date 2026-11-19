@@ -75,7 +75,10 @@ export function mockStore(brand: CatalogueBrand): { fetchFn: FetchLike; payments
     }
     // The shape UPD's own website reads; no payment link (the app starts the ChargX payment itself). The
     // discount is applied the way the stores are assumed to (DISCOUNT_FIELD), so the totals match the app's.
-    const discount = typeof body.discountUsd === 'number' ? Math.min(body.discountUsd, 90) : 0
+    // A promo code: "BAD" is refused with the store's message (as UPD's website shows it); any other takes 10% off.
+    if (body.promoCode === 'BAD') return Response.json({ message: 'That promo code is not valid.', fields: { promoCode: 'That promo code is not valid.' } }, { status: 400 })
+    const promo = typeof body.promoCode === 'string' ? 9 : 0
+    const discount = (typeof body.discountUsd === 'number' ? Math.min(body.discountUsd, 90 - promo) : 0) + promo
     return Response.json({
       data: {
         order: { orderNumber, status: 'pending', subtotal: 90, discountTotal: discount, shippingTotal: 0, grandTotal: Math.round((90 - discount) * 100) / 100 },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SAMPLE_ACCOUNT, withOrderPoints, withReferrals, type StoreAccount } from './account'
+import { SAMPLE_ACCOUNT, withBalanceSpent, withOrderPoints, withReferrals, type StoreAccount } from './account'
 import { referralCreditEarned } from './rules'
 
 const start = (completed: number, creditUsd = 0): StoreAccount => ({
@@ -9,9 +9,32 @@ const start = (completed: number, creditUsd = 0): StoreAccount => ({
 })
 
 describe('withOrderPoints', () => {
-  it('adds whole points per $50 paid', () => {
-    expect(withOrderPoints({ ...SAMPLE_ACCOUNT, points: 18 }, 149.99).points).toBe(20)
-    expect(withOrderPoints({ ...SAMPLE_ACCOUNT, points: 18 }, 49).points).toBe(18)
+  const now = new Date('2026-11-18T12:00:00Z')
+
+  it('adds a point per $1 paid and counts the spend towards the tier', () => {
+    const next = withOrderPoints({ ...SAMPLE_ACCOUNT, points: 18, spend12moUsd: 900 }, 149.99, now)
+    expect(next.points).toBe(167)
+    expect(next.spend12moUsd).toBe(1049.99)
+  })
+
+  it('earns 1.5× at Institute (the tier before this order)', () => {
+    expect(withOrderPoints({ ...SAMPLE_ACCOUNT, points: 0, spend12moUsd: 5000 }, 100, now).points).toBe(150)
+  })
+
+  it('ignores a non-positive amount', () => {
+    expect(withOrderPoints(SAMPLE_ACCOUNT, 0, now)).toBe(SAMPLE_ACCOUNT)
+  })
+})
+
+describe('withBalanceSpent', () => {
+  it('takes credit first, then points at 3¢ each', () => {
+    const next = withBalanceSpent({ ...SAMPLE_ACCOUNT, creditUsd: 60, points: 900 }, 63)
+    expect(next.creditUsd).toBe(0)
+    expect(next.points).toBe(800)
+  })
+
+  it('leaves points below 250 alone', () => {
+    expect(withBalanceSpent({ ...SAMPLE_ACCOUNT, creditUsd: 10, points: 200 }, 15)).toMatchObject({ creditUsd: 0, points: 200 })
   })
 })
 

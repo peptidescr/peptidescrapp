@@ -28,6 +28,7 @@ import { db, ensureCompoundsSeeded, ensureSettingsRow } from './lib/db'
 import { migrateLegacySyringeData } from './lib/migrations'
 import { useCustomCompoundsLoaded } from './lib/customCompounds'
 import { checkLastOrderPaid } from './lib/shop/useOrderPaid'
+import { startStoreSession } from './lib/store/session'
 import { startStoreCatalogueRefresh, syncStoreCatalogue, useStoreCompoundsLoaded } from './lib/storeCatalogue'
 import { DEFAULT_LOCALE, toSupportedLocale } from './i18n'
 import { scheduleUpcomingReminders, startReminderLoop } from './lib/notifications'
@@ -246,6 +247,8 @@ function App() {
   // comes back, wherever the order appears; see src/lib/shop/useOrderPaid.ts.
   useEffect(() => {
     if (!appOpen || !STORE_ENABLED) return
+    // A store sign-in kept on this phone is refreshed (src/lib/store/session.ts).
+    startStoreSession()
     void checkLastOrderPaid()
     const onVisible = () => {
       if (document.visibilityState === 'visible') void checkLastOrderPaid()

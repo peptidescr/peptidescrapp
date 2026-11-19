@@ -770,32 +770,40 @@
   "loyalty": {
     "tierName": {
       "bench": "Bench",
-      "lab": "Lab"
+      "lab": "Lab",
+      "institute": "Institute"
     },
     "tierBadge": "Nivel {{tier}}",
     "ringCaption": "Puntos",
-    "ringLabel": "{{points}} puntos; {{done}} de {{total}} referidos para Lab",
-    "toLab_one": "<b>{{count}} referido</b> para el <b>nivel Lab</b>",
-    "toLab_other": "<b>{{count}} referidos</b> para el <b>nivel Lab</b>",
+    "toLab_one": "<b>{{amount}}</b> más para <b>Lab</b>, o {{count}} referido",
+    "toLab_other": "<b>{{amount}}</b> más para <b>Lab</b>, o {{count}} referidos",
     "labUntil": "Nivel Lab hasta el <b>{{date}}</b>",
-    "labUnlocks": "Desbloquea 10 % de descuento en cada pedido + entrega gratis",
-    "labActive": "10 % de descuento en cada pedido + entrega gratis",
     "creditReady": "{{amount}} de crédito listo para usar",
     "creditMore_one": "Referí {{count}} laboratorio más para desbloquear {{amount}} extra",
     "creditMore_other": "Referí {{count}} laboratorios más para desbloquear {{amount}} extra",
     "labMore_one": "Referí {{count}} laboratorio más para desbloquear el nivel Lab",
-    "labMore_other": "Referí {{count}} laboratorios más para desbloquear el nivel Lab"
+    "labMore_other": "Referí {{count}} laboratorios más para desbloquear el nivel Lab",
+    "ringLabelNext": "{{points}} puntos; {{percent}} % del camino a {{tier}}",
+    "ringLabelTop": "{{points}} puntos; Institute, el nivel más alto",
+    "toTier": "<b>{{amount}}</b> más para <b>{{tier}}</b>",
+    "topTier": "<b>Institute</b>, el nivel más alto",
+    "labUntilShort": "Lab hasta el {{date}}, por referidos",
+    "unlocks": "Desbloquea {{perks}}",
+    "perk": {
+      "discount": "{{percent}} % de descuento en cada pedido",
+      "freeDelivery": "entrega gratis",
+      "multiplier": "{{times}}× puntos",
+      "points": "1 punto por cada $1"
+    }
   },
   "rewards": {
     "title": "Premios",
     "points_one": "punto",
     "points_other": "puntos",
     "worth": "Valen <b>{{amount}}</b> de descuento en tu próximo pedido",
-    "trackLabel": "Referidos hacia el nivel Lab",
-    "trackLab_one": "{{count}} referido",
-    "trackLab_other": "{{count}} referidos",
-    "toLab_one": "<b>{{count}} referido</b> para llegar a <b>Lab</b>",
-    "toLab_other": "<b>{{count}} referidos</b> para llegar a <b>Lab</b>",
+    "trackLabel": "Lo que gastaste en los últimos {{months}} meses, hacia el siguiente nivel",
+    "toLab_one": "<b>{{amount}}</b> más en {{months}} meses para llegar a <b>Lab</b>, o {{count}} referido",
+    "toLab_other": "<b>{{amount}}</b> más en {{months}} meses para llegar a <b>Lab</b>, o {{count}} referidos",
     "tabsLabel": "Vistas de premios",
     "tabBalance": "Disponible",
     "tabTiers": "Beneficios",
@@ -805,22 +813,45 @@
     "available": "Disponible para usar",
     "useAtCheckout": "Usalo al confirmar un pedido: todo o solo una parte.",
     "howYouEarn": "Cómo ganás",
-    "earnPoints": "1 punto por cada {{dollars}} que gastás; cada uno vale {{value}}",
+    "earnPoints": "1 punto por cada {{dollars}} que gastás; 100 puntos = {{value}} de descuento",
     "earnCredit": "{{credit}} de crédito por cada laboratorio que referís, cuando su primer pedido de {{minimum}} o más se pague y se entregue",
     "openRefer": "Referí y ganá",
     "youAreHere": "Estás acá",
     "everyone": "Todos empiezan acá",
     "perkPoints": "1 punto por cada {{dollars}} gastado",
-    "perkPointValue": "Cada punto vale {{value}} de descuento",
+    "perkPointValue": "100 puntos = {{value}} de descuento",
     "perkReferral": "{{credit}} de crédito por cada laboratorio que referís",
     "perkDiscount": "{{percent}} % de descuento en cada pedido",
     "perkFreeDelivery": "Entrega gratis",
-    "perkMonths_one": "Durante {{count}} mes",
-    "perkMonths_other": "Durante {{count}} meses",
-    "footnote": "Lab se gana con {{referrals}} referidos y dura {{months}} meses. Un premio por pedido.",
+    "footnote": "Los niveles siguen lo que gastaste en los últimos {{months}} meses. Lab también se gana con {{count}} referidos, por {{labMonths}} meses. Los descuentos del nivel se suman a los descuentos por volumen de la tienda.",
     "signedOutTitle": "Acá vas a ver tus premios",
     "signedOutBody": "Los puntos, el crédito y los referidos vienen con tu cuenta de la tienda, que todavía no está disponible en la app.",
-    "signedOutTestBody": "Los puntos, el crédito y los referidos vienen con tu cuenta de la tienda. En este sitio de prueba podés probarlos con una cuenta de prueba."
+    "signedOutTestBody": "Los puntos, el crédito y los referidos vienen con tu cuenta de la tienda. En este sitio de prueba podés probarlos con una cuenta de prueba.",
+    "worthLocked_one": "Valen <b>{{amount}}</b>. Te falta {{count}} punto para poder usarlos (desde {{minimum}}).",
+    "worthLocked_other": "Valen <b>{{amount}}</b>. Te faltan {{count}} puntos para poder usarlos (desde {{minimum}}).",
+    "toTier": "<b>{{amount}}</b> más en {{months}} meses para llegar a <b>{{tier}}</b>",
+    "pointsFrom": "Los puntos se pueden usar cuando tengás {{minimum}}. El crédito lo podés usar ya, al confirmar un pedido.",
+    "fixedTitle": "Premios para elegir",
+    "fixed": {
+      "free_delivery": "Entrega gratis",
+      "reconstitution_solution": "Vial de solución de reconstitución"
+    },
+    "fixedCost_one": "{{points}} punto",
+    "fixedCost_other": "{{points}} puntos",
+    "fixedReady": "Te alcanza",
+    "fixedShort_one": "Falta {{points}}",
+    "fixedShort_other": "Faltan {{points}}",
+    "fixedNote": "Pronto vas a poder elegir uno al hacer un pedido.",
+    "earnRedeem": "Usá tus puntos desde {{minimum}}, en cualquier pedido. Nunca por efectivo.",
+    "perkMultiplier": "{{times}}× puntos en cada pedido",
+    "perkEarlyAccess": "Acceso anticipado a los reabastecimientos",
+    "reachSpend": "{{amount}} al año",
+    "reachSpendOrReferrals_one": "{{amount}} al año, o {{count}} referido",
+    "reachSpendOrReferrals_other": "{{amount}} al año, o {{count}} referidos",
+    "signedOutStoreBody": "Entrá con tu cuenta de {{store}} para ver tus puntos, tu crédito y tus referidos.",
+    "comingTitle": "Tus premios vienen en camino",
+    "comingBody": "Entraste como {{email}}. Tus puntos, tu crédito y tus referidos van a aparecer acá apenas {{store}} los active.",
+    "comingTestHint": "Para probar los premios en este sitio de prueba, cerrá sesión en Ajustes y usá la cuenta de prueba."
   },
   "refer": {
     "title": "Referí y ganá",
@@ -876,7 +907,9 @@
     "signOut": "Cerrar sesión",
     "testBody": "Una cuenta de prueba con puntos, crédito y referidos de ejemplo, para probar las funciones de la tienda antes de que exista el inicio de sesión de la tienda. Solo en el sitio de prueba.",
     "testSignIn": "Entrar con la cuenta de prueba",
-    "comingSoon": "Pronto vas a poder entrar con tu cuenta de {{store}}."
+    "comingSoon": "Pronto vas a poder entrar con tu cuenta de {{store}}.",
+    "signedIn": "Sesión iniciada",
+    "signInBody": "Entrá con el correo y la contraseña que usás en el sitio web de {{store}}."
   },
   "bacCard": {
     "badge": "BAC",
@@ -979,7 +1012,8 @@
       "required": "Completá este dato.",
       "state": "Usá el estado de dos letras, como TX.",
       "zip": "Usá un código ZIP de cinco dígitos.",
-      "researchAck": "La tienda necesita esta confirmación para tomar el pedido."
+      "researchAck": "La tienda necesita esta confirmación para tomar el pedido.",
+      "promo": "Usá solo letras, números y guiones (de 2 a 40)."
     },
     "problem": {
       "refused": "La tienda no pudo tomar este pedido. Revisá el carrito y tus datos e intentá de nuevo.",
@@ -1030,6 +1064,30 @@
     "securePaymentNote": "La tarjeta se escribe en la página del proveedor de pagos, nunca en la app.",
     "openPaymentInBrowser": "¿Problemas para pagar acá? Abrí la página de pago en tu navegador",
     "pointsEarned_one": "Ganaste {{count}} punto con este pedido.",
-    "pointsEarned_other": "Ganaste {{count}} puntos con este pedido."
+    "pointsEarned_other": "Ganaste {{count}} puntos con este pedido.",
+    "promo": "Código promocional",
+    "promoPlaceholder": "Opcional",
+    "promoHint": "{{store}} lo revisa cuando hacés el pedido.",
+    "signedInAs": "Pedido a nombre de {{email}}. Va a aparecer en tu cuenta de {{store}}."
+  },
+  "signIn": {
+    "title": "Entrar a {{store}}",
+    "subtitle": "Usá el correo y la contraseña de tu cuenta de {{store}}.",
+    "email": "Correo",
+    "password": "Contraseña",
+    "submit": "Entrar",
+    "sending": "Entrando…",
+    "open": "Entrar",
+    "done": "Sesión iniciada",
+    "forgot": "¿Olvidaste la contraseña?",
+    "create": "Crear una cuenta",
+    "sameAccount": "Es la misma cuenta del sitio web de {{store}}. Creala o cambiá la contraseña ahí.",
+    "problem": {
+      "wrong": "Ese correo y esa contraseña no coinciden. Revisalos y probá de nuevo.",
+      "unconfirmed": "Primero confirmá tu correo: abrí el enlace que te mandó {{store}} y después entrá.",
+      "busy": "Demasiados intentos. Esperá un minuto y probá de nuevo.",
+      "offline": "Estás sin conexión. Conectate y probá de nuevo.",
+      "failed": "No se pudo entrar en este momento. Probá de nuevo en un rato."
+    }
   }
 }

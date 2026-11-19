@@ -84,6 +84,8 @@ export interface CheckoutRequest {
   language: 'en' | 'es'
   /** Points and credit the customer chose to apply, in dollars; absent when none. */
   discountUsd?: number
+  /** A promo code the customer typed (UPD only; the store checks it). */
+  promoCode?: string
   /** What the customer agreed to be contacted about: only boxes they actually ticked. */
   consent: { marketing: boolean; sms: boolean; call: boolean }
 }
@@ -100,6 +102,22 @@ const PCR_REF = /^[A-Za-z0-9-]{1,64}$/
 const UPD_REF = /^[a-z0-9-]{1,120}$/
 const US_STATE = /^[A-Z]{2}$/
 const US_ZIP = /^\d{5}(-\d{4})?$/
+/** The app's promo code check (src/lib/shop/checkout.ts), again here. */
+const PROMO_CODE = /^[A-Za-z0-9_-]{2,40}$/
+/** A Supabase access token (a JWT): three base64url parts. */
+const BEARER = /^Bearer ([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/
+const MAX_TOKEN_CHARS = 4096
+
+/**
+ * The signed-in UPD customer's token from the app's request, to pass on to
+ * UPD's order API so the order is linked to the account (UPD's own checkout
+ * does the same). Undefined when absent or not shaped like a token. UPD checks
+ * it; it is never logged or kept here.
+ */
+export function customerToken(header: string | null): string | undefined {
+  if (!header || header.length > MAX_TOKEN_CHARS + 7) return undefined
+  return BEARER.exec(header)?.[1]
+}
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,63}$/
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -188,8 +206,16 @@ export function parseCheckoutRequest(input: unknown, brand: CatalogueBrand): Par
   const rawConsent = isRecord(input.consent) ? input.consent : {}
   const consent = { marketing: rawConsent.marketing === true, sms: rawConsent.sms === true, call: rawConsent.call === true }
 
+  // Only UPD's order takes a promo code; PCR's documents none, so one sent for PCR is refused rather than dropped.
+  let promoCode: string | undefined
+  if (input.promoCode !== undefined && input.promoCode !== '') {
+    if (brand !== 'upd' || typeof input.promoCode !== 'string' || !PROMO_CODE.test(input.promoCode)) return { ok: false, field: 'promoCode' }
+    promoCode = input.promoCode
+  }
+
   const request: CheckoutRequest = { items, customer: { name, phone, email, address }, paymentMethod, language, consent }
   if (discountUsd !== undefined) request.discountUsd = discountUsd
+  if (promoCode !== undefined) request.promoCode = promoCode
   return { ok: true, request }
 }
 
@@ -218,8 +244,27 @@ export interface StoreRequest {
   body: string
 }
 
-/** The order as each store's API documents it (partner integration doc §3; UPD API doc §4). */
-export function buildStoreRequest(settings: CheckoutSettings & { ok: true }, request: CheckoutRequest): StoreRequest {
+/**
+ * Where an app order came from, in the shape of the first- and last-touch
+ * attribution UPD's website sends with its orders (`firstTouch` / `lastTouch`:
+ * source, medium, landing, at), so UPD's reports can tell app orders apart. UPD's
+ * admin has no "app" channel yet; this is what it would key on.
+ */
+export function appAttribution(now: Date): { source: string; medium: string; landing: string; at: string } {
+  return { source: 'app', medium: 'app', landing: '/app', at: now.toISOString() }
+}
+
+/**
+ * The order as each store's API documents it (partner integration doc §3; UPD API doc §4), plus, for UPD, what its
+ * own website sends and its developer asked for (2026-11-18): the promo code, shipping protection (off: the app
+ * doesn't offer it) and attribution; and the signed-in customer's token, which links the order to their account.
+ */
+export function buildStoreRequest(
+  settings: CheckoutSettings & { ok: true },
+  request: CheckoutRequest,
+  token?: string,
+  now: Date = new Date(),
+): StoreRequest {
   const { customer } = request
   if (settings.brand === 'pcr') {
     const { line1, line2, city, region, postalCode } = customer.address
@@ -259,9 +304,17 @@ export function buildStoreRequest(settings: CheckoutSettings & { ok: true }, req
     paymentMethod: 'card',
     smsConsent: request.consent.sms,
     callConsent: request.consent.call,
+    ...(request.promoCode ? { promoCode: request.promoCode } : {}),
+    shippingProtection: false,
+    firstTouch: appAttribution(now),
+    lastTouch: appAttribution(now),
     ...(request.discountUsd ? { [DISCOUNT_FIELD.upd]: request.discountUsd } : {}),
   })
-  return { url: UPD_ORDERS_URL, headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body }
+  return {
+    url: UPD_ORDERS_URL,
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body,
+  }
 }
 
 export interface OrderTotals {
@@ -562,7 +615,9 @@ export async function handleOrderRequest(
   const parsed = parseCheckoutRequest(input, brand)
   if (!parsed.ok) return reply({ ok: false, error: 'invalid', field: parsed.field }, 400)
 
-  const storeRequest = buildStoreRequest(settings, parsed.request)
+  // Only UPD has store accounts; a token sent to a PCR site is ignored.
+  const token = settings.brand === 'upd' ? customerToken(req.headers.get('authorization')) : undefined
+  const storeRequest = buildStoreRequest(settings, parsed.request, token)
   let answer: StoreAnswer
   try {
     const response = await fetchFn(storeRequest.url, {
@@ -605,7 +660,9 @@ export async function handleOrderRequest(
       }
     }
     if (settings.brand === 'pcr') await postPcrConsent(fetchFn, settings, parsed.request)
-    console.log(`orders: ${brand} ${orderNumber} placed (${parsed.request.paymentMethod}${paymentUrl ? ', payment link' : ''}${embedUrl ? ', in app' : ''})`)
+    console.log(
+      `orders: ${brand} ${orderNumber} placed (${parsed.request.paymentMethod}${paymentUrl ? ', payment link' : ''}${embedUrl ? ', in app' : ''}${token ? ', signed in' : ''}${parsed.request.promoCode ? ', promo code' : ''})`,
+    )
     return reply({ ok: true, orderNumber, status, totals, paymentUrl, embedUrl }, 200)
   }
   if (answer.kind === 'refused') return reply({ ok: false, error: 'refused', message: answer.message }, 422)

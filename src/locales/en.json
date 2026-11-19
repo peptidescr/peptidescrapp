@@ -770,32 +770,40 @@
   "loyalty": {
     "tierName": {
       "bench": "Bench",
-      "lab": "Lab"
+      "lab": "Lab",
+      "institute": "Institute"
     },
     "tierBadge": "{{tier}} tier",
     "ringCaption": "Points",
-    "ringLabel": "{{points}} points; {{done}} of {{total}} referrals to Lab",
-    "toLab_one": "<b>{{count}} referral</b> to <b>Lab tier</b>",
-    "toLab_other": "<b>{{count}} referrals</b> to <b>Lab tier</b>",
+    "toLab_one": "<b>{{amount}}</b> more to <b>Lab</b>, or {{count}} referral",
+    "toLab_other": "<b>{{amount}}</b> more to <b>Lab</b>, or {{count}} referrals",
     "labUntil": "Lab tier until <b>{{date}}</b>",
-    "labUnlocks": "Unlocks 10% off every order + free delivery",
-    "labActive": "10% off every order + free delivery",
     "creditReady": "{{amount}} credit ready to use",
     "creditMore_one": "Refer {{count}} more lab to unlock {{amount}} extra",
     "creditMore_other": "Refer {{count}} more labs to unlock {{amount}} extra",
     "labMore_one": "Refer {{count}} more lab to unlock the Lab tier",
-    "labMore_other": "Refer {{count}} more labs to unlock the Lab tier"
+    "labMore_other": "Refer {{count}} more labs to unlock the Lab tier",
+    "ringLabelNext": "{{points}} points; {{percent}}% of the way to {{tier}}",
+    "ringLabelTop": "{{points}} points; Institute, the top tier",
+    "toTier": "<b>{{amount}}</b> more to <b>{{tier}}</b>",
+    "topTier": "<b>Institute</b>, the top tier",
+    "labUntilShort": "Lab until {{date}}, from referrals",
+    "unlocks": "Unlocks {{perks}}",
+    "perk": {
+      "discount": "{{percent}}% off every order",
+      "freeDelivery": "free delivery",
+      "multiplier": "{{times}}× points",
+      "points": "1 point for every $1"
+    }
   },
   "rewards": {
     "title": "Rewards",
     "points_one": "point",
     "points_other": "points",
     "worth": "Worth <b>{{amount}}</b> off your next order",
-    "trackLabel": "Referrals towards the Lab tier",
-    "trackLab_one": "{{count}} referral",
-    "trackLab_other": "{{count}} referrals",
-    "toLab_one": "<b>{{count}} referral</b> to reach <b>Lab</b>",
-    "toLab_other": "<b>{{count}} referrals</b> to reach <b>Lab</b>",
+    "trackLabel": "Spend over the last {{months}} months, towards the next tier",
+    "toLab_one": "<b>{{amount}}</b> more in {{months}} months to reach <b>Lab</b>, or {{count}} referral",
+    "toLab_other": "<b>{{amount}}</b> more in {{months}} months to reach <b>Lab</b>, or {{count}} referrals",
     "tabsLabel": "Rewards views",
     "tabBalance": "Available to spend",
     "tabTiers": "Tier perks",
@@ -805,22 +813,45 @@
     "available": "Available to spend",
     "useAtCheckout": "Use it when you confirm an order: all of it, or just part.",
     "howYouEarn": "How you earn",
-    "earnPoints": "1 point for every {{dollars}} you spend, worth {{value}} each",
+    "earnPoints": "1 point for every {{dollars}} you spend; 100 points = {{value}} off",
     "earnCredit": "{{credit}} credit for each lab you refer, once their first order of {{minimum}} or more is paid and delivered",
     "openRefer": "Refer & earn",
     "youAreHere": "You are here",
     "everyone": "Everyone starts here",
     "perkPoints": "1 point for every {{dollars}} spent",
-    "perkPointValue": "Each point is worth {{value}} off",
+    "perkPointValue": "100 points = {{value}} off",
     "perkReferral": "{{credit}} credit for each lab you refer",
     "perkDiscount": "{{percent}}% off every order",
     "perkFreeDelivery": "Free delivery",
-    "perkMonths_one": "For {{count}} month",
-    "perkMonths_other": "For {{count}} months",
-    "footnote": "Lab is earned at {{referrals}} referrals and lasts {{months}} months. One reward per order.",
+    "footnote": "Tiers follow what you spent over the last {{months}} months. Lab also comes with {{count}} referrals, for {{labMonths}} months. Tier discounts add to the store’s volume discounts.",
     "signedOutTitle": "Your rewards will show here",
     "signedOutBody": "Points, credit and referrals come with your store account, which isn’t available in the app yet.",
-    "signedOutTestBody": "Points, credit and referrals come with your store account. On this test site you can try them with a test account."
+    "signedOutTestBody": "Points, credit and referrals come with your store account. On this test site you can try them with a test account.",
+    "worthLocked_one": "Worth <b>{{amount}}</b>. {{count}} more point and you can spend them (from {{minimum}}).",
+    "worthLocked_other": "Worth <b>{{amount}}</b>. {{count}} more points and you can spend them (from {{minimum}}).",
+    "toTier": "<b>{{amount}}</b> more in {{months}} months to reach <b>{{tier}}</b>",
+    "pointsFrom": "Points can be spent once you have {{minimum}}. Credit can be used now, when you confirm an order.",
+    "fixedTitle": "Rewards to choose",
+    "fixed": {
+      "free_delivery": "Free delivery",
+      "reconstitution_solution": "Reconstitution Solution vial"
+    },
+    "fixedCost_one": "{{points}} point",
+    "fixedCost_other": "{{points}} points",
+    "fixedReady": "Enough points",
+    "fixedShort_one": "{{points}} more",
+    "fixedShort_other": "{{points}} more",
+    "fixedNote": "Choosing one when you order is coming soon.",
+    "earnRedeem": "Spend points from {{minimum}}, on any order. Never for cash.",
+    "perkMultiplier": "{{times}}× points on every order",
+    "perkEarlyAccess": "Early access to restocks",
+    "reachSpend": "{{amount}} a year",
+    "reachSpendOrReferrals_one": "{{amount}} a year, or {{count}} referral",
+    "reachSpendOrReferrals_other": "{{amount}} a year, or {{count}} referrals",
+    "signedOutStoreBody": "Sign in with your {{store}} account to see your points, credit and referrals.",
+    "comingTitle": "Rewards are on their way",
+    "comingBody": "You’re signed in as {{email}}. Your points, credit and referrals will show here as soon as {{store}} switches them on.",
+    "comingTestHint": "To try rewards on this test site, sign out in Settings and use the test account."
   },
   "refer": {
     "title": "Refer & earn",
@@ -876,7 +907,9 @@
     "signOut": "Sign out",
     "testBody": "A test account with sample points, credit and referrals, for trying the store features before the store’s own sign-in exists. Staging only.",
     "testSignIn": "Sign in with the test account",
-    "comingSoon": "Signing in with your {{store}} account is coming soon."
+    "comingSoon": "Signing in with your {{store}} account is coming soon.",
+    "signedIn": "Signed in",
+    "signInBody": "Sign in with the email and password you use on the {{store}} website."
   },
   "bacCard": {
     "badge": "BAC",
@@ -979,7 +1012,8 @@
       "required": "Fill this in.",
       "state": "Use the two-letter state, like TX.",
       "zip": "Use a five-digit ZIP code.",
-      "researchAck": "The store needs this confirmation to take the order."
+      "researchAck": "The store needs this confirmation to take the order.",
+      "promo": "Use only letters, numbers and dashes (2 to 40)."
     },
     "problem": {
       "refused": "The store couldn’t take this order. Check your cart and details and try again.",
@@ -1030,6 +1064,30 @@
     "securePaymentNote": "Your card is typed on the payment provider’s page, never in the app.",
     "openPaymentInBrowser": "Trouble paying here? Open the payment page in your browser",
     "pointsEarned_one": "You earned {{count}} point with this order.",
-    "pointsEarned_other": "You earned {{count}} points with this order."
+    "pointsEarned_other": "You earned {{count}} points with this order.",
+    "promo": "Promo code",
+    "promoPlaceholder": "Optional",
+    "promoHint": "{{store}} checks it when you place the order.",
+    "signedInAs": "Ordering as {{email}}. It will show in your {{store}} account."
+  },
+  "signIn": {
+    "title": "Sign in to {{store}}",
+    "subtitle": "Use the email and password of your {{store}} account.",
+    "email": "Email",
+    "password": "Password",
+    "submit": "Sign in",
+    "sending": "Signing in…",
+    "open": "Sign in",
+    "done": "Signed in",
+    "forgot": "Forgot password?",
+    "create": "Create an account",
+    "sameAccount": "It’s the same account as on the {{store}} website. Create one or reset your password there.",
+    "problem": {
+      "wrong": "That email and password don’t match. Check them and try again.",
+      "unconfirmed": "Confirm your email first: open the link {{store}} emailed you, then sign in.",
+      "busy": "Too many tries. Wait a minute, then try again.",
+      "offline": "You’re offline. Connect and try again.",
+      "failed": "Couldn’t sign in just now. Try again in a moment."
+    }
   }
 }
