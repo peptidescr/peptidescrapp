@@ -1,70 +1,129 @@
 /**
  * The customer's store account as the Home, Rewards, Refer and checkout
- * screens show it (Part B). The stores keep the real balances; the app only
- * displays them and sends what the customer chooses to apply with an order.
- * Everything else (what points are worth, the referral ladder, how far to Lab)
- * is worked out from the rules in rules.ts (src/lib/store/loyaltyView.ts).
+ * screens show it (Part B). The store keeps the real balances and every rule;
+ * the app only displays them and sends what the customer chooses to spend with
+ * an order.
  *
- * UPD customers can now sign in with their own account (src/lib/store/session.ts),
- * but no store serves points, credit or referrals yet (November 2026: UPD is
- * building GET /api/customer/rewards). Until one does, a **test account** stands in,
- * on staging only: VITE_STORE_TEST_SIGNIN=true, which vite.config.ts forces off
- * for a live-site build whatever the environment says. Its balance lives on
- * this device, so spending it at checkout can be tried end to end; the real
- * connection replaces it per store when that store's API is documented.
+ * Two sources fill the same StoreAccount:
+ * - A UPD customer signed in with their own account (src/lib/store/session.ts):
+ *   UPD's GET /api/customer/rewards, read through our /api/rewards
+ *   (src/lib/store/storeRewards.ts), with the rules UPD sent.
+ * - The **test account**, on staging only (VITE_STORE_TEST_SIGNIN=true, which
+ *   vite.config.ts forces off for a live-site build): a sample whose balance
+ *   lives on this device under the placeholder TEST_RULES, so the screens can be
+ *   tried without a store account. Kept until UPD's test customers work.
+ * A signed-in UPD customer's account wins over the test account.
  *
  * Money is in dollars (both stores charge in USD).
  */
 import { addMonths } from 'date-fns'
 import { useSyncExternalStore } from 'react'
 import { BRAND } from '@/brand'
-import { tierOf } from './loyaltyView'
-import { canRedeem, pointsForSpend, pointsToCover, redeemableValue, REFERRAL_RULES, TIER_RULES, type ReferralRules } from './rules'
+import {
+  canRedeem,
+  pointsForSpend,
+  pointsToCover,
+  pointsValue,
+  TEST_FIXED_REWARDS,
+  TEST_RULES,
+  tierAbove,
+  tierForSpend,
+  tierRule,
+  type FixedReward,
+  type StoreRules,
+  type Tier,
+} from './rules'
+import { useStoreRewards } from './storeRewards'
 
 export interface ReferralActivity {
+  /** The friend's name or initials, as the store gives it. */
   name: string
   /** ISO date. */
   at: string
-  /** Earned once the friend's first order (at least the model's minimum) is paid and delivered. */
+  /** Earned once the friend's first order is paid and delivered. */
   status: 'earned' | 'pending'
   amountUsd?: number
 }
 
+export interface TierStatus {
+  current: Tier
+  /** How it was reached: 'spend' or 'referrals' (the store's word, kept as sent). */
+  earnedBy?: string
+  /** ISO date it lasts until, when it runs out (a referral Lab). */
+  until?: string
+  /** Spend over the last 12 months, in dollars. */
+  spend12moUsd?: number
+  /** The next tier and what's left to reach it; absent at the top. */
+  next?: { tier: Tier; spendToGoUsd?: number; referralsToGo?: number }
+}
+
+/** One change to the balance (UPD sends the last 50). */
+export interface HistoryEntry {
+  /** ISO date. */
+  at: string
+  /** What happened, in the store's words. */
+  label?: string
+  /** Points added (positive) or spent (negative). */
+  points?: number
+  /** Credit added or spent, in dollars. */
+  creditUsd?: number
+}
+
 export interface StoreAccount {
+  source: 'test' | 'store'
+  /** False when the store has rewards switched off: the app hides earning and spending. */
+  enabled: boolean
   /** What Home greets them by. */
   displayName?: string
-  /** Whole points; each is worth 3¢ off, spendable from 250 (rules.ts). */
   points: number
-  /** What was spent over the last 12 months, in dollars: sets the tier (Lab $1,500, Institute $5,000). */
-  spend12moUsd: number
-  /** Referral credit ready to use, in dollars. */
+  /** What the points are worth, in dollars (the store's figure). */
+  pointsValueUsd: number
+  /** Store credit ready to use, in dollars. */
   creditUsd: number
-  /** Lab tier until this ISO date (12 months from the 25th referral), whatever the spend. */
-  labUntil?: string
+  tier: TierStatus
   referral: {
-    link: string
+    code?: string
+    /** The full share link. */
+    link?: string
     /** Friends whose first order has been paid and delivered. */
     completed: number
     activity: ReferralActivity[]
   }
+  rewards: FixedReward[]
+  rules: StoreRules
+  history: HistoryEntry[]
 }
 
+// ---------------------------------------------------------------------------
+// The staging test account.
+// ---------------------------------------------------------------------------
+
+/** What the test account keeps on the device; the rest is worked out from TEST_RULES. */
+export interface TestState {
+  points: number
+  /** What was spent over the last 12 months, in dollars: sets the tier. */
+  spend12moUsd: number
+  creditUsd: number
+  /** Lab until this ISO date (12 months from the 25th referral), whatever the spend. */
+  labUntil?: string
+  completed: number
+  activity: ReferralActivity[]
+}
+
+const TEST_CODE = 'MORGAN20'
+
 /** The test account: three referrals made, $900 of orders this year ($600 short of Lab). */
-export const SAMPLE_ACCOUNT: StoreAccount = {
-  displayName: 'Dr. Morgan',
+export const SAMPLE_STATE: TestState = {
   points: 900,
   spend12moUsd: 900,
-  creditUsd: 3 * REFERRAL_RULES.creditPerReferral,
-  referral: {
-    link: `${BRAND.id}.link/MORGAN20`,
-    completed: 3,
-    activity: [
-      { name: 'Rivera Lab', at: '2026-10-09', status: 'earned', amountUsd: REFERRAL_RULES.creditPerReferral },
-      { name: 'J. Chen', at: '2026-09-27', status: 'earned', amountUsd: REFERRAL_RULES.creditPerReferral },
-      { name: 'Patel Lab', at: '2026-09-12', status: 'earned', amountUsd: REFERRAL_RULES.creditPerReferral },
-      { name: 'Okafor Lab', at: '2026-10-14', status: 'pending' },
-    ],
-  },
+  creditUsd: 60,
+  completed: 3,
+  activity: [
+    { name: 'Rivera Lab', at: '2026-10-09', status: 'earned', amountUsd: 20 },
+    { name: 'J. Chen', at: '2026-09-27', status: 'earned', amountUsd: 20 },
+    { name: 'Patel Lab', at: '2026-09-12', status: 'earned', amountUsd: 20 },
+    { name: 'Okafor Lab', at: '2026-10-14', status: 'pending' },
+  ],
 }
 
 /** Whether this build offers the test sign-in (staging only; see the header). */
@@ -82,8 +141,47 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+/** The test account's tier: spend, or Lab while a referral Lab runs. */
+export function testTier(state: TestState, now: Date = new Date(), rules: StoreRules = TEST_RULES): TierStatus {
+  const bySpend = tierForSpend(rules, state.spend12moUsd)
+  const byReferrals = state.labUntil !== undefined && Date.parse(state.labUntil) > now.getTime() && bySpend === rules.tiers[0]?.tier
+  const current = byReferrals ? 'lab' : bySpend
+  const above = tierAbove(rules, current)
+  const next = above
+    ? {
+        tier: above.tier,
+        spendToGoUsd: Math.max(0, round2(above.spendUsd - state.spend12moUsd)),
+        ...(above.referrals !== undefined ? { referralsToGo: Math.max(0, above.referrals - state.completed) } : {}),
+      }
+    : undefined
+  return {
+    current,
+    earnedBy: byReferrals ? 'referrals' : 'spend',
+    ...(byReferrals ? { until: state.labUntil } : {}),
+    spend12moUsd: state.spend12moUsd,
+    ...(next ? { next } : {}),
+  }
+}
+
+/** The test account as the screens see it. */
+export function testAccount(state: TestState, now: Date = new Date()): StoreAccount {
+  return {
+    source: 'test',
+    enabled: true,
+    displayName: 'Dr. Morgan',
+    points: state.points,
+    pointsValueUsd: pointsValue(state.points, TEST_RULES),
+    creditUsd: state.creditUsd,
+    tier: testTier(state, now),
+    referral: { code: TEST_CODE, link: `${BRAND.siteUrl}/?ref=${TEST_CODE}`, completed: state.completed, activity: state.activity },
+    rewards: TEST_FIXED_REWARDS,
+    rules: TEST_RULES,
+    history: [],
+  }
+}
+
 function readActivity(value: unknown): ReferralActivity[] {
-  if (!Array.isArray(value)) return SAMPLE_ACCOUNT.referral.activity
+  if (!Array.isArray(value)) return SAMPLE_STATE.activity
   return value
     .filter(isRecord)
     .filter((a) => typeof a.name === 'string' && typeof a.at === 'string' && (a.status === 'earned' || a.status === 'pending'))
@@ -97,9 +195,11 @@ function readActivity(value: unknown): ReferralActivity[] {
 }
 
 interface Saved {
-  account: StoreAccount
+  state: TestState
   /** Order numbers that already earned points, so a repeated "paid" never pays twice. */
   earnedOrders: string[]
+  /** The screens' view, kept so the same object is handed out until something changes. */
+  view: StoreAccount
 }
 
 function load(): Saved | null {
@@ -107,18 +207,16 @@ function load(): Saved | null {
   try {
     const raw: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null')
     if (!isRecord(raw) || typeof raw.points !== 'number' || typeof raw.creditUsd !== 'number') return null
-    const completed = typeof raw.completed === 'number' ? Math.max(0, Math.floor(raw.completed)) : SAMPLE_ACCOUNT.referral.completed
-    return {
-      account: {
-        ...SAMPLE_ACCOUNT,
-        points: Math.max(0, Math.floor(raw.points)),
-        spend12moUsd: typeof raw.spend12moUsd === 'number' ? Math.max(0, round2(raw.spend12moUsd)) : SAMPLE_ACCOUNT.spend12moUsd,
-        creditUsd: Math.max(0, round2(raw.creditUsd)),
-        ...(typeof raw.labUntil === 'string' ? { labUntil: raw.labUntil } : {}),
-        referral: { ...SAMPLE_ACCOUNT.referral, completed, activity: readActivity(raw.activity) },
-      },
-      earnedOrders: Array.isArray(raw.earnedOrders) ? raw.earnedOrders.filter((n): n is string => typeof n === 'string').slice(-MAX_EARNED_ORDERS) : [],
+    const state: TestState = {
+      points: Math.max(0, Math.floor(raw.points)),
+      spend12moUsd: typeof raw.spend12moUsd === 'number' ? Math.max(0, round2(raw.spend12moUsd)) : SAMPLE_STATE.spend12moUsd,
+      creditUsd: Math.max(0, round2(raw.creditUsd)),
+      ...(typeof raw.labUntil === 'string' ? { labUntil: raw.labUntil } : {}),
+      completed: typeof raw.completed === 'number' ? Math.max(0, Math.floor(raw.completed)) : SAMPLE_STATE.completed,
+      activity: readActivity(raw.activity),
     }
+    const earnedOrders = Array.isArray(raw.earnedOrders) ? raw.earnedOrders.filter((n): n is string => typeof n === 'string').slice(-MAX_EARNED_ORDERS) : []
+    return { state, earnedOrders, view: testAccount(state) }
   } catch {
     return null
   }
@@ -132,28 +230,15 @@ function currentSaved(): Saved | null {
   return saved
 }
 
-function current(): StoreAccount | null {
-  return currentSaved()?.account ?? null
+function currentTest(): StoreAccount | null {
+  return currentSaved()?.view ?? null
 }
 
-function set(next: StoreAccount | null, earnedOrders: string[] = currentSaved()?.earnedOrders ?? []): void {
-  saved = next ? { account: next, earnedOrders: earnedOrders.slice(-MAX_EARNED_ORDERS) } : null
+function set(next: TestState | null, earnedOrders: string[] = currentSaved()?.earnedOrders ?? []): void {
+  saved = next ? { state: next, earnedOrders: earnedOrders.slice(-MAX_EARNED_ORDERS), view: testAccount(next) } : null
   try {
-    if (saved) {
-      const { account: a } = saved
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          points: a.points,
-          spend12moUsd: a.spend12moUsd,
-          creditUsd: a.creditUsd,
-          completed: a.referral.completed,
-          activity: a.referral.activity,
-          labUntil: a.labUntil,
-          earnedOrders: saved.earnedOrders,
-        }),
-      )
-    } else localStorage.removeItem(STORAGE_KEY)
+    if (saved) localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...saved.state, earnedOrders: saved.earnedOrders }))
+    else localStorage.removeItem(STORAGE_KEY)
   } catch {
     // Storage unavailable: the test account lasts this visit.
   }
@@ -162,43 +247,43 @@ function set(next: StoreAccount | null, earnedOrders: string[] = currentSaved()?
 
 /** Signs in to the test account (staging only). Signing out and in again starts over from the sample. */
 export function signInTestAccount(): void {
-  if (TEST_SIGN_IN) set({ ...SAMPLE_ACCOUNT }, [])
+  if (TEST_SIGN_IN) set({ ...SAMPLE_STATE }, [])
 }
 
-/** Points a paid order of this many dollars earns this account: 1 per $1, 1.5× at Institute (rules.ts). */
-export function orderPointsFor(a: StoreAccount, paidUsd: number, now: Date = new Date()): number {
-  return pointsForSpend(paidUsd, TIER_RULES[tierOf(a, now)].pointsMultiplier)
+export function signOutStore(): void {
+  set(null)
 }
 
-/** The account after a paid order of this many dollars: its points, and the spend counted towards the tier. */
-export function withOrderPoints(a: StoreAccount, paidUsd: number, now: Date = new Date()): StoreAccount {
-  if (!Number.isFinite(paidUsd) || paidUsd <= 0) return a
-  return { ...a, points: a.points + orderPointsFor(a, paidUsd, now), spend12moUsd: round2(a.spend12moUsd + paidUsd) }
+/** Points a paid order earns the test account: the rules' rate, times its tier's multiplier. */
+export function orderPointsFor(state: TestState, paidUsd: number, now: Date = new Date()): number {
+  return pointsForSpend(paidUsd, TEST_RULES, tierRule(TEST_RULES, testTier(state, now).current)?.pointsMultiplier ?? 1)
+}
+
+/** The test state after a paid order of this many dollars: its points, and the spend counted towards the tier. */
+export function withOrderPoints(state: TestState, paidUsd: number, now: Date = new Date()): TestState {
+  if (!Number.isFinite(paidUsd) || paidUsd <= 0) return state
+  return { ...state, points: state.points + orderPointsFor(state, paidUsd, now), spend12moUsd: round2(state.spend12moUsd + paidUsd) }
 }
 
 /**
- * The account after `count` more friends' first orders were paid and delivered, under the Referral Model: the
- * per-referral credit each, a milestone's bonus credit when reached, and Lab for its months from `today` at 25.
+ * The test state after `count` more friends' first orders were paid and delivered, under the test rules: the
+ * per-referral credit each, a milestone's bonus when reached, and its tier for its months from `today`.
  */
-export function withReferrals(a: StoreAccount, count: number, today: Date, rules: ReferralRules = REFERRAL_RULES): StoreAccount {
-  let next = a
+export function withReferrals(state: TestState, count: number, today: Date, rules: StoreRules = TEST_RULES): TestState {
+  const referral = rules.referral
+  if (!referral) return state
+  let next = state
   for (let i = 0; i < Math.max(0, Math.floor(count)); i++) {
-    const n = next.referral.completed + 1
-    const reached = rules.milestones.filter((m) => m.referrals === n)
-    const amountUsd = rules.creditPerReferral + reached.reduce((sum, m) => sum + (m.bonusCredit ?? 0), 0)
-    const tier = reached.find((m) => m.tier)?.tier
+    const n = next.completed + 1
+    const reached = referral.milestones.filter((m) => m.referrals === n)
+    const amountUsd = referral.creditPerReferralUsd + reached.reduce((sum, m) => sum + (m.bonusCreditUsd ?? 0), 0)
+    const tier = reached.find((m) => m.tier)
     next = {
       ...next,
       creditUsd: round2(next.creditUsd + amountUsd),
-      ...(tier ? { labUntil: addMonths(today, tier.months).toISOString().slice(0, 10) } : {}),
-      referral: {
-        ...next.referral,
-        completed: n,
-        activity: [{ name: `Test friend ${n}`, at: today.toISOString().slice(0, 10), status: 'earned' as const, amountUsd }, ...next.referral.activity].slice(
-          0,
-          MAX_ACTIVITY,
-        ),
-      },
+      ...(tier ? { labUntil: addMonths(today, tier.months ?? 12).toISOString().slice(0, 10) } : {}),
+      completed: n,
+      activity: [{ name: `Test friend ${n}`, at: today.toISOString().slice(0, 10), status: 'earned' as const, amountUsd }, ...next.activity].slice(0, MAX_ACTIVITY),
     }
   }
   return next
@@ -206,57 +291,50 @@ export function withReferrals(a: StoreAccount, count: number, today: Date, rules
 
 /**
  * The test account earns points for an order the store reports paid, once per order number. Returns the points
- * added (0 when signed out, already counted, or not in dollars). A real store does this on its side.
+ * added (0 when not signed in to it, already counted, or not in dollars). A real store earns on its side.
  */
 export function earnForPaidOrder(orderNumber: string, paidUsd: number | undefined): number {
   const now = currentSaved()
   if (!now || paidUsd === undefined || now.earnedOrders.includes(orderNumber)) return 0
-  const points = orderPointsFor(now.account, paidUsd)
-  set(withOrderPoints(now.account, paidUsd), [...now.earnedOrders, orderNumber])
+  const points = orderPointsFor(now.state, paidUsd)
+  set(withOrderPoints(now.state, paidUsd), [...now.earnedOrders, orderNumber])
   return points
 }
 
 /** Staging only: pretend `count` friends' first orders were paid and delivered, to try the referral ladder. */
 export function simulateReferrals(count: number): void {
-  const now = current()
+  const now = currentSaved()
   if (!TEST_SIGN_IN || !now) return
-  set(withReferrals(now, count, new Date()))
-}
-
-export function signOutStore(): void {
-  set(null)
+  set(withReferrals(now.state, count, new Date()))
 }
 
 /**
- * The account after an amount applied to an order comes out of the balance:
- * credit first, then points (3¢ each, only from 250). Only the test account
- * moves its own numbers; a real store does this on its side.
+ * The test state after spending at checkout: the credit and points chosen (credit first, only what the order
+ * needs, points only from the minimum) and the points of the fixed rewards chosen. A real store does this itself.
  */
-export function withBalanceSpent(a: StoreAccount, amountUsd: number): StoreAccount {
-  if (!(amountUsd > 0)) return a
-  const fromCredit = Math.min(a.creditUsd, amountUsd)
-  const rest = round2(amountUsd - fromCredit)
-  const pointsUsed = canRedeem(a.points) ? Math.min(a.points, pointsToCover(rest)) : 0
-  return { ...a, creditUsd: round2(a.creditUsd - fromCredit), points: a.points - pointsUsed }
+export function withSpent(state: TestState, spend: { creditUsd: number; pointsUsd: number; rewardPoints: number }): TestState {
+  const pointsUsed = canRedeem(state.points, TEST_RULES) ? Math.min(state.points, pointsToCover(spend.pointsUsd, TEST_RULES)) : 0
+  return {
+    ...state,
+    creditUsd: round2(Math.max(0, state.creditUsd - spend.creditUsd)),
+    points: Math.max(0, state.points - pointsUsed - spend.rewardPoints),
+  }
 }
 
-export function spendBalance(amountUsd: number): void {
-  const now = current()
-  if (now) set(withBalanceSpent(now, amountUsd))
+export function spendTestBalance(spend: { creditUsd: number; pointsUsd: number; rewardPoints: number }): void {
+  const now = currentSaved()
+  if (now) set(withSpent(now.state, spend))
 }
 
-/** The most that can be applied to an order: the credit, plus the points' value once there are 250. */
-export function balanceUsd(a: StoreAccount): number {
-  return round2(a.creditUsd + redeemableValue(a.points))
-}
-
-/** The signed-in customer's account; null when signed out (and for everyone until the stores have accounts). */
+/** The account to show: the signed-in UPD customer's, else the staging test account; null when neither. */
 export function useStoreAccount(): StoreAccount | null {
-  return useSyncExternalStore(
+  const test = useSyncExternalStore(
     (listener) => {
       listeners.add(listener)
       return () => listeners.delete(listener)
     },
-    current,
+    currentTest,
   )
+  const real = useStoreRewards()
+  return real.account ?? test
 }

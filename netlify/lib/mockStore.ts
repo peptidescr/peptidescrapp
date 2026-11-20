@@ -11,6 +11,7 @@
  */
 import type { CatalogueBrand, FetchLike } from './catalogue.ts'
 import type { PaymentStore } from './payments.ts'
+import { SAMPLE_REWARDS } from '../../src/lib/store/rewardsSample.ts'
 
 /** Fake values that pass checkoutSettings' checks; not keys for anything. */
 export const MOCK_CHECKOUT_ENV = {
@@ -40,6 +41,16 @@ export function mockStore(brand: CatalogueBrand): { fetchFn: FetchLike; payments
   let next = 1000
 
   const fetchFn: FetchLike = async (url, init) => {
+    // A token whose first part is "expired" is refused, to try the app's refresh-and-retry.
+    const token = init?.headers?.Authorization?.replace(/^Bearer /, '')
+    if (token?.startsWith('expired.') && url.startsWith('https://www.usapeptidedepot.com/')) {
+      return Response.json({ error: 'Your session has expired. Sign in again.' }, { status: 401 })
+    }
+    // UPD's rewards, in the shape its developer described (19 November 2026).
+    if (url === 'https://www.usapeptidedepot.com/api/customer/rewards') {
+      if (!token) return Response.json({ error: 'Sign in first.' }, { status: 401 })
+      return Response.json(SAMPLE_REWARDS)
+    }
     // ChargX's payment request: a pretend form on the same local server, which returns to the app's return page.
     if (url.startsWith('https://api.chargx.io/')) {
       const request = JSON.parse(init?.body ?? '{}') as { success_url?: string; cancel_url?: string }
@@ -78,10 +89,27 @@ export function mockStore(brand: CatalogueBrand): { fetchFn: FetchLike; payments
     // A promo code: "BAD" is refused with the store's message (as UPD's website shows it); any other takes 10% off.
     if (body.promoCode === 'BAD') return Response.json({ message: 'That promo code is not valid.', fields: { promoCode: 'That promo code is not valid.' } }, { status: 400 })
     const promo = typeof body.promoCode === 'string' ? 9 : 0
-    const discount = (typeof body.discountUsd === 'number' ? Math.min(body.discountUsd, 90 - promo) : 0) + promo
+    // Spending rewards (signed in): credit first, then points at 3¢, only up to what the order needs.
+    const redeem = token && typeof body.redeem === 'object' && body.redeem !== null ? (body.redeem as { points?: number; creditUsd?: number; rewards?: string[] }) : undefined
+    let left = 90 - promo
+    const creditUsedUsd = Math.min(redeem?.creditUsd ?? 0, SAMPLE_REWARDS.storeCreditUsd, left)
+    left -= creditUsedUsd
+    const pointsUsed = Math.min(redeem?.points ?? 0, SAMPLE_REWARDS.points.balance, Math.ceil(left / 0.03))
+    left = Math.max(0, left - pointsUsed * 0.03)
+    const rewards = redeem ? { pointsUsed, creditUsedUsd, tierDiscountUsd: 0, rewards: redeem.rewards ?? [] } : undefined
+    const balance = typeof body.discountUsd === 'number' ? Math.min(body.discountUsd, left) : 0
+    const discount = Math.round((90 - left + balance) * 100) / 100
     return Response.json({
       data: {
-        order: { orderNumber, status: 'pending', subtotal: 90, discountTotal: discount, shippingTotal: 0, grandTotal: Math.round((90 - discount) * 100) / 100 },
+        order: {
+          orderNumber,
+          status: 'pending',
+          subtotal: 90,
+          discountTotal: discount,
+          shippingTotal: 0,
+          grandTotal: Math.round((90 - discount) * 100) / 100,
+          ...(rewards ? { rewards } : {}),
+        },
         payment: { token: 'mock' },
       },
     })

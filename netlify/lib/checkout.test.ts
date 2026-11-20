@@ -145,6 +145,64 @@ describe('UPD orders and their card payment', () => {
     expect(JSON.stringify(net.calls[1]!.headers ?? {})).not.toContain('aaa.bbb.ccc')
   })
 
+  it('tells the app when UPD refuses the token (no order), and refuses redeem without a sign-in', async () => {
+    const net = routes({ 'https://www.usapeptidedepot.com/api/orders': () => Response.json({ error: 'Session expired' }, { status: 401 }) })
+    const signedIn = new Request(`${SITE}/api/orders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: SITE, Authorization: 'Bearer aaa.bbb.ccc' },
+      body: JSON.stringify(updInput()),
+    })
+    const res = await handleOrderRequest(signedIn, 'upd', UPD_PAY_ENV, net.fetchFn)
+    expect(res.status).toBe(401)
+    expect(await res.json()).toEqual({ ok: false, error: 'unauthorized' })
+    const none = routes({})
+    const noToken = await handleOrderRequest(post(updInput({ redeem: { points: 300 } })), 'upd', UPD_PAY_ENV, none.fetchFn)
+    expect(noToken.status).toBe(401)
+    expect(none.calls).toHaveLength(0)
+  })
+
+  it('reads what UPD applied from the rewards into the totals', async () => {
+    const net = routes({
+      'https://www.usapeptidedepot.com/api/orders': () =>
+        Response.json({
+          data: {
+            order: { orderNumber: 'USP-20', subtotal: 90, discountTotal: 14, grandTotal: 76, rewards: { pointsUsed: 300, creditUsedUsd: 5, tierDiscountUsd: 0, rewards: ['free_delivery'] } },
+          },
+        }),
+    })
+    const body = (await (await handleOrderRequest(post(updInput()), 'upd', UPD_ENV, net.fetchFn)).json()) as { totals: unknown }
+    expect(body.totals).toEqual({ currency: 'USD', total: 76, goods: 90, discount: 14, rewards: { pointsUsed: 300, creditUsd: 5, rewards: ['free_delivery'] } })
+  })
+
+  it('starts the card payment through UPD\'s own route only when UPD_CARD_PAYMENT=store', async () => {
+    const order = () => Response.json({ data: { order: { orderNumber: 'USP-21', grandTotal: 50 }, payment: { token: 'pay-token' } } })
+    const net = routes({
+      'https://www.usapeptidedepot.com/api/orders': order,
+      'https://www.usapeptidedepot.com/api/checkout/card': () => Response.json({ data: { paymentUrl: FORM } }),
+    })
+    const body = (await (await handleOrderRequest(post(updInput()), 'upd', { ...UPD_PAY_ENV, UPD_CARD_PAYMENT: 'store' }, net.fetchFn)).json()) as {
+      paymentUrl: string
+      embedUrl: string
+    }
+    expect(body.paymentUrl).toBe(FORM)
+    expect(body.embedUrl).toBe(FORM)
+    expect(JSON.parse(net.calls[1]!.body!)).toEqual({ orderNumber: 'USP-21', token: 'pay-token', method: 'card' })
+    expect(net.calls.map((c) => c.url)).not.toContain(CHARGX)
+    // Off by default: the ChargX sandbox, as before.
+    const sandbox = routes({ 'https://www.usapeptidedepot.com/api/orders': order, [CHARGX]: () => Response.json({ payment_request: { checkout_url: FORM, isProduction: false } }) })
+    await handleOrderRequest(post(updInput()), 'upd', UPD_PAY_ENV, sandbox.fetchFn)
+    expect(sandbox.calls.map((c) => c.url)).toEqual(['https://www.usapeptidedepot.com/api/orders', CHARGX])
+  })
+
+  it('refuses a payment link from UPD\'s route that is off the store and ChargX', async () => {
+    const net = routes({
+      'https://www.usapeptidedepot.com/api/orders': () => Response.json({ data: { order: { orderNumber: 'USP-22', grandTotal: 50 }, payment: { token: 't' } } }),
+      'https://www.usapeptidedepot.com/api/checkout/card': () => Response.json({ data: { paymentUrl: 'https://evil.example/pay' } }),
+    })
+    const body = (await (await handleOrderRequest(post(updInput()), 'upd', { ...UPD_ENV, UPD_CARD_PAYMENT: 'store' }, net.fetchFn)).json()) as { paymentUrl?: string }
+    expect(body.paymentUrl).toBeUndefined()
+  })
+
   it('keeps the order when the payment can\'t start, and never places it again', async () => {
     const net = routes({
       'https://www.usapeptidedepot.com/api/orders': () => Response.json({ data: { order: { orderNumber: 'USP-10', grandTotal: 50 } } }),
@@ -299,12 +357,37 @@ describe('buildStoreRequest', () => {
       paymentMethod: 'card',
       smsConsent: false,
       callConsent: false,
+      // UPD's developer: every app order says so.
+      channel: 'app',
       // What UPD's website sends too: shipping protection (not offered in the app) and where the order came from.
       shippingProtection: false,
       firstTouch: touch,
       lastTouch: touch,
     })
     expect(Object.keys(req.headers)).toEqual(['Content-Type', 'Accept'])
+  })
+
+  it('sends UPD the referral code, and redeem only with the customer\'s token', () => {
+    const settings = checkoutSettings('upd', UPD_ENV)
+    const parsed = parseCheckoutRequest(updInput({ ref: 'JANE20', redeem: { points: 300, creditUsd: 5.005, rewards: ['free_delivery', 'free_delivery'] } }), 'upd')
+    if (!settings.ok || !parsed.ok) throw new Error('setup')
+    expect(JSON.parse(buildStoreRequest(settings, parsed.request, 'aaa.bbb.ccc').body)).toMatchObject({
+      ref: 'JANE20',
+      redeem: { points: 300, creditUsd: 5.01, rewards: ['free_delivery'] },
+    })
+    expect(JSON.parse(buildStoreRequest(settings, parsed.request).body)).not.toHaveProperty('redeem')
+  })
+
+  it('refuses a malformed redeem or ref, and either for PCR', () => {
+    expect(parseCheckoutRequest(updInput({ redeem: { points: 1.5 } }), 'upd')).toEqual({ ok: false, field: 'redeem' })
+    expect(parseCheckoutRequest(updInput({ redeem: { creditUsd: -1 } }), 'upd')).toEqual({ ok: false, field: 'redeem' })
+    expect(parseCheckoutRequest(updInput({ redeem: { rewards: ['Free Delivery!'] } }), 'upd')).toEqual({ ok: false, field: 'redeem' })
+    expect(parseCheckoutRequest(updInput({ redeem: 'all' }), 'upd')).toEqual({ ok: false, field: 'redeem' })
+    expect(parseCheckoutRequest(updInput({ ref: 'x' }), 'upd')).toEqual({ ok: false, field: 'ref' })
+    expect(parseCheckoutRequest(pcrInput({ redeem: { points: 300 } }), 'pcr')).toEqual({ ok: false, field: 'redeem' })
+    expect(parseCheckoutRequest(pcrInput({ ref: 'JANE20' }), 'pcr')).toEqual({ ok: false, field: 'ref' })
+    const empty = parseCheckoutRequest(updInput({ redeem: { points: 0, rewards: [] } }), 'upd')
+    expect(empty.ok && empty.request.redeem).toBeUndefined()
   })
 
   it('passes a UPD promo code and the signed-in customer\'s token on to UPD', () => {

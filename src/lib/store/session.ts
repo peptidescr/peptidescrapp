@@ -88,11 +88,36 @@ function current(): StoreCustomer | null {
   return customer
 }
 
+const changeListeners = new Set<(customer: StoreCustomer | null) => void>()
+
 function setCustomer(next: StoreCustomer | null): void {
   const was = current()
   if (was?.email === next?.email && was?.name === next?.name) return
   customer = next
   for (const listener of listeners) listener()
+  for (const listener of changeListeners) listener(next)
+}
+
+/** Called whenever a different customer signs in, or the customer signs out (the rewards follow). */
+export function onStoreCustomerChange(listener: (customer: StoreCustomer | null) => void): () => void {
+  changeListeners.add(listener)
+  return () => changeListeners.delete(listener)
+}
+
+/**
+ * Gets a fresh token after UPD refused one (401: "refresh the session and retry"). Null when the session can't be
+ * refreshed (signed out elsewhere, password changed): the customer has to sign in again.
+ */
+export async function refreshStoreSession(): Promise<string | null> {
+  if (!STORE_SIGN_IN || !current()) return null
+  try {
+    const c = await getClient()
+    const { data, error } = await c.auth.refreshSession()
+    if (error || !data.session) return null
+    return data.session.access_token
+  } catch {
+    return null
+  }
 }
 
 let client: Promise<SupabaseClient> | null = null
@@ -161,6 +186,11 @@ export async function storeAccessToken(): Promise<string | null> {
   } catch {
     return null
   }
+}
+
+/** The signed-in customer now, outside React. */
+export function currentStoreCustomer(): StoreCustomer | null {
+  return current()
 }
 
 /** The customer signed in with their store account; null when signed out (and always on builds without sign-in). */

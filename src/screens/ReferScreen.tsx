@@ -8,22 +8,22 @@ import { cn } from '@/lib/utils'
 import { StoreSignedOut } from '../components/shop/StoreSignIn'
 import { formatPrice } from '../lib/shop/catalogue'
 import { simulateReferrals, TEST_SIGN_IN, useStoreAccount, type StoreAccount } from '../lib/store/account'
-import { REFERRAL_RULES } from '../lib/store/rules'
-import { creditEarnedUsd, creditUnlockedByNext, ladderRows, nextMilestone, type Rung, type StepState } from '../lib/store/loyaltyView'
+import { tierRule } from '../lib/store/rules'
+import { creditEarnedUsd, creditUnlockedByNext, ladderRows, nextMilestone, perksLine, tierName, type Rung, type StepState } from '../lib/store/loyaltyView'
 import type { Locale } from '../lib/units'
 
 /**
- * Refer & earn (Part B), under the Referral Model's rules: $20 credit per
- * friend whose first order of at least $100 is paid and delivered, +$25 at 5,
- * +$75 at 10, the Lab tier (5% off and free delivery) for 12 months at 25; the
- * friend gets whatever the code already gives on the store; one reward per
+ * Refer & earn (Part B), under the store's referral rules (UPD's today: credit
+ * per friend whose first app order is delivered, bonuses at milestones, a tier
+ * at the last); the share link and activity come from the store; the friend
+ * gets whatever the code already gives on the store; one reward per
  * order (an affiliate link wins). Reached from Home's credit banner and from
  * Rewards; it belongs to the Rewards tab.
  */
 export function ReferScreen({ onUseCredit }: { onUseCredit: () => void }) {
   const { t } = useTranslation()
   const account = useStoreAccount()
-  if (!account) {
+  if (!account?.enabled) {
     return (
       <div className="px-4 pb-6">
         <h1 className="mb-4 font-display text-[1.375rem] font-bold leading-tight text-foreground">{t('refer.title')}</h1>
@@ -59,8 +59,11 @@ function ReferView({ account, onUseCredit }: { account: StoreAccount; onUseCredi
   const [copied, setCopied] = useState(false)
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
-  const url = `https://${referral.link}`
-  // The model gives the friend nothing extra, so the invite makes no offer.
+  const referralRules = account.rules.referral
+  // The store's share link (UPD's opens its website until it points at the app).
+  const url = referral.link ?? ''
+  const shown = url.replace(/^https:\/\//, '')
+  // The invite makes no offer: the friend gets whatever the code already gives on the store.
   const shareText = t('refer.shareText', { store: BRAND.store.name, link: url })
   const shareButton = cn(buttonVariants({ size: 'sm' }), 'h-12 min-h-12 rounded-xl text-sm font-semibold')
 
@@ -77,7 +80,11 @@ function ReferView({ account, onUseCredit }: { account: StoreAccount; onUseCredi
   }
 
   const stepSub = (rung: Rung): string => {
-    if (rung.tier) return t('refer.step.lab', { percent: rung.tier.discountPercent, count: rung.tier.months })
+    if (rung.tier) {
+      const name = tierName(rung.tier.tier, account.rules, t)
+      const perks = perksLine(tierRule(account.rules, rung.tier.tier), t)
+      return rung.tier.months !== undefined ? t('refer.step.tierFor', { tier: name, count: rung.tier.months, perks }) : t('refer.step.tier', { tier: name, perks })
+    }
     if (rung.bonusUsd !== undefined) return t('refer.step.bonus', { amount: usd(rung.bonusUsd) })
     return t('refer.step.credit', { amount: usd(rung.creditUsd ?? 0) })
   }
@@ -115,10 +122,13 @@ function ReferView({ account, onUseCredit }: { account: StoreAccount; onUseCredi
         <p className="mt-2 text-center text-xs text-on-primary-muted">{t('refer.creditNote')}</p>
       </section>
 
+      {referralRules && (
       <section className="mx-4 mt-[1.375rem]">
         <h2 className="text-[17px] font-bold text-foreground">{t('refer.ladderTitle')}</h2>
         <p className="mt-1 text-[13.5px] text-muted-foreground">
-          {t('refer.ladderBody', { credit: usd(REFERRAL_RULES.creditPerReferral), minimum: usd(REFERRAL_RULES.minimumFirstOrder) })}
+          {referralRules.minimumFirstOrderUsd !== undefined
+            ? t('refer.ladderBody', { credit: usd(referralRules.creditPerReferralUsd), minimum: usd(referralRules.minimumFirstOrderUsd) })
+            : t('refer.ladderBodyAny', { credit: usd(referralRules.creditPerReferralUsd) })}
         </p>
         <ol aria-label={t('refer.ladder')} className="mt-4 flex flex-col">
           {ladderRows(account).map(({ rung: step, state, toGo, lineFill }, index, rows) => (
@@ -154,12 +164,14 @@ function ReferView({ account, onUseCredit }: { account: StoreAccount; onUseCredi
         </ol>
         <p className="-mt-1 mb-3 text-xs leading-snug text-muted-foreground">{t('refer.affiliateNote')}</p>
       </section>
+      )}
 
+      {url && (
       <section className="mx-4 mt-1.5 rounded-[1.25rem] border border-border/60 bg-card p-4">
         <p className="text-[13px] text-muted-foreground">{t('refer.inviteLink')}</p>
         <div className="mt-2 flex gap-2">
           <div className="flex h-12 min-w-0 flex-1 items-center overflow-hidden whitespace-nowrap rounded-xl bg-tint px-3.5 font-mono text-sm text-foreground">
-            {referral.link}
+            {shown}
           </div>
           <Button variant="secondary" className="h-12 shrink-0 border-2 border-primary px-4 text-sm text-primary" onClick={() => void copy()}>
             {copied ? t('refer.copied') : t('refer.copy')}
@@ -187,7 +199,9 @@ function ReferView({ account, onUseCredit }: { account: StoreAccount; onUseCredi
           </a>
         </div>
       </section>
+      )}
 
+      {referral.activity.length > 0 && (
       <section className="mx-4 mt-3.5">
         <h2 className="mb-1.5 text-[13px] font-bold uppercase tracking-[0.1em] text-muted-foreground">{t('refer.activity')}</h2>
         <ul>
@@ -204,8 +218,9 @@ function ReferView({ account, onUseCredit }: { account: StoreAccount; onUseCredi
           ))}
         </ul>
       </section>
+      )}
 
-      {TEST_SIGN_IN && <ReferralTestTools />}
+      {TEST_SIGN_IN && account.source === 'test' && <ReferralTestTools />}
     </div>
   )
 }

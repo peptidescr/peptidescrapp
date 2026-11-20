@@ -10,6 +10,7 @@ import { Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTit
 import { EmptyState } from '../EmptyState'
 import { signInTestAccount, signOutStore, TEST_SIGN_IN } from '../../lib/store/account'
 import { ACCOUNT_PAGE_URL, signInStore, STORE_SIGN_IN, useStoreCustomer, type SignInResult } from '../../lib/store/session'
+import { refreshStoreRewards, useStoreRewards } from '../../lib/store/storeRewards'
 
 /**
  * Sign in with the store account (src/lib/store/session.ts): email and
@@ -136,20 +137,51 @@ export function SignInButtons({ className = 'flex flex-col items-center gap-2' }
 }
 
 /**
- * Rewards and Refer & earn without an account to show: signed out (with the
- * ways to sign in), or signed in with the store account before the store's
- * rewards are switched on.
+ * Rewards and Refer & earn without rewards to show: the store has them
+ * switched off; or signed in and they're loading, couldn't be read, or the
+ * sign-in expired; or signed out (with the ways to sign in).
  */
 export function StoreSignedOut() {
   const { t } = useTranslation()
   const customer = useStoreCustomer()
+  const rewards = useStoreRewards()
+  const [open, setOpen] = useState(false)
+  if (rewards.account && !rewards.account.enabled) {
+    return <EmptyState title={t('rewards.offTitle')} body={t('rewards.offBody', { store: BRAND.store.name })} />
+  }
   if (customer) {
+    if (rewards.status === 'expired') {
+      return (
+        <EmptyState
+          title={t('rewards.expiredTitle')}
+          body={t('rewards.expiredBody', { store: BRAND.store.name })}
+          action={
+            <>
+              <Button onClick={() => setOpen(true)}>{t('signIn.open')}</Button>
+              <SignInSheet open={open} onOpenChange={setOpen} />
+            </>
+          }
+        />
+      )
+    }
+    if (rewards.status === 'unavailable') {
+      return (
+        <EmptyState
+          title={t('rewards.unavailableTitle')}
+          body={t('rewards.unavailableBody', { store: BRAND.store.name })}
+          action={
+            <Button variant="secondary" onClick={() => void refreshStoreRewards({ force: true, customer })}>
+              {t('rewards.tryAgain')}
+            </Button>
+          }
+        />
+      )
+    }
     return (
-      <EmptyState
-        title={t('rewards.comingTitle')}
-        body={t('rewards.comingBody', { email: customer.email, store: BRAND.store.name })}
-        action={TEST_SIGN_IN ? <p className="text-xs text-muted-foreground">{t('rewards.comingTestHint')}</p> : undefined}
-      />
+      <div role="status" className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border px-6 py-10 text-center text-sm text-muted-foreground">
+        <Loader2 aria-hidden className="size-6 animate-spin text-primary" />
+        {t('rewards.loading')}
+      </div>
     )
   }
   return (

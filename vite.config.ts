@@ -10,6 +10,7 @@ import { handleCatalogueRequest, toCatalogueBrand, type CatalogueResponse } from
 import { handleOrderRequest } from './netlify/lib/checkout.ts'
 import { MOCK_CHECKOUT_ENV, mockPaymentFormHtml, mockStore } from './netlify/lib/mockStore.ts'
 import { handleStatusRequest } from './netlify/lib/payments.ts'
+import { handleRewardsRequest } from './netlify/lib/rewards.ts'
 import { escapeHtml, ogLocale, robotsTxt, SHARE_IMAGE, sitemapXml, structuredData } from './src/brand/seo.ts'
 
 /**
@@ -123,6 +124,11 @@ function catalogueApi(brand: BrandConfig): Plugin {
     middlewares.use('/mock-pay.html', (req, res) => {
       res.setHeader('Content-Type', 'text/html; charset=utf-8')
       res.end(mockPaymentFormHtml(new URL(req.originalUrl ?? req.url ?? '/', 'http://localhost').searchParams))
+    })
+    middlewares.use('/api/rewards', (req, res) => {
+      void toRequest(req)
+        .then((request) => handleRewardsRequest(request, catalogueBrand, store.fetchFn))
+        .then((response) => send(res, response))
     })
     middlewares.use('/api/order-status', (req, res) => {
       void toRequest(req)

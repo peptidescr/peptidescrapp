@@ -28,16 +28,20 @@ import {
   type PlacedOrder,
 } from '../../lib/shop/checkout'
 import { paidUsd, useOrderPaid } from '../../lib/shop/useOrderPaid'
-import { balanceUsd, spendBalance, useStoreAccount } from '../../lib/store/account'
-import { pointsEarnedFor } from '../../lib/store/loyaltyView'
-import { storeAccessToken, useStoreCustomer } from '../../lib/store/session'
+import { spendTestBalance, useStoreAccount, type StoreAccount } from '../../lib/store/account'
+import { canSpendPoints, pointsEarnedFor } from '../../lib/store/loyaltyView'
+import { redeemFor, rewardPointsFor, spendEstimate, type SpendChoice } from '../../lib/store/spend'
+import { currentReferral } from '../../lib/store/referral'
+import { refreshStoreRewards } from '../../lib/store/storeRewards'
+import { cn } from '@/lib/utils'
+import { refreshStoreSession, storeAccessToken, useStoreCustomer } from '../../lib/store/session'
 import type { Locale } from '../../lib/units'
 import { PaymentFrame } from './PaymentFrame'
 
 type Step = 'cart' | 'confirm' | 'details' | 'result'
 
 /** What went wrong with the last attempt, shown above the button. */
-type Problem = { kind: 'refused'; message?: string } | { kind: 'notSent' } | { kind: 'off' } | { kind: 'invalid' }
+type Problem = { kind: 'refused'; message?: string } | { kind: 'notSent' } | { kind: 'off' } | { kind: 'invalid' } | { kind: 'unauthorized' }
 
 /**
  * The cart, the customer's details and the placed order, in one sheet (guest
@@ -90,15 +94,20 @@ export function CheckoutSheet({
   const [problem, setProblem] = useState<Problem | null>(null)
   const [unconfirmed, setUnconfirmed] = useState(false)
   const sendingRef = useRef(false)
-  // Points and credit: off until the customer turns them on, then the most this order can take unless they lower it.
+  // Spending rewards (the developer's choice, 19 November 2026): a switch for the credit, a switch for the points and
+  // a box per fixed reward, all off until turned on. The store uses only what the order needs; `applied` is our
+  // estimate of it, and the store's own total is what's charged.
   const account = useStoreAccount()
-  const [useBalance, setUseBalance] = useState(false)
-  const [balanceAmount, setBalanceAmount] = useState<string | null>(null)
-  const maxBalance = account && view.subtotal?.currency === 'USD' ? Math.min(balanceUsd(account), view.subtotal.amount) : 0
-  const parsedAmount = balanceAmount === null ? maxBalance : Number(balanceAmount.replace(',', '.'))
-  const applied = useBalance && maxBalance > 0 && Number.isFinite(parsedAmount) ? Math.round(Math.min(Math.max(parsedAmount, 0), maxBalance) * 100) / 100 : 0
+  const spendable = account?.enabled && view.subtotal?.currency === 'USD' ? account : null
+  const [useCredit, setUseCredit] = useState(false)
+  const [usePoints, setUsePoints] = useState(false)
+  const [chosenRewards, setChosenRewards] = useState<string[]>([])
+  const spend = spendEstimate(spendable, view.subtotal?.amount ?? 0, { useCredit, usePoints, rewards: chosenRewards })
+  const applied = spend.creditUsd + spend.pointsUsd
 
-  const invalid = showErrors ? firstInvalidField(form, BRAND.id) : null
+  // Signed in: the order goes under the account's email, the only one UPD gives rewards to.
+  const effective = customer ? { ...form, email: customer.email } : form
+  const invalid = showErrors ? firstInvalidField(effective, BRAND.id) : null
   const update = <K extends keyof CheckoutForm>(key: K, value: CheckoutForm[K]) => {
     setForm((f) => ({ ...f, [key]: value }))
     setProblem(null)
@@ -107,7 +116,7 @@ export function CheckoutSheet({
   async function submit() {
     if (sendingRef.current) return
     setShowErrors(true)
-    const bad = firstInvalidField(form, BRAND.id)
+    const bad = firstInvalidField(effective, BRAND.id)
     if (bad) {
       document.getElementById(`checkout-${bad}`)?.focus()
       return
@@ -122,8 +131,22 @@ export function CheckoutSheet({
     setSending(true)
     setProblem(null)
     const lines = view.lines.map(({ line }) => line)
-    const accessToken = await storeAccessToken()
-    const result = await placeOrder(lines, form, locale, fetch, { discountUsd: applied, promoCode, accessToken })
+    const sent = effective
+    const store = spendable?.source === 'store'
+    const extras = {
+      promoCode,
+      ref: BRAND.id === 'upd' ? currentReferral() : undefined,
+      // A real account: what the customer chose, for UPD to check and use as needed. The test account (unknown to
+      // UPD): our estimate, as a discount.
+      ...(store ? { redeem: redeemFor(spendable, { useCredit, usePoints, rewards: chosenRewards }) } : { discountUsd: applied }),
+    }
+    let accessToken = await storeAccessToken()
+    let result = await placeOrder(lines, sent, locale, fetch, { ...extras, accessToken })
+    if (result.kind === 'unauthorized' && accessToken) {
+      // UPD refused the token (expired): no order was made. Refresh the session and send once more, as UPD asks.
+      accessToken = await refreshStoreSession()
+      if (accessToken) result = await placeOrder(lines, sent, locale, fetch, { ...extras, accessToken })
+    }
     sendingRef.current = false
     setSending(false)
     if (result.kind === 'placed') {
@@ -136,10 +159,15 @@ export function CheckoutSheet({
         totals: result.totals,
         lines,
       }
-      if (applied > 0) spendBalance(applied)
+      if (spendable?.source === 'test') spendTestBalance(spend)
+      // The store's balance changed (points and credit spent): read it again.
+      if (store) void refreshStoreRewards({ force: true, customer })
       setPromo('')
+      setUseCredit(false)
+      setUsePoints(false)
+      setChosenRewards([])
       savePlacedOrder(placed)
-      saveCustomer(form)
+      saveCustomer(sent)
       setSaved(loadSavedCustomer(BRAND.id))
       cart.clear()
       onPlaced(placed)
@@ -298,13 +326,13 @@ export function CheckoutSheet({
                     }}
                   />
                 )}
-                {maxBalance > 0 && (
-                  <BalanceRow
-                    on={useBalance}
-                    onToggle={setUseBalance}
-                    amount={balanceAmount ?? String(maxBalance)}
-                    onAmount={setBalanceAmount}
-                    max={maxBalance}
+                {spendable && (
+                  <SpendRows
+                    account={spendable}
+                    choice={{ useCredit, usePoints, rewards: chosenRewards }}
+                    onCredit={setUseCredit}
+                    onPoints={setUsePoints}
+                    onRewards={setChosenRewards}
                     locale={locale}
                   />
                 )}
@@ -403,8 +431,25 @@ export function CheckoutSheet({
               >
                 <Input id="checkout-phone" type="tel" autoComplete="tel" inputMode="tel" value={form.phone} maxLength={25} onChange={(e) => update('phone', e.target.value)} />
               </Field>
-              <Field id="email" label={t('checkout.email')} hint={t('checkout.emailHint')} error={invalid === 'email' ? t('checkout.errors.email') : undefined}>
-                <Input id="checkout-email" type="email" autoComplete="email" inputMode="email" value={form.email} maxLength={254} onChange={(e) => update('email', e.target.value)} />
+              <Field
+                id="email"
+                label={t('checkout.email')}
+                hint={customer ? t('checkout.emailLocked', { store: BRAND.store.name }) : t('checkout.emailHint')}
+                error={invalid === 'email' ? t('checkout.errors.email') : undefined}
+              >
+                {/* Signed in: the account's email, fixed, because UPD gives rewards only to orders under it. */}
+                <Input
+                  id="checkout-email"
+                  type="email"
+                  autoComplete="email"
+                  inputMode="email"
+                  value={customer ? customer.email : form.email}
+                  readOnly={customer !== null}
+                  aria-readonly={customer !== null || undefined}
+                  className={customer ? 'bg-secondary text-muted-foreground' : undefined}
+                  maxLength={254}
+                  onChange={(e) => update('email', e.target.value)}
+                />
               </Field>
               <Field id="line1" label={t('checkout.line1')} error={invalid === 'line1' ? t('checkout.errors.required') : undefined}>
                 <Input
@@ -495,13 +540,13 @@ export function CheckoutSheet({
                   }}
                 />
               )}
-              {maxBalance > 0 && (
-                <BalanceRow
-                  on={useBalance}
-                  onToggle={setUseBalance}
-                  amount={balanceAmount ?? String(maxBalance)}
-                  onAmount={setBalanceAmount}
-                  max={maxBalance}
+              {spendable && (
+                <SpendRows
+                  account={spendable}
+                  choice={{ useCredit, usePoints, rewards: chosenRewards }}
+                  onCredit={setUseCredit}
+                  onPoints={setUsePoints}
+                  onRewards={setChosenRewards}
                   locale={locale}
                 />
               )}
@@ -542,47 +587,75 @@ function estimate(subtotal: { currency: OrderTotals['currency']; amount: number 
 }
 
 /**
- * "Use my points and credit": off until turned on, then the whole usable
- * balance (up to the order's estimate), which the customer can lower.
+ * Spending at checkout (the developer's choice, 19 November 2026): a switch for the credit, a switch for the
+ * points, and a box for each fixed reward the points can pay for. The store uses only what the order needs.
  */
-function BalanceRow({
-  on,
-  onToggle,
-  amount,
-  onAmount,
-  max,
+function SpendRows({
+  account,
+  choice,
+  onCredit,
+  onPoints,
+  onRewards,
   locale,
 }: {
-  on: boolean
-  onToggle: (on: boolean) => void
-  amount: string
-  onAmount: (value: string) => void
-  max: number
+  account: StoreAccount
+  choice: SpendChoice
+  onCredit: (on: boolean) => void
+  onPoints: (on: boolean) => void
+  onRewards: (ids: string[]) => void
   locale: Locale
 }) {
   const { t } = useTranslation()
+  const usd = (amount: number) => formatPrice({ currency: 'USD', amount }, locale)
+  const pointsOk = canSpendPoints(account)
+  if (account.creditUsd <= 0 && account.points <= 0) return null
+  const ticked = rewardPointsFor(account, choice.rewards)
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-border/60 bg-card p-3">
-      <div className="flex items-center justify-between gap-3">
-        <label htmlFor="checkout-balance-switch" className="min-w-0 text-sm leading-snug text-foreground">
-          <span className="block font-semibold">{t('checkout.useBalance')}</span>
-          <span className="block text-xs text-muted-foreground">{t('checkout.balanceAvailable', { amount: formatPrice({ currency: 'USD', amount: max }, locale) })}</span>
-        </label>
-        <Switch id="checkout-balance-switch" checked={on} onCheckedChange={onToggle} />
-      </div>
-      {on && (
-        <label className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span className="shrink-0">{t('checkout.balanceAmount')}</span>
-          <Input
-            inputMode="decimal"
-            value={amount}
-            onChange={(e) => onAmount(e.target.value.replace(/[^\d.,]/g, '').slice(0, 9))}
-            aria-label={t('checkout.balanceAmount')}
-            className="h-11 min-h-11 text-right tabular-nums"
-          />
-        </label>
+    <fieldset className="flex shrink-0 flex-col gap-3 rounded-xl border border-border/60 bg-card p-3">
+      <legend className="sr-only">{t('checkout.spendLegend')}</legend>
+      {account.creditUsd > 0 && (
+        <div className="flex items-center justify-between gap-3">
+          <label htmlFor="checkout-use-credit" className="min-w-0 text-sm leading-snug text-foreground">
+            <span className="block font-semibold">{t('checkout.useCredit')}</span>
+            <span className="block text-xs text-muted-foreground">{t('checkout.creditAvailable', { amount: usd(account.creditUsd) })}</span>
+          </label>
+          <Switch id="checkout-use-credit" checked={choice.useCredit} onCheckedChange={onCredit} />
+        </div>
       )}
-    </div>
+      {account.points > 0 && (
+        <div className="flex items-center justify-between gap-3">
+          <label htmlFor="checkout-use-points" className="min-w-0 text-sm leading-snug text-foreground">
+            <span className="block font-semibold">{t('checkout.usePoints')}</span>
+            <span className="block text-xs text-muted-foreground">
+              {pointsOk
+                ? t('checkout.pointsAvailable', { count: account.points, points: account.points.toLocaleString(locale), amount: usd(account.pointsValueUsd) })
+                : t('checkout.pointsFrom', { minimum: account.rules.minimumRedeem.toLocaleString(locale) })}
+            </span>
+          </label>
+          <Switch id="checkout-use-points" checked={choice.usePoints && pointsOk} disabled={!pointsOk} onCheckedChange={onPoints} />
+        </div>
+      )}
+      {account.rewards.map((reward) => {
+        const on = choice.rewards.includes(reward.id)
+        const affordable = on || ticked + reward.points <= account.points
+        return (
+          <label key={reward.id} className={cn('flex min-h-11 shrink-0 items-center gap-3', !affordable && 'opacity-60')}>
+            <input
+              type="checkbox"
+              checked={on}
+              disabled={!affordable}
+              onChange={(e) => onRewards(e.target.checked ? [...choice.rewards, reward.id] : choice.rewards.filter((id) => id !== reward.id))}
+              className="size-5 shrink-0 accent-primary"
+            />
+            <span className="min-w-0 text-sm leading-snug text-foreground">
+              {t(`rewards.fixed.${reward.id}`, { defaultValue: reward.name ?? reward.id })}
+              <span className="block text-xs text-muted-foreground">{t('rewards.fixedCost', { count: reward.points, points: reward.points.toLocaleString(locale) })}</span>
+            </span>
+          </label>
+        )
+      })}
+      <p className="text-xs leading-snug text-muted-foreground">{t('checkout.spendNote', { store: BRAND.store.name })}</p>
+    </fieldset>
   )
 }
 
@@ -717,8 +790,22 @@ function TotalsList({ totals, locale }: { totals: OrderTotals; locale: Locale })
       {totals.discount ? row(t('checkout.discount'), -totals.discount) : null}
       {totals.shipping !== undefined && row(t('checkout.shipping'), totals.shipping)}
       {row(t('checkout.total'), totals.total, true)}
+      {totals.rewards && <RewardsAppliedNote applied={totals.rewards} locale={locale} />}
     </dl>
   )
+}
+
+/** "Includes 300 points, $25 credit, 5% tier discount, Free delivery": what the store took from the rewards. */
+function RewardsAppliedNote({ applied, locale }: { applied: NonNullable<OrderTotals['rewards']>; locale: Locale }) {
+  const { t } = useTranslation()
+  const parts = [
+    applied.pointsUsed ? t('checkout.appliedPoints', { count: applied.pointsUsed, points: applied.pointsUsed.toLocaleString(locale) }) : null,
+    applied.creditUsd ? t('checkout.appliedCredit', { amount: formatPrice({ currency: 'USD', amount: applied.creditUsd }, locale) }) : null,
+    applied.tierDiscountUsd ? t('checkout.appliedTier', { amount: formatPrice({ currency: 'USD', amount: applied.tierDiscountUsd }, locale) }) : null,
+    ...(applied.rewards ?? []).map((id) => t(`rewards.fixed.${id}`, { defaultValue: id })),
+  ].filter((p): p is string => p !== null)
+  if (parts.length === 0) return null
+  return <p className="pt-1 text-xs text-muted-foreground">{t('checkout.appliedRewards', { list: parts.join(', ') })}</p>
 }
 
 /**
@@ -730,8 +817,10 @@ export function OrderResult({ order, locale, onDone }: { order: PlacedOrder; loc
   const { t } = useTranslation()
   const paid = useOrderPaid(order)
   const account = useStoreAccount()
-  // What the paid order earned the signed-in account (useOrderPaid adds it to the balance).
-  const pointsEarned = paid && account ? pointsEarnedFor(paidUsd(order) ?? 0, account) : 0
+  // The test account earns when paid (useOrderPaid adds it). A real store earns when the order is delivered, so
+  // for a store account this is only what it should earn then.
+  const pointsEarned = paid && account?.enabled && account.source === 'test' ? pointsEarnedFor(paidUsd(order) ?? 0, account) : 0
+  const pointsToCome = account?.enabled && account.source === 'store' && paidUsd(order) !== undefined ? pointsEarnedFor(paidUsd(order)!, account) : 0
   const card = order.paymentMethod === 'card'
   // The in-app payment form, and what it came back with (paid, or cancelled).
   const [paying, setPaying] = useState(false)
@@ -768,6 +857,9 @@ export function OrderResult({ order, locale, onDone }: { order: PlacedOrder; loc
         </p>
         {pointsEarned > 0 && (
           <p className="rounded-xl bg-positive-lt px-3.5 py-2.5 text-sm font-semibold text-positive">{t('checkout.pointsEarned', { count: pointsEarned })}</p>
+        )}
+        {pointsToCome > 0 && (
+          <p className="rounded-xl bg-tint px-3.5 py-2.5 text-sm text-foreground">{t('checkout.pointsOnDelivery', { count: pointsToCome })}</p>
         )}
         {needsPayment && (
           <p className="flex items-center gap-2 text-xs text-muted-foreground">

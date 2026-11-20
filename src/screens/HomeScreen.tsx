@@ -61,7 +61,7 @@ export function HomeScreen({
   const account = useStoreAccount()
   // The points card straddles the hero's edge, as on the approved screen; without an account (and with the
   // store features off) nothing does. Doses live in Track > Today, and the bell lists what is due.
-  const pointsCard = BRAND.features.store ? account : null
+  const pointsCard = BRAND.features.store && account?.enabled ? account : null
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const { now } = home
 

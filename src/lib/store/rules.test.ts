@@ -2,91 +2,83 @@ import { describe, expect, it } from 'vitest'
 import {
   canRedeem,
   creditToNextMilestone,
-  FIXED_REWARDS,
-  labMilestone,
+  hundredPointsUsd,
   nextReferralMilestone,
   pointsForSpend,
   pointsToCover,
   pointsValue,
-  redeemableValue,
   referralCreditEarned,
-  TIER_RULES,
+  TEST_RULES,
+  tierAbove,
   tierForSpend,
+  tierMilestone,
+  tierRule,
+  type StoreRules,
 } from './rules'
 
-describe('points (the marketing proposal)', () => {
-  it('earns one point per $1, whole points only, 1.5× at Institute', () => {
-    expect(pointsForSpend(0.99)).toBe(0)
-    expect(pointsForSpend(272.85)).toBe(272)
-    expect(pointsForSpend(90, 1.5)).toBe(135)
-    expect(pointsForSpend(99.99, 1.5)).toBe(149)
-    expect(pointsForSpend(-10)).toBe(0)
-    expect(pointsForSpend(Number.NaN)).toBe(0)
+const rules = TEST_RULES
+const referral = TEST_RULES.referral!
+
+describe('points', () => {
+  it('earns at the rules\' rate, whole points only, times a tier multiplier', () => {
+    expect(pointsForSpend(0.99, rules)).toBe(0)
+    expect(pointsForSpend(272.85, rules)).toBe(272)
+    expect(pointsForSpend(90, rules, 1.5)).toBe(135)
+    expect(pointsForSpend(-10, rules)).toBe(0)
+    expect(pointsForSpend(100, { ...rules, pointsPerDollar: 2 })).toBe(200)
   })
 
-  it('is worth 3¢ a point: 100 points = $3', () => {
-    expect(pointsValue(100)).toBe(3)
-    expect(pointsValue(900)).toBe(27)
-    expect(pointsValue(333)).toBe(9.99)
-    expect(pointsValue(-1)).toBe(0)
+  it('is worth the rules\' point value', () => {
+    expect(pointsValue(100, rules)).toBe(3)
+    expect(pointsValue(333, rules)).toBe(9.99)
+    expect(pointsValue(100, { ...rules, pointValueUsd: 0.05 })).toBe(5)
+    expect(hundredPointsUsd(rules)).toBe(3)
   })
 
-  it('can be spent from 250 points, and not below', () => {
-    expect(canRedeem(249)).toBe(false)
-    expect(canRedeem(250)).toBe(true)
-    expect(redeemableValue(249)).toBe(0)
-    expect(redeemableValue(250)).toBe(7.5)
+  it('can be spent from the rules\' minimum', () => {
+    expect(canRedeem(249, rules)).toBe(false)
+    expect(canRedeem(250, rules)).toBe(true)
+    expect(canRedeem(100, { ...rules, minimumRedeem: 100 })).toBe(true)
+    expect(canRedeem(0, { ...rules, minimumRedeem: 0 })).toBe(false)
   })
 
   it('works out the fewest points that cover an amount', () => {
-    expect(pointsToCover(3)).toBe(100)
-    expect(pointsToCover(7.5)).toBe(250)
-    expect(pointsToCover(0.01)).toBe(1)
-    expect(pointsToCover(0)).toBe(0)
-  })
-
-  it('has the placeholder fixed rewards', () => {
-    expect(FIXED_REWARDS.map((r) => r.id)).toEqual(['free_delivery', 'reconstitution_solution'])
+    expect(pointsToCover(3, rules)).toBe(100)
+    expect(pointsToCover(0.01, rules)).toBe(1)
+    expect(pointsToCover(0, rules)).toBe(0)
   })
 })
 
 describe('tiers', () => {
-  it('reaches Lab at $1,500 and Institute at $5,000 of 12-month spend', () => {
-    expect(tierForSpend(1499.99)).toBe('bench')
-    expect(tierForSpend(1500)).toBe('lab')
-    expect(tierForSpend(5000)).toBe('institute')
+  it('finds the highest tier a spend reaches, whatever tiers the store sends', () => {
+    expect(tierForSpend(rules, 1499.99)).toBe('bench')
+    expect(tierForSpend(rules, 1500)).toBe('lab')
+    expect(tierForSpend(rules, 9000)).toBe('institute')
+    const other: StoreRules = { ...rules, tiers: [{ ...rules.tiers[0]!, tier: 'base' }, { ...rules.tiers[2]!, tier: 'gold', spendUsd: 800 }] }
+    expect(tierForSpend(other, 900)).toBe('gold')
   })
 
-  it('gives Lab 5% + free delivery, Institute 10% + free delivery + 1.5× points + early access', () => {
-    expect(TIER_RULES.lab).toMatchObject({ discountPercent: 5, freeDelivery: true, pointsMultiplier: 1, referrals: 25 })
-    expect(TIER_RULES.institute).toMatchObject({ discountPercent: 10, freeDelivery: true, pointsMultiplier: 1.5, earlyAccess: true })
-  })
-
-  it('grants Lab at 25 referrals for 12 months, with Lab\'s perks', () => {
-    expect(labMilestone()).toEqual({ referrals: 25, tier: { tier: 'lab', months: 12, discountPercent: 5, freeDelivery: true } })
+  it('looks tiers up by id, and the one above', () => {
+    expect(tierRule(rules, 'lab')?.discountPercent).toBe(5)
+    expect(tierRule(rules, 'unknown')).toBeUndefined()
+    expect(tierAbove(rules, 'bench')?.tier).toBe('lab')
+    expect(tierAbove(rules, 'institute')).toBeUndefined()
   })
 })
 
 describe('referrals', () => {
-  it('matches the referral model\'s payouts: $20 each, +$25 at 5, +$75 at 10', () => {
-    // The spreadsheet's "Payouts by milestone" table.
-    expect(referralCreditEarned(1)).toBe(20)
-    expect(referralCreditEarned(5)).toBe(125)
-    expect(referralCreditEarned(10)).toBe(300)
-    expect(referralCreditEarned(25)).toBe(600)
+  it('adds per-referral credit and milestone bonuses ($20, +$25 at 5, +$75 at 10)', () => {
+    expect(referralCreditEarned(1, referral)).toBe(20)
+    expect(referralCreditEarned(5, referral)).toBe(125)
+    expect(referralCreditEarned(10, referral)).toBe(300)
+    expect(referralCreditEarned(25, referral)).toBe(600)
   })
 
-  it('says what comes next and how far away it is', () => {
-    expect(nextReferralMilestone(3)).toEqual({ milestone: { referrals: 5, bonusCredit: 25 }, remaining: 2 })
-    expect(nextReferralMilestone(10)?.milestone.referrals).toBe(25)
-    expect(nextReferralMilestone(25)).toBeNull()
-  })
-
-  it('works out the credit reaching the next milestone adds', () => {
-    // 2 more friends at $20, plus the 5-referral bonus of $25.
-    expect(creditToNextMilestone(3)).toBe(65)
-    // 15 more friends at $20 to reach Lab, which adds no credit of its own.
-    expect(creditToNextMilestone(10)).toBe(300)
-    expect(creditToNextMilestone(25)).toBe(0)
+  it('says what comes next, and what reaching it adds', () => {
+    expect(nextReferralMilestone(3, referral)).toEqual({ milestone: { referrals: 5, bonusCreditUsd: 25 }, remaining: 2 })
+    expect(nextReferralMilestone(25, referral)).toBeNull()
+    expect(creditToNextMilestone(3, referral)).toBe(65)
+    expect(creditToNextMilestone(25, referral)).toBe(0)
+    expect(tierMilestone(referral)).toEqual({ referrals: 25, tier: 'lab', months: 12 })
   })
 })

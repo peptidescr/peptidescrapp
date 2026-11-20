@@ -12,8 +12,7 @@ import { YourUsual } from './shop/YourUsual'
  * Rendered only when BRAND.features.store is on: with the flag off (the
  * default) this contributes nothing at all, not even a placeholder. Your usual
  * needs no account (it remembers this phone's last order); the credit banner
- * needs one, and until the stores have accounts only the sample account of a
- * review build shows it (src/lib/store/account.ts).
+ * needs a signed-in account whose store has rewards on (src/lib/store/account.ts).
  */
 export function HomeCommerceSlots({ onOpenRefer }: { onOpenRefer: () => void }) {
   const account = useStoreAccount()
@@ -21,7 +20,7 @@ export function HomeCommerceSlots({ onOpenRefer }: { onOpenRefer: () => void }) 
   return (
     <>
       <YourUsual />
-      {account && <CreditBanner account={account} onOpen={onOpenRefer} />}
+      {account?.enabled && <CreditBanner account={account} onOpen={onOpenRefer} />}
     </>
   )
 }

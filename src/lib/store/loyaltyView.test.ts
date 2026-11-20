@@ -1,43 +1,61 @@
 import { describe, expect, it } from 'vitest'
-import { balanceUsd, SAMPLE_ACCOUNT, type StoreAccount } from './account'
+import { SAMPLE_STATE, testAccount, type StoreAccount } from './account'
 import {
+  canSpendPoints,
   creditEarnedUsd,
   creditUnlockedByNext,
   fixedRewards,
   ladderRows,
   nextMilestone,
-  nextTier,
   nextTierProgress,
   perksLine,
   pointsEarnedFor,
   pointsToRedeem,
-  pointsWorthUsd,
   rungs,
-  tierOf,
+  spendableUsd,
+  tierFromReferrals,
+  tierName,
+  trackSpend,
 } from './loyaltyView'
+import { TEST_RULES, tierRule } from './rules'
 
-const account = SAMPLE_ACCOUNT
 const now = new Date('2026-11-18T12:00:00Z')
-const withReferrals = (completed: number): StoreAccount => ({ ...account, referral: { ...account.referral, completed } })
-const spending = (spend12moUsd: number): StoreAccount => ({ ...account, spend12moUsd })
+const account = testAccount(SAMPLE_STATE, now)
+const t = (key: string, o?: Record<string, unknown>) => `${key}${o ? JSON.stringify(o) : ''}`
 
-describe('points', () => {
-  it('earns a point per $1, 1.5× at Institute', () => {
-    expect(pointsEarnedFor(272.85)).toBe(272)
-    expect(pointsEarnedFor(100, account, now)).toBe(100)
-    expect(pointsEarnedFor(100, spending(5000), now)).toBe(150)
+/** A store account as UPD would send it, with its own (different) numbers. */
+const store: StoreAccount = {
+  ...account,
+  source: 'store',
+  points: 400,
+  pointsValueUsd: 20,
+  creditUsd: 10,
+  tier: { current: 'silver', spend12moUsd: 500, next: { tier: 'gold', spendToGoUsd: 500 } },
+  rules: {
+    pointsPerDollar: 2,
+    pointValueUsd: 0.05,
+    minimumRedeem: 500,
+    tierWindowMonths: 6,
+    tiers: [
+      { tier: 'silver', name: 'Silver', spendUsd: 0, discountPercent: 0, freeDelivery: false, pointsMultiplier: 1, earlyAccess: false },
+      { tier: 'gold', name: 'Gold', spendUsd: 1000, discountPercent: 7, freeDelivery: true, pointsMultiplier: 2, earlyAccess: false },
+    ],
+  },
+}
+
+describe('points, from the account\'s own rules', () => {
+  it('earns at the store\'s rate and tier multiplier', () => {
+    expect(pointsEarnedFor(100, account)).toBe(100)
+    expect(pointsEarnedFor(100, store)).toBe(200)
+    expect(pointsEarnedFor(100, { ...store, tier: { current: 'gold' } })).toBe(400)
   })
 
-  it('is worth 3¢ each, spendable from 250', () => {
-    expect(pointsWorthUsd(account)).toBe(27)
-    expect(pointsToRedeem(account)).toBe(0)
-    expect(pointsToRedeem({ ...account, points: 200 })).toBe(50)
-  })
-
-  it('adds credit and spendable points into one balance', () => {
-    expect(balanceUsd(account)).toBe(27 + 60)
-    // Below 250 points, only the credit can be spent.
-    expect(balanceUsd({ ...account, points: 249, creditUsd: 12.5 })).toBe(12.5)
+  it('spends from the store\'s minimum', () => {
+    expect(canSpendPoints(account)).toBe(true)
+    expect(canSpendPoints(store)).toBe(false)
+    expect(pointsToRedeem(store)).toBe(100)
+    expect(spendableUsd(account)).toBe(27 + 60)
+    expect(spendableUsd(store)).toBe(10)
   })
 
   it('says how far each fixed reward is', () => {
@@ -46,67 +64,62 @@ describe('points', () => {
 })
 
 describe('tiers', () => {
-  it('follows the 12-month spend: Bench, Lab at $1,500, Institute at $5,000', () => {
-    expect(tierOf(account, now)).toBe('bench')
-    expect(tierOf(spending(1500), now)).toBe('lab')
-    expect(tierOf(spending(5000), now)).toBe('institute')
+  it('fills the ring by spend, or referrals when they count, whichever is further', () => {
+    expect(nextTierProgress(account)).toBeCloseTo(900 / 1500)
+    expect(nextTierProgress({ ...account, tier: { ...account.tier, spend12moUsd: 0, next: { tier: 'lab', spendToGoUsd: 1500, referralsToGo: 5 } } })).toBeCloseTo(20 / 25)
+    expect(nextTierProgress(store)).toBeCloseTo(0.5)
+    expect(nextTierProgress({ ...store, tier: { current: 'gold' } })).toBe(1)
   })
 
-  it('gives Lab while a referral Lab runs, and never lowers a spend tier', () => {
-    expect(tierOf({ ...account, labUntil: '2027-06-01' }, now)).toBe('lab')
-    expect(tierOf({ ...account, labUntil: '2026-10-01' }, now)).toBe('bench')
-    expect(tierOf({ ...spending(6000), labUntil: '2027-06-01' }, now)).toBe('institute')
+  it('works without the 12-month spend, from what is left', () => {
+    expect(nextTierProgress({ ...store, tier: { current: 'silver', next: { tier: 'gold', spendToGoUsd: 250 } } })).toBeCloseTo(0.75)
   })
 
-  it('says what the next tier takes: spend or referrals for Lab, spend for Institute', () => {
-    expect(nextTier(account, now)).toEqual({ tier: 'lab', spendToGo: 600, referralsToGo: 22 })
-    expect(nextTier(spending(2000), now)).toEqual({ tier: 'institute', spendToGo: 3000 })
-    expect(nextTier(spending(5000), now)).toBeNull()
+  it('places a referral tier on the track at its threshold', () => {
+    const referred = { ...account, tier: { current: 'lab', earnedBy: 'referrals', until: '2027-06-01', spend12moUsd: 200 } }
+    expect(tierFromReferrals(referred)).toBe(true)
+    expect(trackSpend(referred)).toBe(1500)
+    expect(trackSpend(account)).toBe(900)
   })
 
-  it('fills the ring by whichever is further along', () => {
-    expect(nextTierProgress(account, now)).toBeCloseTo(900 / 1500)
-    expect(nextTierProgress({ ...spending(0), referral: { ...account.referral, completed: 20 } }, now)).toBeCloseTo(20 / 25)
-    // From Lab, the way to Institute starts at Lab's $1,500.
-    expect(nextTierProgress(spending(3250), now)).toBeCloseTo(0.5)
-    expect(nextTierProgress(spending(9000), now)).toBe(1)
+  it('names tiers: ours when we have one, else the store\'s, else the id', () => {
+    const real = (key: string, o?: Record<string, unknown>) => (key === 'loyalty.tierName.lab' ? 'Lab' : String(o?.defaultValue))
+    expect(tierName('lab', TEST_RULES, real)).toBe('Lab')
+    expect(tierName('gold', store.rules, real)).toBe('Gold')
+    expect(tierName('platinum', store.rules, real)).toBe('Platinum')
   })
 
   it('writes a tier\'s perks on one line', () => {
-    const t = (key: string, o?: Record<string, unknown>) => `${key}${o ? JSON.stringify(o) : ''}`
-    expect(perksLine('bench', t)).toBe('loyalty.perk.points')
-    expect(perksLine('institute', t)).toBe('loyalty.perk.discount{"percent":10} + loyalty.perk.freeDelivery + loyalty.perk.multiplier{"times":1.5}')
+    expect(perksLine(tierRule(TEST_RULES, 'bench'), t)).toBe('loyalty.perk.none')
+    expect(perksLine(tierRule(TEST_RULES, 'institute'), t)).toBe('loyalty.perk.discount{"percent":10} + loyalty.perk.freeDelivery + loyalty.perk.multiplier{"times":1.5}')
   })
 })
 
 describe('the referral ladder', () => {
-  it('has the model\'s rungs: $20 for the first, +$25 at 5, +$75 at 10, Lab at 25', () => {
-    expect(rungs()).toEqual([
+  const withReferrals = (completed: number): StoreAccount => ({ ...account, referral: { ...account.referral, completed } })
+
+  it('has a rung for the first referral and one per milestone', () => {
+    expect(rungs(TEST_RULES)).toEqual([
       { referrals: 1, creditUsd: 20 },
-      { referrals: 5, bonusUsd: 25, tier: undefined },
-      { referrals: 10, bonusUsd: 75, tier: undefined },
-      { referrals: 25, bonusUsd: undefined, tier: { months: 12, discountPercent: 5, freeDelivery: true } },
+      { referrals: 5, bonusUsd: 25 },
+      { referrals: 10, bonusUsd: 75 },
+      { referrals: 25, tier: { tier: 'lab', months: 12, discountPercent: 5, freeDelivery: true } },
     ])
+    expect(rungs(store.rules)).toEqual([])
   })
 
   it('marks what is earned, the next rung, and what is locked', () => {
     expect(ladderRows(account).map((r) => r.state)).toEqual(['earned', 'next', 'locked', 'locked'])
     expect(ladderRows(account).map((r) => r.toGo)).toEqual([0, 2, 7, 22])
-    expect(ladderRows(account).map((r) => r.lineFill)).toEqual([0.45, 0, 0, 0])
     expect(ladderRows(withReferrals(25)).every((r) => r.state === 'earned')).toBe(true)
   })
 
-  it('adds up credit earned as the model\'s payouts table does', () => {
+  it('adds up credit and says what the next milestone adds', () => {
     expect(creditEarnedUsd(account)).toBe(60)
-    expect(creditEarnedUsd(withReferrals(5))).toBe(125)
-    expect(creditEarnedUsd(withReferrals(10))).toBe(300)
-    expect(creditEarnedUsd(withReferrals(25))).toBe(600)
-  })
-
-  it('says what the next milestone is and what reaching it adds', () => {
-    expect(nextMilestone(account)).toEqual({ referrals: 5, remaining: 2, bonusUsd: 25, grantsLab: false })
+    expect(creditEarnedUsd(store)).toBe(0)
+    expect(nextMilestone(account)).toEqual({ referrals: 5, remaining: 2, bonusUsd: 25, grantsTier: undefined })
     expect(creditUnlockedByNext(account)).toBe(65)
-    expect(nextMilestone(withReferrals(12))).toEqual({ referrals: 25, remaining: 13, bonusUsd: undefined, grantsLab: true })
-    expect(nextMilestone(withReferrals(25))).toBeNull()
+    expect(nextMilestone(withReferrals(12))).toMatchObject({ referrals: 25, remaining: 13, grantsTier: 'lab' })
+    expect(nextMilestone(store)).toBeNull()
   })
 })

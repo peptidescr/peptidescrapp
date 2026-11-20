@@ -24,11 +24,16 @@
  *   CHARGX_PUBLISHABLE_KEY      UPD only: the sandbox store's key, which starts
  *                               the card payment (startChargxPayment). Without
  *                               it a UPD card order has no payment link.
+ *   UPD_CARD_PAYMENT=store     UPD only: start the card payment through UPD's
+ *                               own /api/checkout/card (startUpdCardPayment), as
+ *                               its developer asked, instead of the ChargX
+ *                               sandbox. Whether that route charges real cards
+ *                               isn't known yet: leave unset until UPD says.
  *
- * The points and credit a customer applies are sent as a discount under an
- * assumed field name (DISCOUNT_FIELD); in sandbox they come from the staging
- * test account, so nothing here can apply a balance a real customer doesn't
- * have. A live mode must take them from the store's own account API instead.
+ * A signed-in UPD customer's spending goes as UPD's `redeem` object, with their
+ * token: UPD checks the balance. The staging test account's balance (which UPD
+ * doesn't know) still goes as a discount under an assumed field name
+ * (DISCOUNT_FIELD), which UPD ignores.
  *
  * Keys live only in the site's environment (Netlify), entered by whoever holds
  * them. Nothing here logs a key, a request body or a customer's details.
@@ -42,8 +47,11 @@ import type { CatalogueBrand, FetchLike, StorePrice } from './catalogue.ts'
 
 export type CheckoutSettings =
   | { ok: true; brand: 'pcr'; partnerKey: string; signingSecret: string }
-  /** `chargxKey`: the sandbox store's publishable key, which starts UPD's card payments (UPD API doc §6). */
-  | { ok: true; brand: 'upd'; chargxKey?: string }
+  /**
+   * `chargxKey`: the sandbox store's publishable key, which starts UPD's card payments (UPD API doc §6).
+   * `storeCardRoute`: start them through UPD's own /api/checkout/card instead (UPD_CARD_PAYMENT=store).
+   */
+  | { ok: true; brand: 'upd'; chargxKey?: string; storeCardRoute?: true }
   | { ok: false; reason: string }
 
 /** Whether this site may place orders, and the credentials to do it with. Never returns a key in `reason`. */
@@ -59,7 +67,12 @@ export function checkoutSettings(brand: CatalogueBrand, env: Record<string, stri
     return { ok: true, brand, partnerKey, signingSecret }
   }
   if (env.UPD_LIVE_ORDERS_OK !== 'true') return { ok: false, reason: 'UPD_LIVE_ORDERS_OK is not "true"' }
-  return env.CHARGX_PUBLISHABLE_KEY ? { ok: true, brand, chargxKey: env.CHARGX_PUBLISHABLE_KEY } : { ok: true, brand }
+  return {
+    ok: true,
+    brand,
+    ...(env.CHARGX_PUBLISHABLE_KEY ? { chargxKey: env.CHARGX_PUBLISHABLE_KEY } : {}),
+    ...(env.UPD_CARD_PAYMENT === 'store' ? { storeCardRoute: true as const } : {}),
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -86,12 +99,52 @@ export interface CheckoutRequest {
   discountUsd?: number
   /** A promo code the customer typed (UPD only; the store checks it). */
   promoCode?: string
+  /**
+   * What the signed-in UPD customer chose to spend (UPD's `redeem`): points, credit and fixed rewards. UPD checks
+   * the balance and uses only what the order needs. Needs the customer's token.
+   */
+  redeem?: Redeem
+  /** The referral code that brought the customer (UPD's `ref`, from a `?ref=` link). */
+  ref?: string
   /** What the customer agreed to be contacted about: only boxes they actually ticked. */
   consent: { marketing: boolean; sms: boolean; call: boolean }
 }
 
+export interface Redeem {
+  points?: number
+  creditUsd?: number
+  rewards?: string[]
+}
+
 /** The most a customer can apply to one order; a sanity bound, not a rule. */
 export const MAX_DISCOUNT_USD = 10_000
+const MAX_REDEEM_POINTS = 10_000_000
+const REWARD_ID = /^[a-z0-9_-]{1,40}$/
+/** UPD's website keeps referral codes of 4–32 letters, digits and dashes. */
+const REF_CODE = /^[A-Za-z0-9-]{4,32}$/
+
+/** UPD's `redeem` object from the app's request; undefined when empty, null when malformed. */
+function parseRedeem(value: unknown): Redeem | undefined | null {
+  if (value === undefined) return undefined
+  if (!isRecord(value)) return null
+  const redeem: Redeem = {}
+  if (value.points !== undefined) {
+    const p = value.points
+    if (typeof p !== 'number' || !Number.isInteger(p) || p < 0 || p > MAX_REDEEM_POINTS) return null
+    if (p > 0) redeem.points = p
+  }
+  if (value.creditUsd !== undefined) {
+    const c = value.creditUsd
+    if (typeof c !== 'number' || !Number.isFinite(c) || c < 0 || c > MAX_DISCOUNT_USD) return null
+    if (c > 0) redeem.creditUsd = Math.round(c * 100) / 100
+  }
+  if (value.rewards !== undefined) {
+    const r = value.rewards
+    if (!Array.isArray(r) || r.length > 10 || !r.every((id) => typeof id === 'string' && REWARD_ID.test(id))) return null
+    if (r.length > 0) redeem.rewards = [...new Set(r as string[])]
+  }
+  return Object.keys(redeem).length > 0 ? redeem : undefined
+}
 
 export const MAX_BODY_CHARS = 16_000
 /** Both stores' limits: PCR takes 50 lines and 1–100 of each. */
@@ -213,9 +266,20 @@ export function parseCheckoutRequest(input: unknown, brand: CatalogueBrand): Par
     promoCode = input.promoCode
   }
 
+  // Spending rewards and referral codes exist only on UPD.
+  const redeem = parseRedeem(input.redeem)
+  if (redeem === null || (redeem && brand !== 'upd')) return { ok: false, field: 'redeem' }
+  let ref: string | undefined
+  if (input.ref !== undefined && input.ref !== '') {
+    if (brand !== 'upd' || typeof input.ref !== 'string' || !REF_CODE.test(input.ref)) return { ok: false, field: 'ref' }
+    ref = input.ref
+  }
+
   const request: CheckoutRequest = { items, customer: { name, phone, email, address }, paymentMethod, language, consent }
   if (discountUsd !== undefined) request.discountUsd = discountUsd
   if (promoCode !== undefined) request.promoCode = promoCode
+  if (redeem) request.redeem = redeem
+  if (ref !== undefined) request.ref = ref
   return { ok: true, request }
 }
 
@@ -304,6 +368,10 @@ export function buildStoreRequest(
     paymentMethod: 'card',
     smsConsent: request.consent.sms,
     callConsent: request.consent.call,
+    // UPD's developer (19 November 2026): every app order says so; rewards apply only to app orders.
+    channel: 'app',
+    ...(request.ref ? { ref: request.ref } : {}),
+    ...(request.redeem && token ? { redeem: request.redeem } : {}),
     ...(request.promoCode ? { promoCode: request.promoCode } : {}),
     shippingProtection: false,
     firstTouch: appAttribution(now),
@@ -317,12 +385,22 @@ export function buildStoreRequest(
   }
 }
 
+/** What UPD applied from the customer's rewards (`order.rewards`), as far as the app needs to show it. */
+export interface RewardsApplied {
+  pointsUsed?: number
+  creditUsd?: number
+  tierDiscountUsd?: number
+  /** Fixed rewards applied, by id. */
+  rewards?: string[]
+}
+
 export interface OrderTotals {
   currency: StorePrice['currency']
   goods?: number
   discount?: number
   shipping?: number
   total: number
+  rewards?: RewardsApplied
 }
 
 export type StoreAnswer =
@@ -330,6 +408,8 @@ export type StoreAnswer =
   | { kind: 'placed'; orderNumber: string; status?: string; totals?: OrderTotals; paymentUrl?: string; paymentToken?: string }
   /** The store said no, with a message written for the customer (PCR asks that it's shown as it is). */
   | { kind: 'refused'; message?: string }
+  /** UPD didn't accept the customer's token (expired or signed out): no order was made; refresh and ask again. */
+  | { kind: 'unauthorized' }
   /** Anything else: the order may or may not exist, so the app must not simply retry. */
   | { kind: 'unconfirmed' }
 
@@ -360,6 +440,45 @@ function customerMessage(value: unknown): string | undefined {
   return field(value, 300)
 }
 
+/** The first of these fields that holds a sensible amount. */
+function firstMoney(record: Record<string, unknown>, keys: string[]): number | undefined {
+  for (const key of keys) {
+    const value = money(record[key])
+    if (value !== undefined) return value
+  }
+  return undefined
+}
+
+let loggedRewardsShape = false
+
+/**
+ * UPD's `order.rewards` breakdown. Its developer described it in words ("the reply has the breakdown in
+ * order.rewards"), not field by field, so the likely names are read and the names actually sent are logged once
+ * (never the values) to check against. Undefined when nothing was applied or nothing is recognised.
+ */
+export function readRewardsApplied(value: unknown): RewardsApplied | undefined {
+  if (!isRecord(value)) return undefined
+  if (!loggedRewardsShape) {
+    loggedRewardsShape = true
+    console.log(`orders: upd order.rewards fields: ${Object.keys(value).slice(0, 40).join(', ')}`)
+  }
+  const applied: RewardsApplied = {}
+  const points = firstMoney(value, ['pointsUsed', 'pointsRedeemed', 'points'])
+  if (points) applied.pointsUsed = Math.round(points)
+  const credit = firstMoney(value, ['creditUsedUsd', 'creditUsd', 'storeCreditUsd', 'creditApplied'])
+  if (credit) applied.creditUsd = credit
+  const tier = firstMoney(value, ['tierDiscountUsd', 'tierDiscount'])
+  if (tier) applied.tierDiscountUsd = tier
+  const list = value.rewards ?? value.fixedRewards ?? value.applied
+  if (Array.isArray(list)) {
+    const ids = list
+      .map((r) => (typeof r === 'string' ? r : isRecord(r) && typeof r.id === 'string' ? r.id : undefined))
+      .filter((id): id is string => id !== undefined && REWARD_ID.test(id))
+    if (ids.length > 0) applied.rewards = ids.slice(0, 10)
+  }
+  return Object.keys(applied).length > 0 ? applied : undefined
+}
+
 /**
  * Reads the store's answer. PCR's shape is documented. UPD's spec shows
  * `{ order: {...} }`, while UPD's own website reads `{ data: { order, payment:
@@ -369,6 +488,8 @@ function customerMessage(value: unknown): string | undefined {
  * 0 (UPD's doc example) is treated as unknown, never shown as the price.
  */
 export function readStoreAnswer(brand: CatalogueBrand, status: number, body: unknown): StoreAnswer {
+  // UPD's developer: "An invalid or expired token gets a 401, so please refresh the session and retry."
+  if (brand === 'upd' && status === 401) return { kind: 'unauthorized' }
   if (!isRecord(body)) return { kind: 'unconfirmed' }
   const root = brand === 'upd' && isRecord(body.data) ? body.data : body
   const order = brand === 'upd' && isRecord(root.order) ? root.order : root
@@ -397,6 +518,8 @@ export function readStoreAnswer(brand: CatalogueBrand, status: number, body: unk
         // UPD's website reads `discountTotal` on its price preview; kept when an order carries it too.
         const discount = money(order.discountTotal)
         if (discount) totals.discount = discount
+        const applied = readRewardsApplied(order.rewards)
+        if (applied) totals.rewards = applied
       }
     }
     if (totals) answer.totals = totals
@@ -440,6 +563,37 @@ export function isChargxForm(value: string): boolean {
  * refused. Returns the form's address, or undefined when it couldn't start;
  * the order stands either way and is never placed again.
  */
+const UPD_CARD_URL = 'https://www.usapeptidedepot.com/api/checkout/card'
+
+/**
+ * Starts a UPD card payment the way UPD's website does and its developer asked for (19 November 2026): POST
+ * /api/checkout/card with the order number and the order reply's `payment.token`, answered with
+ * `data.paymentUrl` (read from UPD's public checkout code). UPD's server holds the payment key. Whether this route
+ * charges real cards or has a sandbox is not known yet, so it runs only when UPD_CARD_PAYMENT=store.
+ */
+export async function startUpdCardPayment(fetchFn: FetchLike, input: { orderNumber: string; paymentToken: string }): Promise<string | undefined> {
+  try {
+    const response = await fetchFn(UPD_CARD_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ orderNumber: input.orderNumber, token: input.paymentToken, method: 'card' }),
+      signal: AbortSignal.timeout(15_000),
+    })
+    const body: unknown = await response.json().catch(() => null)
+    const paymentUrl = isRecord(body) && isRecord(body.data) ? body.data.paymentUrl : undefined
+    if (!response.ok) {
+      console.error(`orders: upd card payment answered ${response.status}`)
+      return undefined
+    }
+    if (isAllowedPaymentUrl(paymentUrl, 'upd')) return paymentUrl
+    console.error('orders: upd card payment link refused (missing, or not on the store or ChargX)')
+    return undefined
+  } catch (err) {
+    console.error('orders: upd card payment failed:', err instanceof Error ? err.name : 'error')
+    return undefined
+  }
+}
+
 export async function startChargxPayment(
   fetchFn: FetchLike,
   input: {
@@ -568,7 +722,7 @@ const STORE_TIMEOUT_MS = 20_000
 export type OrderResponseBody =
   /** `paymentUrl` opens full-screen; `embedUrl`, when there is one, is ChargX's own form, shown inside the app. */
   | { ok: true; orderNumber: string; status?: string; totals?: OrderTotals; paymentUrl?: string; embedUrl?: string }
-  | { ok: false; error: 'checkout-off' | 'invalid' | 'refused' | 'unconfirmed'; field?: string; message?: string }
+  | { ok: false; error: 'checkout-off' | 'invalid' | 'refused' | 'unconfirmed' | 'unauthorized'; field?: string; message?: string }
 
 function reply(body: OrderResponseBody, status: number): Response {
   return Response.json(body, { status, headers: { 'Cache-Control': 'no-store' } })
@@ -617,6 +771,8 @@ export async function handleOrderRequest(
 
   // Only UPD has store accounts; a token sent to a PCR site is ignored.
   const token = settings.brand === 'upd' ? customerToken(req.headers.get('authorization')) : undefined
+  // Spending rewards needs the signed-in customer (UPD checks their balance).
+  if (parsed.request.redeem && !token) return reply({ ok: false, error: 'unauthorized' }, 401)
   const storeRequest = buildStoreRequest(settings, parsed.request, token)
   let answer: StoreAnswer
   try {
@@ -645,7 +801,11 @@ export async function handleOrderRequest(
     let paymentUrl = answer.paymentUrl
     let embedUrl: string | undefined
     if (parsed.request.paymentMethod === 'card') {
-      if (settings.brand === 'upd' && !paymentUrl && settings.chargxKey && totals?.total) {
+      if (settings.brand === 'upd' && !paymentUrl && settings.storeCardRoute) {
+        if (answer.paymentToken) paymentUrl = await startUpdCardPayment(fetchFn, { orderNumber, paymentToken: answer.paymentToken })
+        else console.error('orders: upd order reply has no payment token; no card payment started')
+        if (paymentUrl) embedUrl = isChargxForm(paymentUrl) ? paymentUrl : await findChargxForward(fetchFn, paymentUrl)
+      } else if (settings.brand === 'upd' && !paymentUrl && settings.chargxKey && totals?.total) {
         paymentUrl = await startChargxPayment(fetchFn, {
           publishableKey: settings.chargxKey,
           orderNumber,
@@ -666,5 +826,6 @@ export async function handleOrderRequest(
     return reply({ ok: true, orderNumber, status, totals, paymentUrl, embedUrl }, 200)
   }
   if (answer.kind === 'refused') return reply({ ok: false, error: 'refused', message: answer.message }, 422)
+  if (answer.kind === 'unauthorized') return reply({ ok: false, error: 'unauthorized' }, 401)
   return reply({ ok: false, error: 'unconfirmed' }, 502)
 }

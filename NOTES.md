@@ -2837,3 +2837,56 @@ address and key in the settings.
 order reply's data.payment.token, method: 'card' }` and use its `data.paymentUrl` (read from UPD's checkout code).
 Staging keeps the ChargX sandbox path: UPD's endpoint charges real cards. To ask UPD then: whether that link may be
 shown inside the app, and how the app learns a live order was paid.
+
+## UPD's real rewards connected (20 November 2026, on `staging`)
+
+UPD's developer shipped the rewards side (19 November): `GET /api/customer/rewards` (Bearer token) with `enabled`,
+`points` (balance and dollar value), `storeCreditUsd`, `tier`, `referral`, `rewards`, `rules` and `history`;
+"don't hard-code any numbers ... always read them from rules"; every app order sends `"channel": "app"` and the
+token when signed in; rewards apply only to app orders under the signed-in email; a 401 means refresh the session
+and retry; `redeem: { points, creditUsd, rewards }` (UPD checks the balance, applies tier discounts, uses only what
+the order needs, returns the breakdown in `order.rewards`, gives it back on cancel or refund); earning on delivery;
+referral credit only on app orders, with `ref` sent; card payments through `/api/checkout/card`. The developer chose:
+switches for spending, the email locked when signed in, the test account kept for now, and the ChargX sandbox kept
+on staging until UPD says whether its card route has one.
+
+**Reading rewards** (`netlify/lib/rewards.ts`, `src/lib/store/storeRewards.ts`): UPD's server sends no CORS
+permission (checked: its preflight answers 204 without `Access-Control-Allow-Origin`), so the app asks our
+`/api/rewards`, which passes the token to UPD and the answer back (401 passed on; never logs the token; logs the
+answer's field NAMES once). Read on open, on return (at most every 30 s), on sign-in and after an order; a 401 is
+refreshed once (`refreshStoreSession`) and asked again, then "sign in again". **The field names are our reading of
+the developer's description** (his words first, a few likely spellings inside); when the core rules or the balance
+are missing, the screens say rewards couldn't be loaded instead of using numbers of our own. Confirm against the
+first real answer (Netlify function log `rewards: upd answer fields: …`) or a sample from UPD.
+
+**No numbers in the code:** `StoreAccount` (account.ts) now carries the store's tier status, fixed rewards, history
+and rules; `rules.ts` holds the shape and functions that take rules; `loyaltyView.ts` reads everything off the
+account. The staging test account uses `TEST_RULES` (the placeholders). Tier names: ours for known ids, else the
+store's name, else the id. `enabled: false` hides the Home cards, Rewards, Refer, spending and point estimates.
+
+**Orders** (`netlify/lib/checkout.ts`): UPD orders send `channel: 'app'`; `ref` (from a `?ref=` link: kept 30 days
+on the phone, `src/lib/store/referral.ts`, as UPD's website does); `redeem` (validated, only with a token; a
+redeem without one is refused before reaching UPD); UPD's 401 comes back as `unauthorized` (no order made) and the
+app refreshes and sends once more; `order.rewards` is read into the totals ("Includes 900 points, $25 credit, Free
+delivery"; names read loosely and logged once). `UPD_CARD_PAYMENT=store` starts card payments through UPD's
+`/api/checkout/card` (`{ orderNumber, token: payment.token, method: 'card' }` → `data.paymentUrl`, checked
+against the store's and ChargX's hosts); unset (the default), staging keeps the ChargX sandbox.
+
+**Checkout:** signed in, the email is the account's and can't be edited; "Use my credit" and "Use my points"
+switches and a box per fixed reward the points can pay for (`src/lib/store/spend.ts`); a real account sends what's
+available and UPD uses what's needed, the test account a discount estimate as before. "Order placed" says what the
+order should earn once delivered (store accounts) or what it earned (test account). Rewards shows the store's
+recent changes; Refer shows the store's share link and activity, and hides the test tools for real accounts.
+
+**Referral links:** the app is an installable web app at `https://app.usapeptidedepot.com` (scope `/`), so the
+link to give UPD is `https://app.usapeptidedepot.com/?ref=CODE`: it opens the app (or its site in the browser), and
+the code goes with the friend's orders. On iPhone a home-screen web app has its own storage, so a code saved while
+browsing isn't seen by an app installed afterwards (inference from how iOS separates them; not tested).
+
+**Checked:** typecheck, lint, 603 tests (`VITE_BRAND=upd`). Against the mock store (a made-up session on the device;
+the mock answers `/api/rewards` with `src/lib/store/rewardsSample.ts`): opened from `/?ref=friend42` (kept, address
+tidied); Home, Rewards (balance, fixed rewards, recent changes, three tiers) and Refer from the store's data; checkout
+with the email locked, credit + points + free delivery; the order sent with the token, `ref` and `redeem`; the totals
+show what was applied; the test account's walkthrough unchanged. 390 light and 320 dark, no overflow, contrast
+problems or console errors. **Not yet checked against UPD itself:** a real sign-in and real rewards answer (needs the
+Supabase settings on staging), the `enabled: false` and 401 paths in a browser (unit-tested only).

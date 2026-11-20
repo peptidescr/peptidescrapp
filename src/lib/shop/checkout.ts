@@ -80,12 +80,21 @@ export function firstInvalidField(form: CheckoutForm, brand: BrandId): CheckoutF
   return null
 }
 
+/** What the store applied from the customer's rewards (UPD's `order.rewards`). */
+export interface RewardsApplied {
+  pointsUsed?: number
+  creditUsd?: number
+  tierDiscountUsd?: number
+  rewards?: string[]
+}
+
 export interface OrderTotals {
   currency: ShopCurrency
   goods?: number
   discount?: number
   shipping?: number
   total: number
+  rewards?: RewardsApplied
 }
 
 export type OrderResult =
@@ -99,6 +108,8 @@ export type OrderResult =
   | { kind: 'off' }
   /** Refused before reaching the store (no connection, or too many tries): no order exists. */
   | { kind: 'notSent' }
+  /** The store didn't accept the customer's sign-in (expired): no order exists; refresh it and send again. */
+  | { kind: 'unauthorized' }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -106,8 +117,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function readTotals(value: unknown): OrderTotals | undefined {
   if (!isRecord(value) || (value.currency !== 'USD' && value.currency !== 'CRC') || typeof value.total !== 'number') return undefined
-  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined)
-  return { currency: value.currency, total: value.total, goods: num(value.goods), discount: num(value.discount), shipping: num(value.shipping) }
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : undefined)
+  const totals: OrderTotals = { currency: value.currency, total: value.total, goods: num(value.goods), discount: num(value.discount), shipping: num(value.shipping) }
+  if (isRecord(value.rewards)) {
+    const r = value.rewards
+    const applied: RewardsApplied = {}
+    if (num(r.pointsUsed)) applied.pointsUsed = num(r.pointsUsed)
+    if (num(r.creditUsd)) applied.creditUsd = num(r.creditUsd)
+    if (num(r.tierDiscountUsd)) applied.tierDiscountUsd = num(r.tierDiscountUsd)
+    if (Array.isArray(r.rewards)) applied.rewards = r.rewards.filter((id): id is string => typeof id === 'string').slice(0, 10)
+    if (Object.keys(applied).length > 0) totals.rewards = applied
+  }
+  return totals
 }
 
 function httpsUrl(value: unknown): string | undefined {
@@ -152,6 +173,7 @@ export function readOrderResponse(status: number, body: unknown): OrderResult {
   if (error === 'invalid') return { kind: 'invalid', field: isRecord(body) && typeof body.field === 'string' ? body.field : undefined }
   if (error === 'refused') return { kind: 'refused', message: isRecord(body) && typeof body.message === 'string' ? body.message : undefined }
   if (error === 'checkout-off') return { kind: 'off' }
+  if (error === 'unauthorized') return { kind: 'unauthorized' }
   // 403 and 429 are refused before anything reaches the store.
   if (status === 403 || status === 429) return { kind: 'notSent' }
   return { kind: 'unconfirmed' }
@@ -167,9 +189,20 @@ export function cleanPromoCode(value: string): string | null {
   return PROMO_CODE.test(code) ? code : null
 }
 
+/** What a signed-in UPD customer spends on an order (UPD's `redeem`); the store uses only what the order needs. */
+export interface Redeem {
+  points?: number
+  creditUsd?: number
+  rewards?: string[]
+}
+
 export interface OrderExtras {
-  /** Points and credit applied to this order, in dollars. */
+  /** The staging test account's points and credit applied, in dollars (UPD doesn't know that balance). */
   discountUsd?: number
+  /** A signed-in UPD customer's spending. */
+  redeem?: Redeem
+  /** The referral code that brought the customer (UPD's `ref`). */
+  ref?: string
   /** A promo code the customer typed (UPD), already checked with cleanPromoCode. */
   promoCode?: string
   /** The signed-in store customer's token, so the store links the order to their account (UPD). */
@@ -181,7 +214,7 @@ export async function placeOrder(
   form: CheckoutForm,
   locale: Locale,
   fetchFn: typeof fetch = fetch,
-  { discountUsd = 0, promoCode, accessToken }: OrderExtras = {},
+  { discountUsd = 0, promoCode, accessToken, redeem, ref }: OrderExtras = {},
 ): Promise<OrderResult> {
   const body = {
     items: cart.map(({ ref, qty }) => ({ ref, qty })),
@@ -203,6 +236,8 @@ export async function placeOrder(
     consent: { marketing: form.marketingConsent, sms: form.smsConsent, call: form.callConsent },
     ...(discountUsd > 0 ? { discountUsd: Math.round(discountUsd * 100) / 100 } : {}),
     ...(promoCode ? { promoCode } : {}),
+    ...(redeem && accessToken && (redeem.points || redeem.creditUsd || redeem.rewards?.length) ? { redeem } : {}),
+    ...(ref ? { ref } : {}),
   }
   let response: Response
   try {
