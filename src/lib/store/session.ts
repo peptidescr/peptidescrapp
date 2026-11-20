@@ -22,8 +22,9 @@ import type { Session, SupabaseClient } from '@supabase/supabase-js'
 import { useSyncExternalStore } from 'react'
 import { BRAND } from '@/brand'
 
-const SUPABASE_URL: string = import.meta.env.VITE_UPD_SUPABASE_URL ?? ''
-const SUPABASE_KEY: string = import.meta.env.VITE_UPD_SUPABASE_ANON_KEY ?? ''
+// Pasted values often carry a space or a trailing slash; neither should switch sign-in off.
+const SUPABASE_URL: string = String(import.meta.env.VITE_UPD_SUPABASE_URL ?? '').trim().replace(/\/+$/, '')
+const SUPABASE_KEY: string = String(import.meta.env.VITE_UPD_SUPABASE_ANON_KEY ?? '').trim()
 
 /** Where the session is kept on the phone (Supabase's own format, under the app's name). */
 const STORAGE_KEY = 'upd-store-auth'

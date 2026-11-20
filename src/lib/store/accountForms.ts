@@ -20,7 +20,7 @@
 import { BRAND } from '@/brand'
 import { STORE_SIGN_IN } from './session'
 
-export const TURNSTILE_SITE_KEY: string = import.meta.env.VITE_UPD_TURNSTILE_SITE_KEY ?? ''
+export const TURNSTILE_SITE_KEY: string = String(import.meta.env.VITE_UPD_TURNSTILE_SITE_KEY ?? '').trim()
 
 /** Whether this build creates accounts and resets passwords in the app (else on UPD's website). */
 export const IN_APP_ACCOUNT_FORMS = STORE_SIGN_IN && /^[0-3]x[A-Za-z0-9_-]{10,}$/.test(TURNSTILE_SITE_KEY)
