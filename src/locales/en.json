@@ -1100,11 +1100,12 @@
     "appliedCredit": "{{amount}} credit",
     "appliedTier": "{{amount}} tier discount",
     "pointsOnDelivery_one": "This order should earn you {{count}} point once it’s delivered.",
-    "pointsOnDelivery_other": "This order should earn you {{count}} points once it’s delivered."
+    "pointsOnDelivery_other": "This order should earn you {{count}} points once it’s delivered.",
+    "signInTitle": "Sign in to order",
+    "signInSubtitle": "{{store}} takes app orders from signed-in customers, so your points and credit come with every order.",
+    "signInUnavailable": "Ordering in the app needs a {{store}} account, and this version of the app can’t sign in yet."
   },
   "signIn": {
-    "title": "Sign in to {{store}}",
-    "subtitle": "Use the email and password of your {{store}} account.",
     "email": "Email",
     "password": "Password",
     "submit": "Sign in",
@@ -1120,6 +1121,44 @@
       "busy": "Too many tries. Wait a minute, then try again.",
       "offline": "You’re offline. Connect and try again.",
       "failed": "Couldn’t sign in just now. Try again in a moment."
-    }
+    },
+    "titles": {
+      "signin": "Sign in to {{store}}",
+      "signup": "Create your {{store}} account",
+      "recover": "Reset your password"
+    },
+    "subtitles": {
+      "signin": "Use the email and password of your {{store}} account.",
+      "signup": "The same account works on the {{store}} website and in this app.",
+      "recover": "We’ll email you a link to choose a new password."
+    },
+    "sameAccountInApp": "It’s the same account as on the {{store}} website.",
+    "fullName": "Full name",
+    "phoneOptional": "Phone (optional)",
+    "newPassword": "Password",
+    "confirmPassword": "Confirm password",
+    "passwordHint_one": "At least {{count}} character.",
+    "passwordHint_other": "At least {{count}} characters.",
+    "signUpErrors": {
+      "fullName": "Enter your full name.",
+      "email": "Enter a valid email address.",
+      "password_one": "Use at least {{count}} character.",
+      "password_other": "Use at least {{count}} characters.",
+      "confirm": "The two passwords don’t match.",
+      "ack": "Confirm your age and research use to continue."
+    },
+    "ack": "I confirm that I am at least 21 years old and any products purchased will be used only for laboratory research, not for human or veterinary use.",
+    "marketing": "Email me product and research updates (optional)",
+    "createSubmit": "Create account",
+    "creating": "Creating your account…",
+    "haveAccount": "I already have an account",
+    "signUpSent": "Check your email for the verification link, then sign in here.",
+    "signUpFailed": "The account couldn’t be created. Try again, or create it on the {{store}} website.",
+    "recoverSubmit": "Send reset link",
+    "recoverSending": "Sending…",
+    "recoverSent": "If an account exists for that email, a secure reset link has been sent.",
+    "recoverFailed": "The reset email couldn’t be sent. Try again in a moment.",
+    "backToSignIn": "Back to sign in",
+    "checkFailed": "The security check couldn’t load here. Check your connection, or use the store’s website."
   }
 }

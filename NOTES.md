@@ -2890,3 +2890,37 @@ with the email locked, credit + points + free delivery; the order sent with the 
 show what was applied; the test account's walkthrough unchanged. 390 light and 320 dark, no overflow, contrast
 problems or console errors. **Not yet checked against UPD itself:** a real sign-in and real rewards answer (needs the
 Supabase settings on staging), the `enabled: false` and 401 paths in a browser (unit-tested only).
+
+## In-app sign-up and reset with Turnstile; signed-in orders only (20 November 2026, on `staging`)
+
+UPD's developer (20 November): Cloudflare Turnstile now guards sign-up and password reset; the app may do both with
+UPD's site key (action `signup` / `recover`, token sent as `turnstileToken`, one token per try) to
+`/api/customer/auth/register` `{ email, password, fullName, phone, marketingOptIn, turnstileToken }` and `/recover`
+`{ email, turnstileToken }`; after sign-up the customer confirms by email, then signs in. App orders: signed-in
+customers only, with `channel: "app"` and the token; guest orders (and the newsletter, popup, restock and contact
+forms) are blocked from the app. `app.usapeptidedepot.com` may call these from the browser. The developer chose to
+build sign-up and reset in the app (reversing the earlier "on the website" choice).
+
+**Checked first:** Cloudflare's docs (hostname management, testing, client rendering, server validation): a site
+key works only on the hostnames listed for it (and their subdomains), so `staging--udpapp.netlify.app` must be added
+by UPD; localhost needs Cloudflare's test keys (`1x00000000000000000000AA` always passes), whose dummy token UPD's
+real secret rejects; tokens last 300 s and validate once. UPD's CORS allows `https://app.usapeptidedepot.com` only
+(preflight from the staging address has no `Access-Control-Allow-Origin`), so on staging the two forms fail until
+UPD allows that address too. UPD's API still answers our server normally (no bot challenge), so orders and rewards
+keep going through our functions.
+
+**Built:** `src/lib/store/accountForms.ts` (the website's checks: full name, valid email, password of 12+ typed twice,
+the 21+/research confirmation, optional phone and "Email me product and research updates"; UPD's message shown on
+refusal), `src/components/shop/Turnstile.tsx` (explicit rendering, script loaded on first use, theme follows the
+app, compact under 300 px, reset after every try), and sign-in / create account / reset as three modes of the same
+sheet (`StoreAccountForms`). Without `VITE_UPD_TURNSTILE_SITE_KEY` the app keeps the website links. Checkout (UPD)
+asks the customer to sign in, or create an account, inside the sheet before the details; our `/api/orders` refuses a
+UPD order without a token (401) so it never reaches UPD. The staging test account can no longer place orders (UPD
+needs a real sign-in); it still shows the rewards screens.
+
+**Checked:** typecheck, lint, 607 tests. In a browser with Cloudflare's test key and UPD's two endpoints answered
+inside the page (nothing sent to UPD): checkout asks to sign in; create an account (short password caught and
+focused; the widget's token; the request body as UPD specified; "check your email"); reset (request body; the
+neutral answer); the widget fits at 320 px dark and 390 px light; the signed-in checkout unchanged. **Not checked
+against UPD:** real sign-up/reset (needs UPD to list the staging address for both its Turnstile key and CORS, or the
+live app address).

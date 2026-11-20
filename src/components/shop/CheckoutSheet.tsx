@@ -34,11 +34,15 @@ import { redeemFor, rewardPointsFor, spendEstimate, type SpendChoice } from '../
 import { currentReferral } from '../../lib/store/referral'
 import { refreshStoreRewards } from '../../lib/store/storeRewards'
 import { cn } from '@/lib/utils'
-import { refreshStoreSession, storeAccessToken, useStoreCustomer } from '../../lib/store/session'
+import { refreshStoreSession, storeAccessToken, STORE_SIGN_IN, useStoreCustomer } from '../../lib/store/session'
 import type { Locale } from '../../lib/units'
 import { PaymentFrame } from './PaymentFrame'
+import { StoreAccountForms, type AccountMode } from './StoreSignIn'
 
 type Step = 'cart' | 'confirm' | 'details' | 'result'
+
+/** UPD refuses app orders from customers who aren't signed in (guest orders are blocked from the app). */
+const SIGN_IN_TO_ORDER = BRAND.id === 'upd'
 
 /** What went wrong with the last attempt, shown above the button. */
 type Problem = { kind: 'refused'; message?: string } | { kind: 'notSent' } | { kind: 'off' } | { kind: 'invalid' } | { kind: 'unauthorized' }
@@ -82,6 +86,7 @@ export function CheckoutSheet({
   const [step, setStep] = useState<Step>(variant === 'reorder' ? (saved ? 'confirm' : 'details') : 'cart')
   // Signed in with the store account: the order goes with it, and its email starts the form.
   const customer = useStoreCustomer()
+  const [accountMode, setAccountMode] = useState<AccountMode>('signin')
   const [form, setForm] = useState<CheckoutForm>(() => {
     const start = { ...emptyCheckoutForm(BRAND.id), ...(saved ?? {}), researchUseAck: false }
     return start.email || !customer ? start : { ...start, email: customer.email }
@@ -183,8 +188,13 @@ export function CheckoutSheet({
     setProblem(result.kind === 'refused' ? { kind: 'refused', message: result.message } : { kind: result.kind })
   }
 
-  const title =
-    step === 'cart'
+  // UPD takes app orders from signed-in customers only (its developer, 20 November 2026): before the details, the
+  // customer signs in (or creates an account) right here.
+  const signInFirst = SIGN_IN_TO_ORDER && !customer && (step === 'confirm' || step === 'details')
+
+  const title = signInFirst
+    ? t('checkout.signInTitle')
+    : step === 'cart'
       ? t('checkout.cartTitle')
       : step === 'confirm'
         ? t('checkout.confirmTitle')
@@ -207,10 +217,24 @@ export function CheckoutSheet({
       <SheetContent>
         <SheetHeader className="pr-14">
           <SheetTitle>{title}</SheetTitle>
-          <SheetDescription className={step === 'details' ? undefined : 'sr-only'}>
-            {step === 'details' ? t('checkout.detailsSubtitle', { store: BRAND.store.name }) : title}
+          <SheetDescription className={step === 'details' || signInFirst ? undefined : 'sr-only'}>
+            {signInFirst
+              ? t('checkout.signInSubtitle', { store: BRAND.store.name })
+              : step === 'details'
+                ? t('checkout.detailsSubtitle', { store: BRAND.store.name })
+                : title}
           </SheetDescription>
         </SheetHeader>
+
+        {signInFirst && (
+          <SheetBody>
+            {STORE_SIGN_IN ? (
+              <StoreAccountForms mode={accountMode} onMode={setAccountMode} onSignedIn={() => setAccountMode('signin')} />
+            ) : (
+              <p className="py-6 text-center text-sm text-muted-foreground">{t('checkout.signInUnavailable', { store: BRAND.store.name })}</p>
+            )}
+          </SheetBody>
+        )}
 
         {step === 'cart' && (
           <>
@@ -275,7 +299,7 @@ export function CheckoutSheet({
           </>
         )}
 
-        {step === 'confirm' &&
+        {step === 'confirm' && !signInFirst &&
           (sending ? (
             <SheetBody className="flex min-h-72 flex-col items-center justify-center gap-4">
               <Loader2 aria-hidden className="size-10 animate-spin text-primary" />
@@ -416,7 +440,7 @@ export function CheckoutSheet({
             </>
           ))}
 
-        {step === 'details' && (
+        {step === 'details' && !signInFirst && (
           <>
             <SheetBody className="flex flex-col gap-4">
               {customer && <SignedInNote email={customer.email} />}

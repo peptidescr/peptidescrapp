@@ -1100,11 +1100,12 @@
     "appliedCredit": "{{amount}} de crédito",
     "appliedTier": "{{amount}} de descuento del nivel",
     "pointsOnDelivery_one": "Este pedido te debería dar {{count}} punto cuando se entregue.",
-    "pointsOnDelivery_other": "Este pedido te debería dar {{count}} puntos cuando se entregue."
+    "pointsOnDelivery_other": "Este pedido te debería dar {{count}} puntos cuando se entregue.",
+    "signInTitle": "Entrá para pedir",
+    "signInSubtitle": "{{store}} recibe pedidos en la app de clientes con sesión iniciada, así tus puntos y tu crédito van con cada pedido.",
+    "signInUnavailable": "Pedir en la app necesita una cuenta de {{store}}, y esta versión de la app todavía no puede iniciar sesión."
   },
   "signIn": {
-    "title": "Entrar a {{store}}",
-    "subtitle": "Usá el correo y la contraseña de tu cuenta de {{store}}.",
     "email": "Correo",
     "password": "Contraseña",
     "submit": "Entrar",
@@ -1120,6 +1121,44 @@
       "busy": "Demasiados intentos. Esperá un minuto y probá de nuevo.",
       "offline": "Estás sin conexión. Conectate y probá de nuevo.",
       "failed": "No se pudo entrar en este momento. Probá de nuevo en un rato."
-    }
+    },
+    "titles": {
+      "signin": "Entrar a {{store}}",
+      "signup": "Creá tu cuenta de {{store}}",
+      "recover": "Cambiá tu contraseña"
+    },
+    "subtitles": {
+      "signin": "Usá el correo y la contraseña de tu cuenta de {{store}}.",
+      "signup": "La misma cuenta sirve en el sitio web de {{store}} y en esta app.",
+      "recover": "Te mandamos por correo un enlace para elegir una contraseña nueva."
+    },
+    "sameAccountInApp": "Es la misma cuenta del sitio web de {{store}}.",
+    "fullName": "Nombre completo",
+    "phoneOptional": "Teléfono (opcional)",
+    "newPassword": "Contraseña",
+    "confirmPassword": "Confirmá la contraseña",
+    "passwordHint_one": "Al menos {{count}} carácter.",
+    "passwordHint_other": "Al menos {{count}} caracteres.",
+    "signUpErrors": {
+      "fullName": "Escribí tu nombre completo.",
+      "email": "Escribí un correo válido.",
+      "password_one": "Usá al menos {{count}} carácter.",
+      "password_other": "Usá al menos {{count}} caracteres.",
+      "confirm": "Las dos contraseñas no coinciden.",
+      "ack": "Confirmá tu edad y el uso en investigación para seguir."
+    },
+    "ack": "Confirmo que tengo al menos 21 años y que los productos que compre serán solo para investigación de laboratorio, no para uso humano ni veterinario.",
+    "marketing": "Mandame novedades de productos e investigación por correo (opcional)",
+    "createSubmit": "Crear cuenta",
+    "creating": "Creando tu cuenta…",
+    "haveAccount": "Ya tengo una cuenta",
+    "signUpSent": "Revisá tu correo para el enlace de verificación y después entrá acá.",
+    "signUpFailed": "No se pudo crear la cuenta. Probá de nuevo, o creala en el sitio web de {{store}}.",
+    "recoverSubmit": "Mandar enlace",
+    "recoverSending": "Mandando…",
+    "recoverSent": "Si existe una cuenta con ese correo, te mandamos un enlace seguro para cambiar la contraseña.",
+    "recoverFailed": "No se pudo mandar el correo. Probá de nuevo en un rato.",
+    "backToSignIn": "Volver a entrar",
+    "checkFailed": "La verificación de seguridad no cargó acá. Revisá tu conexión, o usá el sitio web de la tienda."
   }
 }

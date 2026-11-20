@@ -771,8 +771,9 @@ export async function handleOrderRequest(
 
   // Only UPD has store accounts; a token sent to a PCR site is ignored.
   const token = settings.brand === 'upd' ? customerToken(req.headers.get('authorization')) : undefined
-  // Spending rewards needs the signed-in customer (UPD checks their balance).
-  if (parsed.request.redeem && !token) return reply({ ok: false, error: 'unauthorized' }, 401)
+  // UPD takes app orders from signed-in customers only (its developer, 20 November 2026: guest orders are blocked
+  // from the app), so one without a sign-in isn't sent. That also covers spending rewards, which needs the account.
+  if (settings.brand === 'upd' && !token) return reply({ ok: false, error: 'unauthorized' }, 401)
   const storeRequest = buildStoreRequest(settings, parsed.request, token)
   let answer: StoreAnswer
   try {

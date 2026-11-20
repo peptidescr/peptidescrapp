@@ -111,8 +111,13 @@ describe('UPD orders and their card payment', () => {
   })
 
   const SITE = 'https://app.example.com'
-  const post = (body: unknown) =>
-    new Request(`${SITE}/api/orders`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: SITE }, body: JSON.stringify(body) })
+  // UPD orders come from signed-in customers only, so these carry a (made-up) token unless a test says otherwise.
+  const post = (body: unknown, auth: string | null = 'Bearer aaa.bbb.ccc') =>
+    new Request(`${SITE}/api/orders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: SITE, ...(auth ? { Authorization: auth } : {}) },
+      body: JSON.stringify(body),
+    })
   const UPD_PAY_ENV = { ...UPD_ENV, CHARGX_PUBLISHABLE_KEY: 'pk-test-not-real' }
 
   it('places the order, then the payment, and hands the app ChargX\'s form to show inside it', async () => {
@@ -145,7 +150,7 @@ describe('UPD orders and their card payment', () => {
     expect(JSON.stringify(net.calls[1]!.headers ?? {})).not.toContain('aaa.bbb.ccc')
   })
 
-  it('tells the app when UPD refuses the token (no order), and refuses redeem without a sign-in', async () => {
+  it('tells the app when UPD refuses the token (no order), and sends no UPD order without a sign-in', async () => {
     const net = routes({ 'https://www.usapeptidedepot.com/api/orders': () => Response.json({ error: 'Session expired' }, { status: 401 }) })
     const signedIn = new Request(`${SITE}/api/orders`, {
       method: 'POST',
@@ -156,7 +161,8 @@ describe('UPD orders and their card payment', () => {
     expect(res.status).toBe(401)
     expect(await res.json()).toEqual({ ok: false, error: 'unauthorized' })
     const none = routes({})
-    const noToken = await handleOrderRequest(post(updInput({ redeem: { points: 300 } })), 'upd', UPD_PAY_ENV, none.fetchFn)
+    const noToken = await handleOrderRequest(post(updInput({ redeem: { points: 300 } }), null), 'upd', UPD_PAY_ENV, none.fetchFn)
+    expect((await handleOrderRequest(post(updInput(), null), 'upd', UPD_PAY_ENV, none.fetchFn)).status).toBe(401)
     expect(noToken.status).toBe(401)
     expect(none.calls).toHaveLength(0)
   })
