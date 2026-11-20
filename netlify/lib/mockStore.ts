@@ -46,9 +46,9 @@ export function mockStore(brand: CatalogueBrand): { fetchFn: FetchLike; payments
     if (token?.startsWith('expired.') && url.startsWith('https://www.usapeptidedepot.com/')) {
       return Response.json({ error: 'Your session has expired. Sign in again.' }, { status: 401 })
     }
-    // UPD's rewards, in the shape its developer described (19 November 2026).
+    // UPD's rewards: its developer's sample reply (20 November 2026).
     if (url === 'https://www.usapeptidedepot.com/api/customer/rewards') {
-      if (!token) return Response.json({ error: 'Sign in first.' }, { status: 401 })
+      if (!token) return Response.json({ error: 'That session is not valid. Sign in again.' }, { status: 401 })
       return Response.json(SAMPLE_REWARDS)
     }
     // ChargX's payment request: a pretend form on the same local server, which returns to the app's return page.
@@ -68,7 +68,9 @@ export function mockStore(brand: CatalogueBrand): { fetchFn: FetchLike; payments
     const name = brand === 'pcr' ? (body.customer as { name?: string } | undefined)?.name : body.fullName
     if (name === 'Refuse') {
       return Response.json(
-        brand === 'pcr' ? { ok: false, error: 'Uno de los productos ya no está disponible.' } : { error: 'One of the products is no longer available.' },
+        brand === 'pcr'
+          ? { ok: false, error: 'Uno de los productos ya no está disponible.' }
+          : { error: 'bad_request', message: 'Order rejected.', fields: { items: 'One of the products is no longer available.' } },
         { status: 400 },
       )
     }
@@ -87,32 +89,49 @@ export function mockStore(brand: CatalogueBrand): { fetchFn: FetchLike; payments
     // The shape UPD's own website reads; no payment link (the app starts the ChargX payment itself). The
     // discount is applied the way the stores are assumed to (DISCOUNT_FIELD), so the totals match the app's.
     // A promo code: "BAD" is refused with the store's message (as UPD's website shows it); any other takes 10% off.
-    if (body.promoCode === 'BAD') return Response.json({ message: 'That promo code is not valid.', fields: { promoCode: 'That promo code is not valid.' } }, { status: 400 })
+    if (body.promoCode === 'BAD') {
+      return Response.json({ error: 'bad_request', message: 'Order rejected.', fields: { promoCode: 'That promo code is not valid.' } }, { status: 400 })
+    }
     const promo = typeof body.promoCode === 'string' ? 9 : 0
-    // Spending rewards (signed in): credit first, then points at 3¢, only up to what the order needs.
+    // Spending rewards (signed in), in the shape of UPD's sample reply: credit first, then points at 3¢, only up
+    // to what the order needs; more than the balance is refused as UPD does (no order is created).
     const redeem = token && typeof body.redeem === 'object' && body.redeem !== null ? (body.redeem as { points?: number; creditUsd?: number; rewards?: string[] }) : undefined
+    const sample = SAMPLE_REWARDS.data
+    const rewardIds = (redeem?.rewards ?? []).filter((id) => sample.rewards.some((r) => r.id === id))
+    const rewardPoints = rewardIds.reduce((sum, id) => sum + (sample.rewards.find((r) => r.id === id)?.points ?? 0), 0)
+    if ((redeem?.points ?? 0) + rewardPoints > sample.points.balance || (redeem?.creditUsd ?? 0) > sample.storeCreditUsd) {
+      return Response.json({ error: 'bad_request', message: 'Order rejected.', fields: { redeem: 'Not enough points for that.' } }, { status: 400 })
+    }
     let left = 90 - promo
-    const creditUsedUsd = Math.min(redeem?.creditUsd ?? 0, SAMPLE_REWARDS.storeCreditUsd, left)
-    left -= creditUsedUsd
-    const pointsUsed = Math.min(redeem?.points ?? 0, SAMPLE_REWARDS.points.balance, Math.ceil(left / 0.03))
-    left = Math.max(0, left - pointsUsed * 0.03)
-    const rewards = redeem ? { pointsUsed, creditUsedUsd, tierDiscountUsd: 0, rewards: redeem.rewards ?? [] } : undefined
+    const creditUsd = Math.min(redeem?.creditUsd ?? 0, left)
+    left -= creditUsd
+    const points = Math.min(redeem?.points ?? 0, Math.ceil(left / 0.03))
+    const pointsValue = Math.min(left, Math.round(points * 0.03 * 100) / 100)
+    left = Math.round((left - pointsValue) * 100) / 100
+    const rewards = redeem ? { tierDiscount: 0, freeDeliveryBy: null, rewards: rewardIds, rewardPoints, points, pointsValue, creditUsd } : null
     const balance = typeof body.discountUsd === 'number' ? Math.min(body.discountUsd, left) : 0
     const discount = Math.round((90 - left + balance) * 100) / 100
-    return Response.json({
-      data: {
-        order: {
-          orderNumber,
-          status: 'pending',
-          subtotal: 90,
-          discountTotal: discount,
-          shippingTotal: 0,
-          grandTotal: Math.round((90 - discount) * 100) / 100,
-          ...(rewards ? { rewards } : {}),
+    const grandTotal = Math.round((90 - discount) * 100) / 100
+    return Response.json(
+      {
+        data: {
+          // UPD leaves `payment` out when nothing is left to pay.
+          ...(grandTotal > 0 ? { payment: { token: 'mock', expiresInSeconds: 1800 } } : {}),
+          order: {
+            orderNumber,
+            status: 'pending',
+            subtotal: 90,
+            discountTotal: discount,
+            shippingTotal: 0,
+            grandTotal,
+            currency: 'USD',
+            promoCode: typeof body.promoCode === 'string' ? body.promoCode : null,
+            rewards,
+          },
         },
-        payment: { token: 'mock' },
       },
-    })
+      { status: 201 },
+    )
   }
 
   const payments: PaymentStore = {

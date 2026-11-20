@@ -374,8 +374,9 @@ export function SignInButtons({ className = 'flex flex-col items-center gap-2' }
 
 /**
  * Rewards and Refer & earn without rewards to show: the store has them
- * switched off; or signed in and they're loading, couldn't be read, or the
- * sign-in expired; or signed out (with the ways to sign in).
+ * switched off; or signed in and they're not set up on the store yet, loading,
+ * couldn't be read, or the sign-in expired; or signed out (with the ways to
+ * sign in).
  */
 export function StoreSignedOut() {
   const { t } = useTranslation()
@@ -386,6 +387,9 @@ export function StoreSignedOut() {
     return <EmptyState title={t('rewards.offTitle')} body={t('rewards.offBody', { store: BRAND.store.name })} />
   }
   if (customer) {
+    if (rewards.status === 'not-set-up') {
+      return <EmptyState title={t('rewards.notSetUpTitle')} body={t('rewards.notSetUpBody', { store: BRAND.store.name })} />
+    }
     if (rewards.status === 'expired') {
       return (
         <EmptyState

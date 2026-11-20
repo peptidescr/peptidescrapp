@@ -4,16 +4,16 @@
  * /api/customer/rewards with the customer's token, and turned into the
  * StoreAccount the screens draw (src/lib/store/account.ts).
  *
- * UPD's developer described the answer in words (19 November 2026): `enabled`
- * (false: hide earning and spending), `points` (balance and dollar value),
- * `storeCreditUsd`, `tier` (current, how earned, until, 12-month spend, next
- * tier and what's left), `referral` (code, link, completed count, activity:
- * initials, date, pending or earned, amount), `rewards` (fixed rewards with
- * point prices), `rules` (every number) and `history` (the last 50 changes). The
- * reader takes those names first and a few likely spellings of the fields inside
- * them; our server logs the names UPD really sends, to check against. Numbers
- * come only from the answer: when the core rules are missing, the rewards show
- * as unavailable rather than with numbers of our own.
+ * The field names are exactly those of the sample reply UPD's developer sent
+ * (20 November 2026; rewardsSample.ts): `{ data: { configured, enabled, points
+ * { balance, valueUsd }, storeCreditUsd, tier { key, name, earnedBy, until,
+ * spend12MonthsUsd, referrals12Months, benefits, next { key, name,
+ * spendNeededUsd, referralsNeeded } }, referral { code, link, completed,
+ * activity[] }, rewards[] { id, name, points, available }, history[] { kind,
+ * amount, reason, note, date }, rules { … } } }`. `configured: false` means not
+ * set up yet; `enabled: false` hides earning and spending. Numbers come only
+ * from the answer: when the core rules are missing, the rewards show as
+ * unavailable rather than with numbers of our own.
  *
  * Read when the app opens or comes back (at most every 30 seconds), when the
  * customer signs in, and after an order. A token UPD refuses (401) is refreshed
@@ -24,7 +24,8 @@ import type { HistoryEntry, ReferralActivity, StoreAccount, TierStatus } from '.
 import type { FixedReward, ReferralMilestone, ReferralRules, StoreRules, TierRule } from './rules'
 import { onStoreCustomerChange, refreshStoreSession, storeAccessToken, STORE_SIGN_IN, type StoreCustomer } from './session'
 
-export type RewardsStatus = 'none' | 'loading' | 'ready' | 'unavailable' | 'expired'
+/** 'not-set-up': UPD answered `configured: false` (rewards not set up on the store yet). */
+export type RewardsStatus = 'none' | 'loading' | 'ready' | 'unavailable' | 'expired' | 'not-set-up'
 
 export interface RewardsState {
   status: RewardsStatus
@@ -61,101 +62,95 @@ function bool(record: Rec, ...keys: string[]): boolean | undefined {
   return undefined
 }
 
-function rec(record: Rec, ...keys: string[]): Rec | undefined {
-  for (const key of keys) if (isRecord(record[key])) return record[key] as Rec
-  return undefined
+function rec(record: Rec, key: string): Rec | undefined {
+  return isRecord(record[key]) ? (record[key] as Rec) : undefined
 }
 
-function list(record: Rec, ...keys: string[]): Rec[] {
-  for (const key of keys) if (Array.isArray(record[key])) return (record[key] as unknown[]).filter(isRecord)
-  return []
+function list(record: Rec, key: string): Rec[] {
+  return Array.isArray(record[key]) ? (record[key] as unknown[]).filter(isRecord) : []
 }
 
 const tierId = (value: string) => value.toLowerCase().replace(/\s+/g, '_')
 
-function readTierRule(raw: Rec, key?: string): TierRule | undefined {
-  const id = str(raw, 'id', 'tier', 'key', 'slug') ?? key ?? str(raw, 'name')
-  const spendUsd = num(raw, 'spendUsd', 'minSpendUsd', 'thresholdUsd', 'spend12moUsd', 'spend', 'threshold')
-  if (!id || spendUsd === undefined) return undefined
-  const referrals = num(raw, 'referrals', 'referralsRequired', 'minReferrals')
-  const months = num(raw, 'months', 'durationMonths')
-  const name = str(raw, 'name', 'label')
+function readTierRule(raw: Rec): TierRule | undefined {
+  const key = str(raw, 'key')
+  const spendUsd = num(raw, 'spendUsd')
+  if (!key || spendUsd === undefined) return undefined
+  const referrals = num(raw, 'referrals')
+  const name = str(raw, 'name')
   return {
-    tier: tierId(id),
+    tier: tierId(key),
     ...(name ? { name } : {}),
     spendUsd,
     ...(referrals !== undefined ? { referrals } : {}),
-    ...(months !== undefined ? { months } : {}),
-    discountPercent: num(raw, 'discountPercent', 'discountPct', 'discount') ?? 0,
-    freeDelivery: bool(raw, 'freeDelivery', 'freeShipping') ?? false,
-    pointsMultiplier: num(raw, 'pointsMultiplier', 'multiplier') ?? 1,
-    earlyAccess: bool(raw, 'earlyAccess', 'earlyRestockAccess') ?? false,
+    discountPercent: num(raw, 'extraDiscountPercent') ?? 0,
+    freeDelivery: bool(raw, 'freeDelivery') ?? false,
+    pointsMultiplier: num(raw, 'pointsMultiplier') ?? 1,
+    earlyAccess: bool(raw, 'earlyRestockAccess') ?? false,
   }
 }
 
-function readTiers(value: unknown): TierRule[] {
-  const rules = Array.isArray(value)
-    ? value.filter(isRecord).map((t) => readTierRule(t))
-    : isRecord(value)
-      ? Object.entries(value).map(([key, t]) => (isRecord(t) ? readTierRule(t, key) : undefined))
-      : []
-  return rules.filter((t): t is TierRule => t !== undefined).sort((a, b) => a.spendUsd - b.spendUsd)
-}
-
-function readReferralRules(raw: Rec | undefined): ReferralRules | undefined {
-  if (!raw) return undefined
-  const creditPerReferralUsd = num(raw, 'creditPerReferralUsd', 'creditPerReferral', 'perReferralUsd', 'creditUsd', 'amountUsd')
+/**
+ * The referral rules: `referralCreditUsd` per friend, `referralBonuses` at 5 and 10, and a tier any of the
+ * `tiers` grants by referrals (Lab at 25) as the ladder's last rung. Undefined without the per-friend credit.
+ */
+function readReferralRules(raw: Rec, tiers: TierRule[]): ReferralRules | undefined {
+  const creditPerReferralUsd = num(raw, 'referralCreditUsd')
   if (creditPerReferralUsd === undefined) return undefined
-  const minimum = num(raw, 'minimumFirstOrderUsd', 'minimumOrderUsd', 'minOrderUsd', 'minimumFirstOrder')
-  const milestones = list(raw, 'milestones', 'bonuses')
-    .map((m): ReferralMilestone | undefined => {
-      const referrals = num(m, 'referrals', 'count', 'at')
-      if (referrals === undefined) return undefined
-      const bonus = num(m, 'bonusUsd', 'bonusCreditUsd', 'creditUsd', 'amountUsd')
-      const tier = str(m, 'tier')
-      const months = num(m, 'months', 'durationMonths')
-      return {
-        referrals,
-        ...(bonus !== undefined ? { bonusCreditUsd: bonus } : {}),
-        ...(tier ? { tier: tierId(tier) } : {}),
-        ...(months !== undefined ? { months } : {}),
-      }
+  const bonuses = list(raw, 'referralBonuses')
+    .map((b): ReferralMilestone | undefined => {
+      const referrals = num(b, 'referrals')
+      const creditUsd = num(b, 'creditUsd')
+      return referrals !== undefined && creditUsd !== undefined ? { referrals, bonusCreditUsd: creditUsd } : undefined
     })
     .filter((m): m is ReferralMilestone => m !== undefined)
-  return { creditPerReferralUsd, ...(minimum !== undefined ? { minimumFirstOrderUsd: minimum } : {}), milestones }
+  const byReferrals = tiers.filter((t) => t.referrals !== undefined).map((t): ReferralMilestone => ({ referrals: t.referrals!, tier: t.tier }))
+  return { creditPerReferralUsd, milestones: [...bonuses, ...byReferrals] }
 }
 
 /** The rules from UPD's `rules`; undefined when the numbers the screens can't do without are missing. */
 export function readRules(raw: unknown): StoreRules | undefined {
   if (!isRecord(raw)) return undefined
-  const pointsPerDollar = num(raw, 'pointsPerDollar', 'pointsPerUsd', 'pointsRate', 'earnRate')
-  const pointValueUsd = num(raw, 'pointValueUsd', 'pointValue', 'pointUsd')
-  const minimumRedeem = num(raw, 'minimumRedeem', 'minimumRedeemPoints', 'minRedeem', 'redeemMinimum')
-  const tiers = readTiers(raw.tiers)
+  const pointsPerDollar = num(raw, 'pointsPerDollar')
+  const pointValueUsd = num(raw, 'pointValueUsd')
+  const minimumRedeem = num(raw, 'minimumRedeemPoints')
+  const tiers = list(raw, 'tiers')
+    .map(readTierRule)
+    .filter((t): t is TierRule => t !== undefined)
+    .sort((a, b) => a.spendUsd - b.spendUsd)
   if (pointsPerDollar === undefined || pointValueUsd === undefined || minimumRedeem === undefined || tiers.length === 0) return undefined
-  const referral = readReferralRules(rec(raw, 'referral', 'referrals'))
-  // UPD's developer calls the tier spend the "12-month spend"; a window sent in the rules wins.
-  const tierWindowMonths = num(raw, 'tierWindowMonths', 'windowMonths', 'spendWindowMonths') ?? 12
-  return { pointsPerDollar, pointValueUsd, minimumRedeem, tiers, tierWindowMonths, ...(referral ? { referral } : {}) }
+  const referral = readReferralRules(raw, tiers)
+  const countsFrom = str(raw, 'countsFrom')
+  return {
+    pointsPerDollar,
+    pointValueUsd,
+    minimumRedeem,
+    tiers,
+    tierWindowMonths: num(raw, 'tierWindowMonths') ?? 12,
+    ...(countsFrom && /^\d{4}-\d{2}-\d{2}/.test(countsFrom) ? { countsFrom: countsFrom.slice(0, 10) } : {}),
+    ...(referral ? { referral } : {}),
+  }
 }
 
 function readTier(raw: unknown, rules: StoreRules): TierStatus {
-  const t: Rec = isRecord(raw) ? raw : typeof raw === 'string' ? { current: raw } : {}
-  const current = str(t, 'current', 'tier', 'id', 'name')
-  const next = rec(t, 'next', 'nextTier')
-  const nextId = next ? str(next, 'tier', 'id', 'name') : undefined
-  const spendToGoUsd = next ? num(next, 'spendToGoUsd', 'remainingUsd', 'spendRemainingUsd', 'leftUsd', 'remaining') : undefined
-  const referralsToGo = next ? num(next, 'referralsToGo', 'referralsRemaining', 'referralsLeft') : undefined
-  const earnedBy = str(t, 'earnedBy', 'earned', 'how', 'source', 'reason')
-  const until = str(t, 'until', 'expiresAt', 'validUntil')
-  const spend = num(t, 'spend12moUsd', 'spend12MonthsUsd', 'twelveMonthSpendUsd', 'spendUsd', 'spend')
+  const t: Rec = isRecord(raw) ? raw : {}
+  const key = str(t, 'key')
+  const next = rec(t, 'next')
+  const nextKey = next ? str(next, 'key') : undefined
+  const spendToGoUsd = next ? num(next, 'spendNeededUsd') : undefined
+  const referralsToGo = next ? num(next, 'referralsNeeded') : undefined
+  const earnedBy = str(t, 'earnedBy')
+  const until = str(t, 'until')
+  const spend = num(t, 'spend12MonthsUsd')
+  const referrals = num(t, 'referrals12Months')
   return {
-    current: current ? tierId(current) : (rules.tiers[0]?.tier ?? ''),
+    current: key ? tierId(key) : (rules.tiers[0]?.tier ?? ''),
     ...(earnedBy ? { earnedBy: earnedBy.toLowerCase() } : {}),
     ...(until ? { until } : {}),
     ...(spend !== undefined ? { spend12moUsd: spend } : {}),
-    ...(nextId
-      ? { next: { tier: tierId(nextId), ...(spendToGoUsd !== undefined ? { spendToGoUsd } : {}), ...(referralsToGo !== undefined ? { referralsToGo } : {}) } }
+    ...(referrals !== undefined ? { referrals12mo: referrals } : {}),
+    ...(nextKey
+      ? { next: { tier: tierId(nextKey), ...(spendToGoUsd !== undefined ? { spendToGoUsd } : {}), ...(referralsToGo !== undefined ? { referralsToGo } : {}) } }
       : {}),
   }
 }
@@ -163,11 +158,11 @@ function readTier(raw: unknown, rules: StoreRules): TierStatus {
 function readActivity(raw: Rec[]): ReferralActivity[] {
   return raw
     .map((a): ReferralActivity | undefined => {
-      const name = str(a, 'initials', 'name', 'friend')
-      const at = str(a, 'date', 'at', 'createdAt')
+      const name = str(a, 'name')
+      const at = str(a, 'date')
       const status = str(a, 'status')?.toLowerCase()
       if (!name || !at || (status !== 'earned' && status !== 'pending')) return undefined
-      const amountUsd = num(a, 'amountUsd', 'amount', 'creditUsd')
+      const amountUsd = num(a, 'amountUsd')
       return { name, at: at.slice(0, 10), status, ...(amountUsd !== undefined ? { amountUsd } : {}) }
     })
     .filter((a): a is ReferralActivity => a !== undefined)
@@ -177,58 +172,72 @@ function readActivity(raw: Rec[]): ReferralActivity[] {
 function readFixedRewards(raw: Rec[]): FixedReward[] {
   return raw
     .map((r): FixedReward | undefined => {
-      const id = str(r, 'id', 'key', 'slug')
-      const points = num(r, 'points', 'pointsCost', 'cost', 'price')
+      const id = str(r, 'id')
+      const points = num(r, 'points')
       if (!id || points === undefined) return undefined
-      const name = str(r, 'name', 'title', 'label')
-      return { id, points, ...(name ? { name } : {}) }
+      const name = str(r, 'name')
+      return { id, points, ...(name ? { name } : {}), ...(r.available === false ? { available: false } : {}) }
     })
     .filter((r): r is FixedReward => r !== undefined)
 }
 
+/** UPD's history reasons; another one shows as a plain "Change". */
+export const HISTORY_REASONS = ['order_earned', 'order_reversed', 'referral', 'referral_bonus', 'redeemed', 'redeem_returned', 'adjustment'] as const
+
 function readHistory(raw: Rec[]): HistoryEntry[] {
   return raw
     .map((h): HistoryEntry | undefined => {
-      const at = str(h, 'date', 'at', 'createdAt')
-      if (!at) return undefined
-      const label = str(h, 'description', 'label', 'reason', 'type')
-      const points = num(h, 'points', 'pointsDelta', 'pointsChange')
-      const creditUsd = num(h, 'creditUsd', 'creditDeltaUsd', 'amountUsd')
-      return { at: at.slice(0, 10), ...(label ? { label } : {}), ...(points !== undefined ? { points } : {}), ...(creditUsd !== undefined ? { creditUsd } : {}) }
+      const at = str(h, 'date')
+      const amount = num(h, 'amount')
+      const kind = h.kind
+      if (!at || amount === undefined || (kind !== 'points' && kind !== 'credit')) return undefined
+      const reason = str(h, 'reason')
+      const note = str(h, 'note')
+      return {
+        at: at.slice(0, 10),
+        ...(reason ? { reason } : {}),
+        ...(note ? { note } : {}),
+        ...(kind === 'points' ? { points: amount } : { creditUsd: amount }),
+      }
     })
     .filter((h): h is HistoryEntry => h !== undefined)
     .slice(0, 50)
 }
 
-/** UPD's rewards answer as a StoreAccount; null when it can't be read (no balance, or no core rules). */
-export function readRewards(body: unknown, customer?: StoreCustomer | null): StoreAccount | null {
-  if (!isRecord(body)) return null
-  const rules = readRules(body.rules)
+/**
+ * UPD's rewards answer (`{ data: {...} }`) as a StoreAccount. 'not-set-up' when UPD says rewards aren't configured
+ * yet; null when it can't be read (no balance, or no core rules).
+ */
+export function readRewards(body: unknown, customer?: StoreCustomer | null): StoreAccount | 'not-set-up' | null {
+  const data = isRecord(body) && isRecord(body.data) ? body.data : undefined
+  if (!data) return null
+  if (data.configured === false) return 'not-set-up'
+  const rules = readRules(data.rules)
   if (!rules) return null
-  const pointsRaw = body.points
-  const points = typeof pointsRaw === 'number' ? pointsRaw : isRecord(pointsRaw) ? num(pointsRaw, 'balance', 'points', 'total') : undefined
+  const pointsRaw = isRecord(data.points) ? data.points : {}
+  const points = num(pointsRaw, 'balance')
   if (points === undefined) return null
-  const valueUsd = isRecord(pointsRaw) ? num(pointsRaw, 'valueUsd', 'dollarValue', 'value', 'usd') : undefined
-  const referral = isRecord(body.referral) ? body.referral : isRecord(body.referrals) ? body.referrals : {}
+  const valueUsd = num(pointsRaw, 'valueUsd')
+  const referral = rec(data, 'referral') ?? {}
   const code = str(referral, 'code')
-  const link = str(referral, 'link', 'url', 'shareUrl')
+  const link = str(referral, 'link')
   return {
     source: 'store',
-    enabled: body.enabled !== false,
+    enabled: data.enabled !== false,
     ...(customer?.name ? { displayName: customer.name } : {}),
     points: Math.max(0, Math.floor(points)),
     pointsValueUsd: valueUsd ?? Math.round(Math.floor(points) * rules.pointValueUsd * 100) / 100,
-    creditUsd: Math.max(0, num(body, 'storeCreditUsd', 'creditUsd', 'storeCredit') ?? 0),
-    tier: readTier(body.tier, rules),
+    creditUsd: Math.max(0, num(data, 'storeCreditUsd') ?? 0),
+    tier: readTier(data.tier, rules),
     referral: {
       ...(code ? { code } : {}),
       ...(link && /^https:\/\//.test(link) ? { link } : {}),
-      completed: Math.max(0, Math.floor(num(referral, 'completed', 'completedCount', 'count') ?? 0)),
-      activity: readActivity(list(referral, 'activity', 'history')),
+      completed: Math.max(0, Math.floor(num(referral, 'completed') ?? 0)),
+      activity: readActivity(list(referral, 'activity')),
     },
-    rewards: readFixedRewards(list(body, 'rewards', 'fixedRewards')),
+    rewards: readFixedRewards(list(data, 'rewards')),
     rules,
-    history: readHistory(list(body, 'history')),
+    history: readHistory(list(data, 'history')),
   }
 }
 
@@ -279,7 +288,8 @@ export function refreshStoreRewards({ force = false, customer }: { force?: boole
       }
       const account = response.ok ? readRewards(await response.json().catch(() => null), customer) : null
       lastRead = Date.now()
-      setState(account ? { status: 'ready', account } : { status: 'unavailable', account: state.account })
+      if (account === 'not-set-up') setState({ status: 'not-set-up', account: null })
+      else setState(account ? { status: 'ready', account } : { status: 'unavailable', account: state.account })
     } catch {
       setState({ status: 'unavailable', account: state.account })
     } finally {

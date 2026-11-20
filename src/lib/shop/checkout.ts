@@ -83,9 +83,13 @@ export function firstInvalidField(form: CheckoutForm, brand: BrandId): CheckoutF
 /** What the store applied from the customer's rewards (UPD's `order.rewards`). */
 export interface RewardsApplied {
   pointsUsed?: number
+  pointsValueUsd?: number
   creditUsd?: number
   tierDiscountUsd?: number
   rewards?: string[]
+  rewardPoints?: number
+  /** What made delivery free: the tier, or the free-delivery reward bought with points. */
+  freeDeliveryBy?: 'tier' | 'points'
 }
 
 export interface OrderTotals {
@@ -123,9 +127,12 @@ function readTotals(value: unknown): OrderTotals | undefined {
     const r = value.rewards
     const applied: RewardsApplied = {}
     if (num(r.pointsUsed)) applied.pointsUsed = num(r.pointsUsed)
+    if (num(r.pointsValueUsd)) applied.pointsValueUsd = num(r.pointsValueUsd)
     if (num(r.creditUsd)) applied.creditUsd = num(r.creditUsd)
     if (num(r.tierDiscountUsd)) applied.tierDiscountUsd = num(r.tierDiscountUsd)
     if (Array.isArray(r.rewards)) applied.rewards = r.rewards.filter((id): id is string => typeof id === 'string').slice(0, 10)
+    if (num(r.rewardPoints)) applied.rewardPoints = num(r.rewardPoints)
+    if (r.freeDeliveryBy === 'tier' || r.freeDeliveryBy === 'points') applied.freeDeliveryBy = r.freeDeliveryBy
     if (Object.keys(applied).length > 0) totals.rewards = applied
   }
   return totals

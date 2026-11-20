@@ -1,72 +1,98 @@
 import { describe, expect, it } from 'vitest'
+import type { StoreAccount } from './account'
 import { SAMPLE_REWARDS } from './rewardsSample'
 import { readRewards, readRules } from './storeRewards'
 
-describe('readRewards (UPD\'s answer, as its developer described it)', () => {
-  it('reads the described answer into the account the screens draw', () => {
+const data = SAMPLE_REWARDS.data
+const withData = (patch: Record<string, unknown>) => ({ data: { ...data, ...patch } })
+const account = (body: unknown) => readRewards(body) as StoreAccount | null
+
+describe("readRewards (UPD's sample reply, exact field names)", () => {
+  it('reads the sample into the account the screens draw', () => {
     const a = readRewards(SAMPLE_REWARDS, { email: 'jane@example.com', name: 'Jane' })
     expect(a).toMatchObject({
       source: 'store',
       enabled: true,
       displayName: 'Jane',
-      points: 1200,
-      pointsValueUsd: 36,
+      points: 1240,
+      pointsValueUsd: 37.2,
       creditUsd: 25,
-      tier: { current: 'bench', earnedBy: 'spend', spend12moUsd: 1100, next: { tier: 'lab', spendToGoUsd: 400, referralsToGo: 23 } },
-      referral: { code: 'JANE20', link: 'https://www.usapeptidedepot.com/?ref=JANE20', completed: 2 },
+      tier: {
+        current: 'lab',
+        earnedBy: 'spend',
+        until: '2027-10-02T00:00:00.000Z',
+        spend12moUsd: 1820.5,
+        referrals12mo: 3,
+        next: { tier: 'institute', spendToGoUsd: 3179.5 },
+      },
+      referral: { code: 'JANE7K2Q', link: 'https://app.usapeptidedepot.com/?ref=JANE7K2Q', completed: 1 },
     })
-    expect(a?.referral.activity).toEqual([
-      { name: 'R.L.', at: '2026-11-02', status: 'earned', amountUsd: 20 },
-      { name: 'J.C.', at: '2026-10-21', status: 'earned', amountUsd: 20 },
-      { name: 'P.M.', at: '2026-11-15', status: 'pending' },
+    const tier = (a as StoreAccount).tier
+    // referralsNeeded: null (Institute isn't reached by referrals).
+    expect(tier.next).not.toHaveProperty('referralsToGo')
+    expect((a as StoreAccount).referral.activity).toEqual([
+      { name: 'M.K.', at: '2026-11-18', status: 'pending', amountUsd: 20 },
+      { name: 'D.R.', at: '2026-11-02', status: 'earned', amountUsd: 20 },
     ])
-    expect(a?.rewards).toEqual([
-      { id: 'free_delivery', name: 'Free delivery', points: 300 },
+    expect((a as StoreAccount).rewards).toEqual([
+      { id: 'free_delivery', name: 'Free delivery', points: 400 },
       { id: 'reconstitution_solution', name: 'Reconstitution Solution vial', points: 400 },
     ])
-    expect(a?.history[2]).toEqual({ at: '2026-10-30', label: 'Order USP-XYZ789', points: -300 })
+    expect((a as StoreAccount).history).toEqual([
+      { at: '2026-11-02', reason: 'referral', note: 'Referral D.R. (USP-MWOZCCCC-DD33)', creditUsd: 20 },
+      { at: '2026-10-20', reason: 'redeemed', points: -300 },
+    ])
   })
 
   it('takes every number from the rules sent', () => {
-    const rules = readRules(SAMPLE_REWARDS.rules)
-    expect(rules).toMatchObject({ pointsPerDollar: 1, pointValueUsd: 0.03, minimumRedeem: 250, tierWindowMonths: 12 })
-    expect(rules?.tiers.map((t) => [t.tier, t.spendUsd, t.discountPercent, t.pointsMultiplier])).toEqual([
-      ['bench', 0, 0, 1],
-      ['lab', 1500, 5, 1],
-      ['institute', 5000, 10, 1.5],
+    const rules = readRules(data.rules)
+    expect(rules).toMatchObject({ pointsPerDollar: 1, pointValueUsd: 0.03, minimumRedeem: 250, tierWindowMonths: 12, countsFrom: '2026-11-19' })
+    expect(rules?.tiers.map((t) => [t.tier, t.name, t.spendUsd, t.referrals, t.discountPercent, t.freeDelivery, t.pointsMultiplier, t.earlyAccess])).toEqual([
+      ['bench', 'Bench', 0, undefined, 0, false, 1, false],
+      ['lab', 'Lab', 1500, 25, 5, true, 1, false],
+      ['institute', 'Institute', 5000, undefined, 10, true, 1.5, true],
     ])
+    // The bonuses, then Lab by 25 referrals (from the tiers) as the ladder's last rung.
     expect(rules?.referral).toEqual({
       creditPerReferralUsd: 20,
-      minimumFirstOrderUsd: 100,
-      milestones: [{ referrals: 5, bonusCreditUsd: 25 }, { referrals: 10, bonusCreditUsd: 75 }, { referrals: 25, tier: 'lab', months: 12 }],
+      milestones: [{ referrals: 5, bonusCreditUsd: 25 }, { referrals: 10, bonusCreditUsd: 75 }, { referrals: 25, tier: 'lab' }],
     })
   })
 
-  it('reads tiers sent as an object keyed by id, and a plain number of points', () => {
-    const rules = { ...SAMPLE_REWARDS.rules, tiers: { bench: { spendUsd: 0 }, gold: { spendUsd: 900, discountPercent: 8 } } }
-    const a = readRewards({ ...SAMPLE_REWARDS, points: 300, rules })
-    expect(a?.rules.tiers.map((t) => t.tier)).toEqual(['bench', 'gold'])
-    expect(a?.points).toBe(300)
-    expect(a?.pointsValueUsd).toBe(9)
+  it('leaves the referral rules out when the per-friend credit is missing', () => {
+    expect(readRules({ ...data.rules, referralCreditUsd: undefined })?.referral).toBeUndefined()
+  })
+
+  it('marks a fixed reward the store says is not available', () => {
+    const a = account(withData({ rewards: [{ id: 'free_delivery', name: 'Free delivery', points: 400, available: false }] }))
+    expect(a?.rewards).toEqual([{ id: 'free_delivery', name: 'Free delivery', points: 400, available: false }])
   })
 
   it('hides earning and spending when the store says enabled: false', () => {
-    expect(readRewards({ ...SAMPLE_REWARDS, enabled: false })?.enabled).toBe(false)
+    expect(account(withData({ enabled: false }))?.enabled).toBe(false)
+  })
+
+  it('says "not set up" when the store answers configured: false', () => {
+    expect(readRewards({ data: { configured: false, message: 'Rewards are not set up yet.' } })).toBe('not-set-up')
   })
 
   it('refuses an answer without the core rules or a balance, rather than using numbers of its own', () => {
-    expect(readRewards({ ...SAMPLE_REWARDS, rules: { ...SAMPLE_REWARDS.rules, pointValueUsd: undefined } })).toBeNull()
-    expect(readRewards({ ...SAMPLE_REWARDS, rules: { ...SAMPLE_REWARDS.rules, tiers: [] } })).toBeNull()
-    expect(readRewards({ ...SAMPLE_REWARDS, points: undefined })).toBeNull()
+    expect(readRewards(withData({ rules: { ...data.rules, pointValueUsd: undefined } }))).toBeNull()
+    expect(readRewards(withData({ rules: { ...data.rules, tiers: [] } }))).toBeNull()
+    expect(readRewards(withData({ points: undefined }))).toBeNull()
+    expect(readRewards(data)).toBeNull()
     expect(readRewards(null)).toBeNull()
   })
 
-  it('drops a share link that isn\'t https, and activity it can\'t read', () => {
-    const a = readRewards({
-      ...SAMPLE_REWARDS,
-      referral: { ...SAMPLE_REWARDS.referral, link: 'javascript:alert(1)', activity: [{ initials: 'X', status: 'maybe', date: '2026-01-01' }] },
-    })
+  it("drops a share link that isn't https, and activity and history it can't read", () => {
+    const a = account(
+      withData({
+        referral: { ...data.referral, link: 'javascript:alert(1)', activity: [{ name: 'X', status: 'maybe', date: '2026-01-01' }] },
+        history: [{ kind: 'gold', amount: 5, date: '2026-01-01' }, { kind: 'points', date: '2026-01-01' }],
+      }),
+    )
     expect(a?.referral.link).toBeUndefined()
     expect(a?.referral.activity).toEqual([])
+    expect(a?.history).toEqual([])
   })
 })

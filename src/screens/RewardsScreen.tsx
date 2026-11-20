@@ -12,6 +12,7 @@ import { formatDate } from '../lib/dates'
 import { formatPrice } from '../lib/shop/catalogue'
 import { useStoreAccount, type StoreAccount } from '../lib/store/account'
 import { hundredPointsUsd, tierMilestone, type TierRule } from '../lib/store/rules'
+import { HISTORY_REASONS } from '../lib/store/storeRewards'
 import { fixedRewards, pointsToRedeem, spendableUsd, tierFromReferrals, tierName, tierThresholds, trackSpend } from '../lib/store/loyaltyView'
 import type { Locale } from '../lib/units'
 
@@ -144,10 +145,14 @@ function RewardsView({ account, onOpenRefer }: { account: StoreAccount; onOpenRe
                       <span
                         className={cn(
                           'shrink-0 rounded-full px-2.5 py-1 text-xs font-bold leading-none',
-                          pointsShort === 0 ? 'bg-positive-lt text-positive' : 'bg-tint text-muted-foreground',
+                          pointsShort === 0 && reward.available !== false ? 'bg-positive-lt text-positive' : 'bg-tint text-muted-foreground',
                         )}
                       >
-                        {pointsShort === 0 ? t('rewards.fixedReady') : t('rewards.fixedShort', { count: pointsShort, points: pointsShort.toLocaleString(locale) })}
+                        {reward.available === false
+                          ? t('rewards.fixedUnavailable')
+                          : pointsShort === 0
+                            ? t('rewards.fixedReady')
+                            : t('rewards.fixedShort', { count: pointsShort, points: pointsShort.toLocaleString(locale) })}
                       </span>
                     </li>
                   ))}
@@ -163,8 +168,8 @@ function RewardsView({ account, onOpenRefer }: { account: StoreAccount; onOpenRe
                   {account.history.slice(0, 10).map((h, i) => (
                     <li key={`${h.at}-${i}`} className="flex items-center justify-between gap-3 py-2.5 text-sm">
                       <div className="min-w-0">
-                        <p className="truncate text-foreground">{h.label ?? t('rewards.historyChange')}</p>
-                        <p className="text-[12.5px] text-muted-foreground">{shortDate(h.at)}</p>
+                        <p className="truncate text-foreground">{historyReason(h.reason, t)}</p>
+                        <p className="truncate text-[12.5px] text-muted-foreground">{h.note ? `${shortDate(h.at)} · ${h.note}` : shortDate(h.at)}</p>
                       </div>
                       <span className="shrink-0 text-right text-[13px] font-semibold tabular-nums">
                         {h.points !== undefined && h.points !== 0 && (
@@ -233,6 +238,11 @@ function RewardsView({ account, onOpenRefer }: { account: StoreAccount; onOpenRe
 
 type T = (key: string, options?: Record<string, unknown>) => string
 
+/** A history line's title from UPD's reason code ("Points for an order", "Referral credit"…); others: "Change". */
+function historyReason(reason: string | undefined, t: T): string {
+  return reason && (HISTORY_REASONS as readonly string[]).includes(reason) ? t(`rewards.historyReason.${reason}`) : t('rewards.historyChange')
+}
+
 /** How a tier is reached: "Everyone starts here", "$1,500 a year or 25 referrals", "$5,000 a year". */
 function requirement(rule: TierRule, usd: (n: number) => string, t: T): string {
   if (rule.spendUsd === 0 && rule.referrals === undefined) return t('rewards.everyone')
@@ -269,7 +279,8 @@ function footnote(account: StoreAccount, t: T): string {
         months: milestone.months ?? account.rules.tierWindowMonths,
       })
     : ''
-  return [t('rewards.footnote', { months: account.rules.tierWindowMonths }), byReferrals, t('rewards.footnoteStack')].filter(Boolean).join(' ')
+  const countsFrom = account.rules.countsFrom ? t('rewards.footnoteCountsFrom', { date: formatDate(parseISO(account.rules.countsFrom)) }) : ''
+  return [t('rewards.footnote', { months: account.rules.tierWindowMonths }), countsFrom, byReferrals, t('rewards.footnoteStack')].filter(Boolean).join(' ')
 }
 
 /** One tier's card: the first outlined on white, the others on the brand colour. */

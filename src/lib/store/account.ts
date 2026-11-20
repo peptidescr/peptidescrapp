@@ -53,6 +53,8 @@ export interface TierStatus {
   until?: string
   /** Spend over the last 12 months, in dollars. */
   spend12moUsd?: number
+  /** Referrals completed over the last 12 months (UPD's `referrals12Months`). */
+  referrals12mo?: number
   /** The next tier and what's left to reach it; absent at the top. */
   next?: { tier: Tier; spendToGoUsd?: number; referralsToGo?: number }
 }
@@ -61,8 +63,10 @@ export interface TierStatus {
 export interface HistoryEntry {
   /** ISO date. */
   at: string
-  /** What happened, in the store's words. */
-  label?: string
+  /** Why, as UPD's code: order_earned, order_reversed, referral, referral_bonus, redeemed, redeem_returned, adjustment. */
+  reason?: string
+  /** UPD's note, in its words (English), e.g. "Referral D.R. (USP-…)". */
+  note?: string
   /** Points added (positive) or spent (negative). */
   points?: number
   /** Credit added or spent, in dollars. */

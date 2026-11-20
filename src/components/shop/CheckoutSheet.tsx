@@ -661,7 +661,7 @@ function SpendRows({
       )}
       {account.rewards.map((reward) => {
         const on = choice.rewards.includes(reward.id)
-        const affordable = on || ticked + reward.points <= account.points
+        const affordable = on || (reward.available !== false && ticked + reward.points <= account.points)
         return (
           <label key={reward.id} className={cn('flex min-h-11 shrink-0 items-center gap-3', !affordable && 'opacity-60')}>
             <input
@@ -673,7 +673,9 @@ function SpendRows({
             />
             <span className="min-w-0 text-sm leading-snug text-foreground">
               {t(`rewards.fixed.${reward.id}`, { defaultValue: reward.name ?? reward.id })}
-              <span className="block text-xs text-muted-foreground">{t('rewards.fixedCost', { count: reward.points, points: reward.points.toLocaleString(locale) })}</span>
+              <span className="block text-xs text-muted-foreground">
+                {reward.available === false ? t('rewards.fixedUnavailable') : t('rewards.fixedCost', { count: reward.points, points: reward.points.toLocaleString(locale) })}
+              </span>
             </span>
           </label>
         )
@@ -826,6 +828,8 @@ function RewardsAppliedNote({ applied, locale }: { applied: NonNullable<OrderTot
     applied.pointsUsed ? t('checkout.appliedPoints', { count: applied.pointsUsed, points: applied.pointsUsed.toLocaleString(locale) }) : null,
     applied.creditUsd ? t('checkout.appliedCredit', { amount: formatPrice({ currency: 'USD', amount: applied.creditUsd }, locale) }) : null,
     applied.tierDiscountUsd ? t('checkout.appliedTier', { amount: formatPrice({ currency: 'USD', amount: applied.tierDiscountUsd }, locale) }) : null,
+    // Free delivery from the tier is named once here; bought with points it's among the rewards below.
+    applied.freeDeliveryBy === 'tier' && !applied.rewards?.includes('free_delivery') ? t('checkout.appliedFreeDeliveryTier') : null,
     ...(applied.rewards ?? []).map((id) => t(`rewards.fixed.${id}`, { defaultValue: id })),
   ].filter((p): p is string => p !== null)
   if (parts.length === 0) return null
@@ -852,6 +856,8 @@ export function OrderResult({ order, locale, onDone }: { order: PlacedOrder; loc
   // A payment can be made from the store's link or ChargX's form shown inside the app (either one is enough).
   const hasPaymentLink = order.paymentUrl !== undefined || order.embedUrl !== undefined
   const needsPayment = card && hasPaymentLink && !paid
+  // The store's total is 0 only when its rewards covered the whole order (it then asks for no payment).
+  const nothingToPay = order.totals?.total === 0
   const arrives =
     BRAND.shippingDays !== undefined
       ? new Intl.DateTimeFormat(locale, { weekday: 'short', month: 'short', day: 'numeric' }).format(arriveByDate(new Date(order.placedAt), BRAND.shippingDays))
@@ -871,7 +877,9 @@ export function OrderResult({ order, locale, onDone }: { order: PlacedOrder; loc
         </div>
         {order.totals && <TotalsList totals={order.totals} locale={locale} />}
         <p aria-live="polite" className="text-sm leading-relaxed text-foreground">
-          {!card
+          {nothingToPay
+            ? t('checkout.nothingToPay', { store: BRAND.store.name })
+            : !card
             ? t('checkout.whatsappNext')
             : paid
               ? t('checkout.paid', { store: BRAND.store.name })

@@ -67,6 +67,8 @@ export interface StoreRules {
   tiers: TierRule[]
   /** How many months of spend set the tier (UPD's field is "12-month spend"). */
   tierWindowMonths: number
+  /** The day the store started counting (ISO date), when it says. */
+  countsFrom?: string
   /** Absent when the store sends no referral rules: the ladder isn't shown. */
   referral?: ReferralRules
 }
@@ -78,6 +80,8 @@ export interface FixedReward {
   name?: string
   /** Points it costs. */
   points: number
+  /** False when the store says it can't be chosen right now. */
+  available?: false
 }
 
 /** PLACEHOLDER rules for the staging test account (see the header). Real accounts use the store's. */

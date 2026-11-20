@@ -27,8 +27,9 @@
  *   UPD_CARD_PAYMENT=store     UPD only: start the card payment through UPD's
  *                               own /api/checkout/card (startUpdCardPayment), as
  *                               its developer asked, instead of the ChargX
- *                               sandbox. Whether that route charges real cards
- *                               isn't known yet: leave unset until UPD says.
+ *                               sandbox. UPD says that route charges REAL cards
+ *                               (live app only): never set it on staging. A
+ *                               link not marked sandbox is refused anyway.
  *
  * A signed-in UPD customer's spending goes as UPD's `redeem` object, with their
  * token: UPD checks the balance. The staging test account's balance (which UPD
@@ -387,11 +388,16 @@ export function buildStoreRequest(
 
 /** What UPD applied from the customer's rewards (`order.rewards`), as far as the app needs to show it. */
 export interface RewardsApplied {
+  /** Points spent as money off (`points`), and what they took off (`pointsValue`). */
   pointsUsed?: number
+  pointsValueUsd?: number
   creditUsd?: number
   tierDiscountUsd?: number
-  /** Fixed rewards applied, by id. */
+  /** Fixed rewards applied, by id, and the points they cost (`rewardPoints`). */
   rewards?: string[]
+  rewardPoints?: number
+  /** What made delivery free: the tier, or the free-delivery reward bought with points. */
+  freeDeliveryBy?: 'tier' | 'points'
 }
 
 export interface OrderTotals {
@@ -440,43 +446,41 @@ function customerMessage(value: unknown): string | undefined {
   return field(value, 300)
 }
 
-/** The first of these fields that holds a sensible amount. */
-function firstMoney(record: Record<string, unknown>, keys: string[]): number | undefined {
-  for (const key of keys) {
-    const value = money(record[key])
-    if (value !== undefined) return value
-  }
-  return undefined
-}
-
-let loggedRewardsShape = false
-
 /**
- * UPD's `order.rewards` breakdown. Its developer described it in words ("the reply has the breakdown in
- * order.rewards"), not field by field, so the likely names are read and the names actually sent are logged once
- * (never the values) to check against. Undefined when nothing was applied or nothing is recognised.
+ * UPD's `order.rewards` breakdown, by the names in its developer's sample (20 November 2026): `tierDiscount`,
+ * `freeDeliveryBy` ("tier", "points" or null), `rewards` (ids), `rewardPoints`, `points`, `pointsValue`,
+ * `creditUsd`. Null for a guest. Undefined when nothing was applied.
  */
 export function readRewardsApplied(value: unknown): RewardsApplied | undefined {
   if (!isRecord(value)) return undefined
-  if (!loggedRewardsShape) {
-    loggedRewardsShape = true
-    console.log(`orders: upd order.rewards fields: ${Object.keys(value).slice(0, 40).join(', ')}`)
-  }
   const applied: RewardsApplied = {}
-  const points = firstMoney(value, ['pointsUsed', 'pointsRedeemed', 'points'])
+  const points = money(value.points)
   if (points) applied.pointsUsed = Math.round(points)
-  const credit = firstMoney(value, ['creditUsedUsd', 'creditUsd', 'storeCreditUsd', 'creditApplied'])
+  const pointsValue = money(value.pointsValue)
+  if (pointsValue) applied.pointsValueUsd = pointsValue
+  const credit = money(value.creditUsd)
   if (credit) applied.creditUsd = credit
-  const tier = firstMoney(value, ['tierDiscountUsd', 'tierDiscount'])
+  const tier = money(value.tierDiscount)
   if (tier) applied.tierDiscountUsd = tier
-  const list = value.rewards ?? value.fixedRewards ?? value.applied
-  if (Array.isArray(list)) {
-    const ids = list
-      .map((r) => (typeof r === 'string' ? r : isRecord(r) && typeof r.id === 'string' ? r.id : undefined))
-      .filter((id): id is string => id !== undefined && REWARD_ID.test(id))
+  if (Array.isArray(value.rewards)) {
+    const ids = value.rewards.filter((id): id is string => typeof id === 'string' && REWARD_ID.test(id))
     if (ids.length > 0) applied.rewards = ids.slice(0, 10)
   }
+  const rewardPoints = money(value.rewardPoints)
+  if (rewardPoints) applied.rewardPoints = Math.round(rewardPoints)
+  if (value.freeDeliveryBy === 'tier' || value.freeDeliveryBy === 'points') applied.freeDeliveryBy = value.freeDeliveryBy
   return Object.keys(applied).length > 0 ? applied : undefined
+}
+
+/**
+ * The message to show when UPD refuses an order. Its errors (sample, 20 November 2026) carry a code in `error`
+ * ("bad_request", "bot_check", "rate_limited"), the message in `message`, and per-field messages in `fields`
+ * (e.g. `redeem: "Not enough points for that."`), which say most. A 401's `error` is itself a sentence.
+ */
+function updRefusal(body: Record<string, unknown>): string | undefined {
+  const fieldMessage = isRecord(body.fields) ? Object.values(body.fields).find((v) => typeof v === 'string' && v.trim()) : undefined
+  const error = typeof body.error === 'string' && /\s/.test(body.error.trim()) ? body.error : undefined
+  return customerMessage(fieldMessage) ?? customerMessage(body.message) ?? customerMessage(error)
 }
 
 /**
@@ -485,7 +489,8 @@ export function readRewardsApplied(value: unknown): RewardsApplied | undefined {
  * { token } } }` (seen in its public checkout code, November 2026), so both
  * are accepted until a sandbox order shows which is real. UPD's order carries
  * no payment link; one is started separately (startChargxPayment). A total of
- * 0 (UPD's doc example) is treated as unknown, never shown as the price.
+ * 0 (UPD's doc example) is treated as unknown, never shown as the price, except
+ * when UPD leaves `payment` out because rewards covered the whole order.
  */
 export function readStoreAnswer(brand: CatalogueBrand, status: number, body: unknown): StoreAnswer {
   // UPD's developer: "An invalid or expired token gets a 401, so please refresh the session and retry."
@@ -513,8 +518,10 @@ export function readStoreAnswer(brand: CatalogueBrand, status: number, body: unk
       }
     } else if (brand === 'upd') {
       const total = money(order.grandTotal)
-      if (total) {
-        totals = { currency: 'USD', total, goods: money(order.subtotal), shipping: money(order.shippingTotal) }
+      // UPD leaves `payment` out when nothing is left to pay (rewards covered it): then a 0 total is real.
+      const nothingToPay = total === 0 && root.payment === undefined && isRecord(order.rewards)
+      if (total || nothingToPay) {
+        totals = { currency: 'USD', total: total ?? 0, goods: money(order.subtotal), shipping: money(order.shippingTotal) }
         // UPD's website reads `discountTotal` on its price preview; kept when an order carries it too.
         const discount = money(order.discountTotal)
         if (discount) totals.discount = discount
@@ -529,9 +536,9 @@ export function readStoreAnswer(brand: CatalogueBrand, status: number, body: unk
     return answer
   }
 
-  // A clear refusal: PCR's ok:false, or a 4xx with a message. UPD's spec doesn't show its error shape; its
-  // website reads a per-field `fields` object and a `message`.
+  // A clear refusal: PCR's ok:false, or a 4xx (UPD: no order is created for any of them).
   if ((brand === 'pcr' && body.ok === false) || (status >= 400 && status < 500)) {
+    if (brand === 'upd') return { kind: 'refused', message: updRefusal(body) }
     const fieldMessage = isRecord(body.fields) ? Object.values(body.fields).find((v) => typeof v === 'string') : undefined
     return { kind: 'refused', message: customerMessage(body.error) ?? customerMessage(fieldMessage) ?? customerMessage(body.message) }
   }
@@ -567,9 +574,12 @@ const UPD_CARD_URL = 'https://www.usapeptidedepot.com/api/checkout/card'
 
 /**
  * Starts a UPD card payment the way UPD's website does and its developer asked for (19 November 2026): POST
- * /api/checkout/card with the order number and the order reply's `payment.token`, answered with
- * `data.paymentUrl` (read from UPD's public checkout code). UPD's server holds the payment key. Whether this route
- * charges real cards or has a sandbox is not known yet, so it runs only when UPD_CARD_PAYMENT=store.
+ * /api/checkout/card with the order number and the order reply's `payment.token` (good for 30 minutes), answered
+ * with `{ data: { paymentUrl, orderNumber, mode } }`. UPD's server holds the payment key.
+ *
+ * UPD's developer (20 November 2026): this route is for the live app only and charges REAL cards (`mode:
+ * "live"`). This code has no live mode, so a link that isn't marked `mode: "sandbox"` is never handed to the
+ * customer; it runs at all only when UPD_CARD_PAYMENT=store, which staging must not set.
  */
 export async function startUpdCardPayment(fetchFn: FetchLike, input: { orderNumber: string; paymentToken: string }): Promise<string | undefined> {
   try {
@@ -580,9 +590,14 @@ export async function startUpdCardPayment(fetchFn: FetchLike, input: { orderNumb
       signal: AbortSignal.timeout(15_000),
     })
     const body: unknown = await response.json().catch(() => null)
-    const paymentUrl = isRecord(body) && isRecord(body.data) ? body.data.paymentUrl : undefined
+    const data = isRecord(body) && isRecord(body.data) ? body.data : {}
+    const paymentUrl = data.paymentUrl
     if (!response.ok) {
       console.error(`orders: upd card payment answered ${response.status}`)
+      return undefined
+    }
+    if (data.mode !== 'sandbox') {
+      console.error('orders: upd card payment is not a sandbox one (it charges real cards); not used')
       return undefined
     }
     if (isAllowedPaymentUrl(paymentUrl, 'upd')) return paymentUrl
@@ -804,7 +819,7 @@ export async function handleOrderRequest(
     if (parsed.request.paymentMethod === 'card') {
       if (settings.brand === 'upd' && !paymentUrl && settings.storeCardRoute) {
         if (answer.paymentToken) paymentUrl = await startUpdCardPayment(fetchFn, { orderNumber, paymentToken: answer.paymentToken })
-        else console.error('orders: upd order reply has no payment token; no card payment started')
+        else if (totals?.total !== 0) console.error('orders: upd order reply has no payment token; no card payment started')
         if (paymentUrl) embedUrl = isChargxForm(paymentUrl) ? paymentUrl : await findChargxForward(fetchFn, paymentUrl)
       } else if (settings.brand === 'upd' && !paymentUrl && settings.chargxKey && totals?.total) {
         paymentUrl = await startChargxPayment(fetchFn, {

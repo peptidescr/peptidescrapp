@@ -2924,3 +2924,57 @@ focused; the widget's token; the request body as UPD specified; "check your emai
 neutral answer); the widget fits at 320 px dark and 390 px light; the signed-in checkout unchanged. **Not checked
 against UPD:** real sign-up/reset (needs UPD to list the staging address for both its Turnstile key and CORS, or the
 live app address).
+
+## UPD's exact field names (20 November 2026, on `staging`)
+
+UPD's developer sent sample replies with the exact field names (made-up values). The readers now take those names
+only, instead of our guesses. `src/lib/store/rewardsSample.ts` is his rewards sample word for word. Our guesses
+would have lost several fields: the tier discount (`extraDiscountPercent`), what's left to the next tier
+(`spendNeededUsd`, `referralsNeeded`), history amounts (`kind` + `amount`) and the referral rules
+(`referralCreditUsd`, `referralBonuses`).
+
+**Rewards** (`GET /api/customer/rewards`):
+- The reply is wrapped in `data`.
+- `configured: false` → "Rewards are coming soon"; `enabled: false` hides earning and spending, as before.
+- `tier`: `key`, `name`, `earnedBy`, `until`, `spend12MonthsUsd`, `referrals12Months`, `benefits`, and `next`
+  (`key`, `name`, `spendNeededUsd`, `referralsNeeded`; `next` is null at the top).
+- `rewards[]`: `available: false` shows "Not available right now", and the checkout box can't be ticked.
+- `history[]`: `kind` (points/credit), `amount` (negative when spent), `reason` (7 codes, each with its own title),
+  `note` (shown after the date).
+- `rules`:
+  - `minimumRedeemPoints`, `referralCreditUsd`, `referralBonuses`, `tierWindowMonths`;
+  - `countsFrom`, shown as "Counting started on …";
+  - `tiers[]`: `key`, `name`, `spendUsd`, `referrals`, `extraDiscountPercent`, `freeDelivery`, `pointsMultiplier`,
+    `earlyRestockAccess`. A tier with `referrals` (Lab at 25) becomes the referral ladder's last rung.
+- No minimum first order is sent, so that line isn't shown.
+
+**Orders** (`POST /api/orders`):
+- `order.rewards` = `{ tierDiscount, freeDeliveryBy ("tier" | "points" | null), rewards, rewardPoints, points,
+  pointsValue, creditUsd }`. "Free delivery with your tier" is shown when the tier made delivery free.
+- `discountTotal` includes the tier discount, points and credit.
+- When nothing is left to pay, UPD leaves `payment` out. A 0 total is then real, and "Order placed" says "Nothing to
+  pay: your rewards covered this order"; no payment is started.
+- Errors (no order is created for any of them):
+  - 401 `{ error: "<sentence>" }`: refresh and retry, as before;
+  - 400 `{ error: "bad_request", message, fields: { redeem: "Not enough points for that." } }`;
+  - 403 `bot_check`;
+  - 429 `rate_limited`.
+
+  The customer now sees the field's message, then `message`; an `error` code like "bad_request" is never shown.
+  Before, "bad_request" itself would have been shown.
+
+**Card route:** UPD says `/api/checkout/card` is for the live app only and charges real cards (reply `{ data: {
+paymentUrl, orderNumber, mode: "live" } }`, token good for 30 minutes). This code has no live mode, so a link not
+marked `mode: "sandbox"` is never handed to the customer, even with `UPD_CARD_PAYMENT=store`. Staging keeps the
+ChargX sandbox.
+
+**Checked:**
+- Typecheck, lint, 611 tests (`VITE_BRAND=upd`), which include his order sample, the nothing-to-pay case, the error
+  messages and the live-card refusal.
+- Locale keys match in en and es-CR.
+- The mock store answers in his shapes, including "Not enough points" (400) and an order with no `payment` when fully
+  covered.
+
+**Not checked:**
+- The new history lines and "coming soon" in a browser.
+- Against UPD itself.

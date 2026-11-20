@@ -167,24 +167,67 @@ describe('UPD orders and their card payment', () => {
     expect(none.calls).toHaveLength(0)
   })
 
-  it('reads what UPD applied from the rewards into the totals', async () => {
-    const net = routes({
-      'https://www.usapeptidedepot.com/api/orders': () =>
-        Response.json({
-          data: {
-            order: { orderNumber: 'USP-20', subtotal: 90, discountTotal: 14, grandTotal: 76, rewards: { pointsUsed: 300, creditUsedUsd: 5, tierDiscountUsd: 0, rewards: ['free_delivery'] } },
-          },
-        }),
+  // UPD's sample reply (20 November 2026): a Lab customer, $160 of goods, $12 shipping made free by the tier.
+  const SAMPLE_ORDER = {
+    data: {
+      payment: { token: '1795200000.k3J9', expiresInSeconds: 1800 },
+      order: {
+        orderNumber: 'USP-MWQ1ABCD-EF12',
+        status: 'pending',
+        subtotal: 160,
+        discountTotal: 22,
+        shippingTotal: 0,
+        grandTotal: 138,
+        currency: 'USD',
+        promoCode: null,
+        businessDiscount: null,
+        protectionTotal: 0,
+        rewards: { tierDiscount: 8, freeDeliveryBy: 'tier', rewards: ['reconstitution_solution'], rewardPoints: 400, points: 300, pointsValue: 9, creditUsd: 5 },
+      },
+      items: [],
+    },
+  }
+
+  it("reads what UPD applied from the rewards into the totals (its sample reply)", async () => {
+    const net = routes({ 'https://www.usapeptidedepot.com/api/orders': () => Response.json(SAMPLE_ORDER, { status: 201 }) })
+    const body = (await (await handleOrderRequest(post(updInput()), 'upd', UPD_ENV, net.fetchFn)).json()) as { totals: unknown; status: string }
+    expect(body.status).toBe('pending')
+    expect(body.totals).toEqual({
+      currency: 'USD',
+      total: 138,
+      goods: 160,
+      discount: 22,
+      shipping: 0,
+      rewards: { tierDiscountUsd: 8, freeDeliveryBy: 'tier', rewards: ['reconstitution_solution'], rewardPoints: 400, pointsUsed: 300, pointsValueUsd: 9, creditUsd: 5 },
     })
-    const body = (await (await handleOrderRequest(post(updInput()), 'upd', UPD_ENV, net.fetchFn)).json()) as { totals: unknown }
-    expect(body.totals).toEqual({ currency: 'USD', total: 76, goods: 90, discount: 14, rewards: { pointsUsed: 300, creditUsd: 5, rewards: ['free_delivery'] } })
   })
 
-  it('starts the card payment through UPD\'s own route only when UPD_CARD_PAYMENT=store', async () => {
+  it('shows a 0 total as nothing to pay only when UPD leaves the payment out', async () => {
+    const covered = structuredClone(SAMPLE_ORDER) as { data: Record<string, unknown> & { order: Record<string, unknown> } }
+    delete covered.data.payment
+    covered.data.order.grandTotal = 0
+    const net = routes({ 'https://www.usapeptidedepot.com/api/orders': () => Response.json(covered, { status: 201 }) })
+    const body = (await (await handleOrderRequest(post(updInput()), 'upd', UPD_PAY_ENV, net.fetchFn)).json()) as { totals: { total: number }; paymentUrl?: string }
+    expect(body.totals.total).toBe(0)
+    expect(body.paymentUrl).toBeUndefined()
+    expect(net.calls).toHaveLength(1)
+  })
+
+  it("shows UPD's per-field message, not its error code", async () => {
+    const refuse = (reply: unknown, status: number) =>
+      routes({ 'https://www.usapeptidedepot.com/api/orders': () => Response.json(reply, { status }) }).fetchFn
+    const message = async (fetchFn: ReturnType<typeof refuse>) =>
+      ((await (await handleOrderRequest(post(updInput()), 'upd', UPD_ENV, fetchFn)).json()) as { message?: string }).message
+    expect(await message(refuse({ error: 'bad_request', message: 'Order rejected.', fields: { redeem: 'Not enough points for that.' } }, 400))).toBe('Not enough points for that.')
+    expect(await message(refuse({ error: 'rate_limited', message: 'Too many orders. Try again in a minute.' }, 429))).toBe('Too many orders. Try again in a minute.')
+    expect(await message(refuse({ error: 'bot_check' }, 403))).toBeUndefined()
+  })
+
+  it("starts the card payment through UPD's own route only when UPD_CARD_PAYMENT=store, and only a sandbox one", async () => {
     const order = () => Response.json({ data: { order: { orderNumber: 'USP-21', grandTotal: 50 }, payment: { token: 'pay-token' } } })
     const net = routes({
       'https://www.usapeptidedepot.com/api/orders': order,
-      'https://www.usapeptidedepot.com/api/checkout/card': () => Response.json({ data: { paymentUrl: FORM } }),
+      'https://www.usapeptidedepot.com/api/checkout/card': () => Response.json({ data: { paymentUrl: FORM, orderNumber: 'USP-21', mode: 'sandbox' } }),
     })
     const body = (await (await handleOrderRequest(post(updInput()), 'upd', { ...UPD_PAY_ENV, UPD_CARD_PAYMENT: 'store' }, net.fetchFn)).json()) as {
       paymentUrl: string
@@ -198,12 +241,19 @@ describe('UPD orders and their card payment', () => {
     const sandbox = routes({ 'https://www.usapeptidedepot.com/api/orders': order, [CHARGX]: () => Response.json({ payment_request: { checkout_url: FORM, isProduction: false } }) })
     await handleOrderRequest(post(updInput()), 'upd', UPD_PAY_ENV, sandbox.fetchFn)
     expect(sandbox.calls.map((c) => c.url)).toEqual(['https://www.usapeptidedepot.com/api/orders', CHARGX])
+    // UPD's route is live only (real cards): its link is never handed on.
+    const live = routes({
+      'https://www.usapeptidedepot.com/api/orders': order,
+      'https://www.usapeptidedepot.com/api/checkout/card': () => Response.json({ data: { paymentUrl: FORM, orderNumber: 'USP-21', mode: 'live' } }),
+    })
+    const liveBody = (await (await handleOrderRequest(post(updInput()), 'upd', { ...UPD_PAY_ENV, UPD_CARD_PAYMENT: 'store' }, live.fetchFn)).json()) as { paymentUrl?: string }
+    expect(liveBody.paymentUrl).toBeUndefined()
   })
 
   it('refuses a payment link from UPD\'s route that is off the store and ChargX', async () => {
     const net = routes({
       'https://www.usapeptidedepot.com/api/orders': () => Response.json({ data: { order: { orderNumber: 'USP-22', grandTotal: 50 }, payment: { token: 't' } } }),
-      'https://www.usapeptidedepot.com/api/checkout/card': () => Response.json({ data: { paymentUrl: 'https://evil.example/pay' } }),
+      'https://www.usapeptidedepot.com/api/checkout/card': () => Response.json({ data: { paymentUrl: 'https://evil.example/pay', mode: 'sandbox' } }),
     })
     const body = (await (await handleOrderRequest(post(updInput()), 'upd', { ...UPD_ENV, UPD_CARD_PAYMENT: 'store' }, net.fetchFn)).json()) as { paymentUrl?: string }
     expect(body.paymentUrl).toBeUndefined()
