@@ -8,8 +8,8 @@
  * - A UPD customer signed in with their own account (src/lib/store/session.ts):
  *   UPD's GET /api/customer/rewards, read through our /api/rewards
  *   (src/lib/store/storeRewards.ts), with the rules UPD sent.
- * - The **test account**, on staging only (VITE_STORE_TEST_SIGNIN=true, which
- *   vite.config.ts forces off for a live-site build): a sample whose balance
+ * - The **test account**, everywhere but the live site (VITE_APP_ENV, which
+ *   vite.config.ts takes from Netlify's deploy context): a sample whose balance
  *   lives on this device under the placeholder TEST_RULES, so the screens can be
  *   tried without a store account. Kept until UPD's test customers work.
  * A signed-in UPD customer's account wins over the test account.
@@ -130,8 +130,8 @@ export const SAMPLE_STATE: TestState = {
   ],
 }
 
-/** Whether this build offers the test sign-in (staging only; see the header). */
-export const TEST_SIGN_IN = import.meta.env.VITE_STORE_TEST_SIGNIN === 'true'
+/** Whether this build offers the test sign-in: never in a live-site build (see the header and src/lib/environment.ts). */
+export const TEST_SIGN_IN = import.meta.env.VITE_APP_ENV !== 'production'
 
 // v3: the marketing proposal's points (1 per $1) and the 12-month spend; a v2 balance (1 per $50) starts over.
 const STORAGE_KEY = 'store-test-account-v3'

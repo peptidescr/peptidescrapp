@@ -13,12 +13,10 @@ import type { CatalogueBrand, FetchLike } from './catalogue.ts'
 import type { PaymentStore } from './payments.ts'
 import { SAMPLE_REWARDS } from '../../src/lib/store/rewardsSample.ts'
 
-/** Fake values that pass checkoutSettings' checks; not keys for anything. */
+/** Fake values that pass checkoutSettings' checks in the 'development' environment; not keys for anything. */
 export const MOCK_CHECKOUT_ENV = {
-  STORE_CHECKOUT: 'sandbox',
   PCR_PARTNER_KEY: 'pk_sandbox_local-mock-not-a-key',
   PCR_SIGNING_SECRET: 'local-mock-not-a-secret',
-  UPD_LIVE_ORDERS_OK: 'true',
   CHARGX_PUBLISHABLE_KEY: 'local-mock-not-a-key',
 }
 

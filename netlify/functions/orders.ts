@@ -1,9 +1,13 @@
 import { toCatalogueBrand } from '../lib/catalogue.ts'
 import { handleOrderRequest } from '../lib/checkout.ts'
+import { environmentFromContext } from '../../src/lib/environment.ts'
 
-/** Guest checkout. Off unless the site's environment turns it on; see netlify/lib/checkout.ts. */
-export default async (req: Request): Promise<Response> =>
-  handleOrderRequest(req, toCatalogueBrand(process.env.VITE_BRAND), process.env, fetch)
+/**
+ * Guest checkout. Whether orders are taken follows the deploy environment (Netlify's `context.deploy.context`);
+ * see netlify/lib/checkout.ts. Only the part of Netlify's Context used here is typed.
+ */
+export default async (req: Request, context: { deploy?: { context?: string } }): Promise<Response> =>
+  handleOrderRequest(req, toCatalogueBrand(process.env.VITE_BRAND), process.env, environmentFromContext(context?.deploy?.context), fetch)
 
 export const config = {
   path: '/api/orders',

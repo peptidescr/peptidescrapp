@@ -10,26 +10,25 @@
  * SAFETY. An order here goes to the store's own order system. Neither spec
  * documents a test mode for orders: UPD's says the moment an order is created
  * its emails fire and its staff are notified, and PCR's sandbox partner key may
- * or may not reach its real staff (asked, not confirmed). So checkout is off
- * unless the site says otherwise, and the switches are deliberately narrow
- * (checkoutSettings):
+ * or may not reach its real staff (asked, not confirmed). So whether orders are
+ * taken at all follows the deploy environment (src/lib/environment.ts, from
+ * Netlify's own deploy context), never a switch someone sets (checkoutSettings):
  *
- *   STORE_CHECKOUT=sandbox      the only value accepted. There is no live mode
- *                               in this code yet; adding one is a code change.
- *   PCR_PARTNER_KEY             must be the sandbox partner key (pk_sandbox_…);
- *   PCR_SIGNING_SECRET          a live key is refused.
- *   UPD_LIVE_ORDERS_OK=true     UPD's order address is the same in testing as
- *                               live, so every UPD order reaches its staff.
- *                               Set only when test orders are expected.
- *   CHARGX_PUBLISHABLE_KEY      UPD only: the sandbox store's key, which starts
- *                               the card payment (startChargxPayment). Without
- *                               it a UPD card order has no payment link.
- *   UPD_CARD_PAYMENT=store     UPD only: start the card payment through UPD's
- *                               own /api/checkout/card (startUpdCardPayment), as
- *                               its developer asked, instead of the ChargX
- *                               sandbox. UPD says that route charges REAL cards
- *                               (live app only): never set it on staging. A
- *                               link not marked sandbox is refused anyway.
+ *   production   refused: this code has no live mode yet; adding one is a code
+ *                change. (Its UPD card payments will go through UPD's own
+ *                /api/checkout/card, which charges real cards.)
+ *   staging      allowed, with sandbox credentials only. UPD's order address is
+ *                the same in testing as live, so every UPD order reaches its
+ *                staff. Card payments: the ChargX sandbox store.
+ *   preview      refused, so a pull-request preview can't send orders to staff.
+ *   development  allowed (vite.config.ts serves it only with the mock store).
+ *
+ * Credentials, set per deploy context in Netlify (the same names everywhere):
+ *   PCR_PARTNER_KEY / PCR_SIGNING_SECRET   outside production the partner key
+ *                must be a sandbox one (pk_sandbox_…); a live key is refused.
+ *   CHARGX_PUBLISHABLE_KEY   UPD only: the sandbox ChargX store's key, which
+ *                starts the card payment (startChargxPayment). Without it a UPD
+ *                card order has no payment link.
  *
  * A signed-in UPD customer's spending goes as UPD's `redeem` object, with their
  * token: UPD checks the balance. The staging test account's balance (which UPD
@@ -40,6 +39,7 @@
  * them. Nothing here logs a key, a request body or a customer's details.
  */
 import { signPartnerBody } from './signing.ts'
+import { ordersAllowed, type AppEnvironment } from '../../src/lib/environment.ts'
 import type { CatalogueBrand, FetchLike, StorePrice } from './catalogue.ts'
 
 // ---------------------------------------------------------------------------
@@ -49,30 +49,35 @@ import type { CatalogueBrand, FetchLike, StorePrice } from './catalogue.ts'
 export type CheckoutSettings =
   | { ok: true; brand: 'pcr'; partnerKey: string; signingSecret: string }
   /**
-   * `chargxKey`: the sandbox store's publishable key, which starts UPD's card payments (UPD API doc §6).
-   * `storeCardRoute`: start them through UPD's own /api/checkout/card instead (UPD_CARD_PAYMENT=store).
+   * `cardRoute`: how a UPD card payment starts. 'chargx' (outside production): ChargX's payment request on the
+   * sandbox store, with `chargxKey` (UPD API doc §6). 'store' (production, once it has a live mode): UPD's own
+   * /api/checkout/card, which charges real cards.
    */
-  | { ok: true; brand: 'upd'; chargxKey?: string; storeCardRoute?: true }
+  | { ok: true; brand: 'upd'; environment: AppEnvironment; cardRoute: 'chargx' | 'store'; chargxKey?: string }
   | { ok: false; reason: string }
 
-/** Whether this site may place orders, and the credentials to do it with. Never returns a key in `reason`. */
-export function checkoutSettings(brand: CatalogueBrand, env: Record<string, string | undefined>): CheckoutSettings {
-  const mode = env.STORE_CHECKOUT
-  if (mode === undefined || mode === '') return { ok: false, reason: 'STORE_CHECKOUT is not set' }
-  if (mode !== 'sandbox') return { ok: false, reason: 'STORE_CHECKOUT must be "sandbox"; there is no live mode yet' }
+/** Whether this site may place orders here, and the credentials to do it with. Never returns a key in `reason`. */
+export function checkoutSettings(
+  brand: CatalogueBrand,
+  env: Record<string, string | undefined>,
+  environment: AppEnvironment,
+): CheckoutSettings {
+  if (!ordersAllowed(environment)) return { ok: false, reason: `no orders in ${environment}` }
   if (brand === 'pcr') {
     const partnerKey = env.PCR_PARTNER_KEY
     const signingSecret = env.PCR_SIGNING_SECRET
     if (!partnerKey || !signingSecret) return { ok: false, reason: 'PCR_PARTNER_KEY / PCR_SIGNING_SECRET are not set' }
-    if (!partnerKey.startsWith('pk_sandbox_')) return { ok: false, reason: 'PCR_PARTNER_KEY is not a sandbox key' }
+    if (environment !== 'production' && !partnerKey.startsWith('pk_sandbox_')) {
+      return { ok: false, reason: 'PCR_PARTNER_KEY is not a sandbox key' }
+    }
     return { ok: true, brand, partnerKey, signingSecret }
   }
-  if (env.UPD_LIVE_ORDERS_OK !== 'true') return { ok: false, reason: 'UPD_LIVE_ORDERS_OK is not "true"' }
   return {
     ok: true,
     brand,
+    environment,
+    cardRoute: environment === 'production' ? 'store' : 'chargx',
     ...(env.CHARGX_PUBLISHABLE_KEY ? { chargxKey: env.CHARGX_PUBLISHABLE_KEY } : {}),
-    ...(env.UPD_CARD_PAYMENT === 'store' ? { storeCardRoute: true as const } : {}),
   }
 }
 
@@ -578,10 +583,14 @@ const UPD_CARD_URL = 'https://www.usapeptidedepot.com/api/checkout/card'
  * with `{ data: { paymentUrl, orderNumber, mode } }`. UPD's server holds the payment key.
  *
  * UPD's developer (20 November 2026): this route is for the live app only and charges REAL cards (`mode:
- * "live"`). This code has no live mode, so a link that isn't marked `mode: "sandbox"` is never handed to the
- * customer; it runs at all only when UPD_CARD_PAYMENT=store, which staging must not set.
+ * "live"`). It is the production card route (checkoutSettings), and production takes no orders until this code
+ * has a live mode. A link whose `mode` doesn't match the environment (`live` in production, `sandbox` anywhere
+ * else) is never handed to the customer.
  */
-export async function startUpdCardPayment(fetchFn: FetchLike, input: { orderNumber: string; paymentToken: string }): Promise<string | undefined> {
+export async function startUpdCardPayment(
+  fetchFn: FetchLike,
+  input: { orderNumber: string; paymentToken: string; environment: AppEnvironment },
+): Promise<string | undefined> {
   try {
     const response = await fetchFn(UPD_CARD_URL, {
       method: 'POST',
@@ -596,8 +605,9 @@ export async function startUpdCardPayment(fetchFn: FetchLike, input: { orderNumb
       console.error(`orders: upd card payment answered ${response.status}`)
       return undefined
     }
-    if (data.mode !== 'sandbox') {
-      console.error('orders: upd card payment is not a sandbox one (it charges real cards); not used')
+    const expectedMode = input.environment === 'production' ? 'live' : 'sandbox'
+    if (data.mode !== expectedMode) {
+      console.error(`orders: upd card payment is not a ${expectedMode} one; not used`)
       return undefined
     }
     if (isAllowedPaymentUrl(paymentUrl, 'upd')) return paymentUrl
@@ -761,13 +771,14 @@ export async function handleOrderRequest(
   req: Request,
   brand: CatalogueBrand,
   env: Record<string, string | undefined>,
+  environment: AppEnvironment,
   fetchFn: FetchLike,
 ): Promise<Response> {
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405, headers: { Allow: 'POST' } })
   if (!isSameOrigin(req)) return new Response('Forbidden', { status: 403 })
   if (!(req.headers.get('content-type') ?? '').startsWith('application/json')) return reply({ ok: false, error: 'invalid', field: 'body' }, 415)
 
-  const settings = checkoutSettings(brand, env)
+  const settings = checkoutSettings(brand, env, environment)
   if (!settings.ok) {
     console.error(`orders: checkout is off for ${brand}: ${settings.reason}`)
     return reply({ ok: false, error: 'checkout-off' }, 503)
@@ -817,8 +828,10 @@ export async function handleOrderRequest(
     let paymentUrl = answer.paymentUrl
     let embedUrl: string | undefined
     if (parsed.request.paymentMethod === 'card') {
-      if (settings.brand === 'upd' && !paymentUrl && settings.storeCardRoute) {
-        if (answer.paymentToken) paymentUrl = await startUpdCardPayment(fetchFn, { orderNumber, paymentToken: answer.paymentToken })
+      if (settings.brand === 'upd' && !paymentUrl && settings.cardRoute === 'store') {
+        if (answer.paymentToken) {
+          paymentUrl = await startUpdCardPayment(fetchFn, { orderNumber, paymentToken: answer.paymentToken, environment: settings.environment })
+        }
         else if (totals?.total !== 0) console.error('orders: upd order reply has no payment token; no card payment started')
         if (paymentUrl) embedUrl = isChargxForm(paymentUrl) ? paymentUrl : await findChargxForward(fetchFn, paymentUrl)
       } else if (settings.brand === 'upd' && !paymentUrl && settings.chargxKey && totals?.total) {

@@ -2978,3 +2978,32 @@ ChargX sandbox.
 **Not checked:**
 - The new history lines and "coming soon" in a browser.
 - Against UPD itself.
+
+## Production vs staging from Netlify's deploy context, not switches (20 November 2026, on `staging`)
+
+Four variables used to answer "is this production or staging?" one switch at a time: `STORE_CHECKOUT`,
+`UPD_LIVE_ORDERS_OK`, `UPD_CARD_PAYMENT` and `VITE_STORE_TEST_SIGNIN`. They are gone; the code now reads Netlify's
+own deploy context (`src/lib/environment.ts`), so there is nothing to set and a production deploy can't claim to be
+staging. The build reads it as `CONTEXT` (`vite.config.ts`, given to the app as `VITE_APP_ENV`); functions read it as
+`context.deploy.context`, because Netlify doesn't give `CONTEXT` to functions at runtime. Earlier sections that
+mention the four variables describe how it worked before this.
+
+| Netlify context | Environment | Orders | Test account | UPD card payment |
+|---|---|---|---|---|
+| `production` | production | refused (no live mode in the code yet) | off | UPD's `/api/checkout/card`, once live mode exists |
+| `branch-deploy` | staging | sandbox credentials only | on | ChargX sandbox |
+| `deploy-preview` | preview | refused, so a PR preview can't send orders to staff | on | — |
+| none / `dev` | development | the local mock store only | on | pretend form |
+
+- **Credentials keep one name everywhere** (`PCR_PARTNER_KEY`, `PCR_SIGNING_SECRET`, `CHARGX_PUBLISHABLE_KEY`, …),
+  with a value per deploy context in Netlify: sandbox values under Branch deploys, nothing under Production until live
+  mode. Outside production a PCR key must still be `pk_sandbox_…`.
+- **`VITE_STORE_ENABLED` stays**: showing the Shop is a business decision, not an environment.
+- **UPD's card route** (real cards) is the production route only; a link whose `mode` doesn't match the environment
+  (`live` in production, `sandbox` elsewhere) is never handed on.
+- **In Netlify:** delete the four variables (they're ignored now, so order doesn't matter), and keep the keys' values
+  under Branch deploys only.
+
+**Checked:** typecheck, lint, tests (`VITE_BRAND=upd`), including each environment's rules and that the old switches
+change nothing. **Not checked:** a deploy; Netlify's docs don't say what `context.deploy.context` is under
+`netlify dev` (this project's local mock doesn't use it).

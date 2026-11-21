@@ -2,6 +2,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig, loadEnv, type Connect, type Plugin } from 'vite'
+import { environmentFromContext } from './src/lib/environment.ts'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -118,7 +119,7 @@ function catalogueApi(brand: BrandConfig): Plugin {
       // The pretend payment form is served from this same local server.
       const env = { ...MOCK_CHECKOUT_ENV, MOCK_PAYMENT_FORM_ORIGIN: `http://${req.headers.host}` }
       void toRequest(req)
-        .then((request) => handleOrderRequest(request, catalogueBrand, env, store.fetchFn))
+        .then((request) => handleOrderRequest(request, catalogueBrand, env, 'development', store.fetchFn))
         .then((response) => send(res, response))
     })
     middlewares.use('/mock-pay.html', (req, res) => {
@@ -247,15 +248,15 @@ function seoFiles(brand: BrandConfig, indexable: boolean): Plugin {
 export default defineConfig(({ mode }) => {
   const brand = getBrand(resolveBrandId(mode))
   const indexable = isIndexable()
-  // The staging test account (src/lib/store/account.ts): only when asked for, and never in a live-site build,
-  // whatever the environment says.
-  const testSignIn = loadEnv(mode, process.cwd(), '').VITE_STORE_TEST_SIGNIN === 'true' && process.env.CONTEXT !== 'production'
+  // From Netlify's deploy context, never a variable (src/lib/environment.ts). The app reads it as VITE_APP_ENV:
+  // e.g. the test account (src/lib/store/account.ts) is never in a live-site build.
+  const environment = environmentFromContext(process.env.CONTEXT)
 
   return {
     publicDir: `public/${brand.id}`,
     define: {
       'import.meta.env.VITE_BRAND': JSON.stringify(brand.id),
-      'import.meta.env.VITE_STORE_TEST_SIGNIN': JSON.stringify(testSignIn ? 'true' : 'false'),
+      'import.meta.env.VITE_APP_ENV': JSON.stringify(environment),
     },
     resolve: {
       alias: {
